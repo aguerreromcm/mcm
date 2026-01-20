@@ -1371,17 +1371,20 @@ sql;
                         ELSE 0
                     END
                 ) AS TOTAL
-            
+                ,CH.HORA_CIERRE
             FROM
                 PAGOSDIA_APP PA
                 INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS
                 INNER JOIN CO  ON CO.CODIGO = PRN.CDGCO
+                INNER JOIN CIERRE_HORARIO CH ON CH.CDGCO = PRN.CDGCO
             WHERE
                 PA.CDGOCPE = :ejecutivo
                 AND PRN.CICLO = PA.CICLO
                 AND PRN.CDGCO = :sucursal
                 AND TRUNC(PA.FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY')
                 AND PA.FOLIO_ENTREGA IMPRIMIR
+            GROUP BY
+                CH.HORA_CIERRE
         SQL;
 
         $params = [
@@ -1771,5 +1774,57 @@ sql;
         } catch (\Exception $e) {
             return self::Responde(false, "Error al obtener los datos para recibo solicitado", null, $e->getMessage());
         }
+    }
+
+    // Temporal para pruebas app
+
+
+    public static function ConsultarPagosFechaSucursalApp($id_sucursal, $Inicial, $Final)
+    {
+
+        if ($id_sucursal) {
+            $valor_sucursal = 'AND NS.CDGCO =' . $id_sucursal;
+        }
+        $query = <<<sql
+        SELECT
+        RG.CODIGO ID_REGION,
+        RG.NOMBRE REGION,
+        NS.CDGCO ID_SUCURSAL,
+        GET_NOMBRE_SUCURSAL(NS.CDGCO) AS NOMBRE_SUCURSAL,
+        PAGOSDIA_APP.SECUENCIA,
+        PAGOSDIA_APP.FECHA,
+        PAGOSDIA_APP.CDGNS,
+        PAGOSDIA_APP.NOMBRE,
+        PAGOSDIA_APP.CICLO,
+        PAGOSDIA_APP.MONTO,
+        TIPO_OPERACION(PAGOSDIA_APP.TIPO) as TIPO,
+        PAGOSDIA_APP.TIPO AS TIP,
+        PAGOSDIA_APP.EJECUTIVO,
+        PAGOSDIA_APP.CDGOCPE,
+        TO_CHAR(PAGOSDIA_APP.FREGISTRO ,'DD/MM/YYYY HH24:MI:SS') AS FREGISTRO,       
+        ----------------PAGOSDIA_APP.FIDENTIFICAPP,
+        TRUNC(FREGISTRO) + 12/24 AS DE,
+        TRUNC(FREGISTRO) + 1 + 12/24 AS HASTA,
+        CASE
+        WHEN FREGISTRO >= TRUNC(FREGISTRO) + 12/24 AND FREGISTRO <=TRUNC(FREGISTRO) + 1 + 12/24 THEN 'SI'
+        Else 'NO'
+        END AS DESIGNATION
+    FROM
+        PAGOSDIA_APP, NS, CO, RG
+    WHERE
+        PAGOSDIA_APP.CDGEM = 'EMPFIN'
+        AND PAGOSDIA_APP.ESTATUS = 'A'
+        AND PAGOSDIA_APP.FECHA BETWEEN TO_DATE('$Inicial', 'YY-mm-dd') AND TO_DATE('$Final', 'YY-mm-dd') 
+        AND NS.CODIGO = PAGOSDIA_APP.CDGNS
+        AND NS.CDGCO = CO.CODIGO 
+        AND CO.CDGRG = RG.CODIGO
+        $valor_sucursal
+    ORDER BY
+        FREGISTRO DESC, SECUENCIA
+sql;
+        $mysqli = new Database();
+
+        //var_dump($query);
+        return $mysqli->queryAll($query);
     }
 }

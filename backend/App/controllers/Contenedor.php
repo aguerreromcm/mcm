@@ -127,6 +127,7 @@ class Contenedor extends Controller
         if ($this->ValidaPermiso($permisos)) {
             $menu .= <<<HTML
             <li><a href="/Pagos/CorteEjecutivo/">PRUEBAS Pagos App</a></li> 
+            <li><a href="/Pagos/PagosConsultaAPP/">Consultar Pagos App (PRUEBAS)</a></li>
             <li><a href="/Pagos/CorteEjecutivoReimprimir/">Reimprimir Recibos App</a></li> 
             HTML;
         }

@@ -1123,6 +1123,7 @@ html;
         View::set('Ejecutivo', $Ejec);
         View::set('inicio_f', $inicio_f);
         View::set('fin_f', $fin_f);
+        View::set('hora_cierre', $hora_cierre);
         View::set('barcode', $barcode);
         View::set('fechaActual', $fechaActual);
         View::set('pagos_efectivo', $pagos_efectivo);
@@ -1241,7 +1242,7 @@ html;
         $cuerpo = <<<HTML
             <div>
                 <div class="header">
-                    <h1>Recibo de Cobranza</h1>
+                    <h1>Recibo de Efectivo</h1>
                 </div>
             
                 <div>
@@ -1652,7 +1653,6 @@ html;
 
     public function PagosEditApp()
     {
-
         $edit = new \stdClass();
 
         $edit->_id_registro = $_POST['id_registro'];
@@ -2709,7 +2709,6 @@ html;
             View::set('footer', $this->_contenedor->footer($extraFooter));
             View::render("pagos_layout_all");
         } else {
-            ///////////////////////////////////////////////////////////////////////////////////
             $tabla = '';
 
             $Layout = PagosDao::GeneraLayoutContable($Inicial, $Final);
@@ -2745,8 +2744,6 @@ html;
                 View::set('footer', $this->_contenedor->footer($extraFooter));
                 View::render("pagos_layout_all");
             }
-
-            ////////////////////////////////////////////////////
         }
     }
 
@@ -2983,5 +2980,189 @@ html;
 
         echo $contenido;
         exit; // Asegurar que el script se detiene después de enviar el archivo
+    }
+
+
+    /// MEtodo temporal para pruebas app
+
+
+    public function PagosConsultaAPP()
+    {
+        $extraHeader = self::GetExtraHeader('Consulta de Pagos');
+
+        $extraFooter = <<<HTML
+        <script>
+            function getParameterByName(name) {
+                name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]")
+                var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+                    results = regex.exec(location.search)
+                return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "))
+            }
+
+            $(document).ready(function () {
+                $("#muestra-cupones").tablesorter()
+                var oTable = $("#muestra-cupones").DataTable({
+                    lengthMenu: [
+                        [13, 50, -1],
+                        [132, 50, "Todos"]
+                    ],
+                    columnDefs: [
+                        {
+                            orderable: false,
+                            targets: 0
+                        }
+                    ],
+                    order: false
+                })
+                // Remove accented character from search input as well
+                $("#muestra-cupones input[type=search]").keyup(function () {
+                    var table = $("#example").DataTable()
+                    table.search(jQuery.fn.DataTable.ext.type.search.html(this.value)).draw()
+                })
+                var checkAll = 0
+
+                fecha1 = getParameterByName("Inicial")
+                fecha2 = getParameterByName("Final")
+                sucursal = getParameterByName("id_sucursal")
+
+                $("#export_excel_consulta").click(function () {
+                    $("#all").attr(
+                        "action",
+                        "/Pagos/generarExcelConsulta/?Inicial=" +
+                            fecha1 +
+                            "&Final=" +
+                            fecha2 +
+                            "&Sucursal=" +
+                            sucursal
+                    )
+                    $("#all").attr("target", "_blank")
+                    $("#all").submit()
+                })
+            })
+
+            function Validar() {
+                fecha1 = moment((document.getElementById("Inicial").innerHTML = inputValue))
+                fecha2 = moment((document.getElementById("Final").innerHTML = inputValue))
+
+                dias = fecha2.diff(fecha1, "days")
+                alert(dias)
+
+                if (dias == 1) {
+                    alert("si es")
+                    return false
+                }
+                return false
+            }
+
+            Inicial.max = new Date().toISOString().split("T")[0]
+            Final.max = new Date().toISOString().split("T")[0]
+
+            function InfoAdmin() {
+                swal("Info", "Este registro fue capturado por una administradora en caja", "info")
+            }
+            function InfoPhone() {
+                swal(
+                    "Info",
+                    "Este registro fue capturado por un ejecutivo en campo y procesado por una administradora",
+                    "info"
+                )
+            }
+
+            id_sucursal = getParameterByName("id_sucursal")
+            if (id_sucursal != "") {
+                const select_e = document.querySelector("#id_sucursal")
+                select_e.value = id_sucursal
+            }
+        </script>
+        HTML;
+
+        $fechaActual = date('Y-m-d');
+        $id_sucursal = $_GET['id_sucursal'];
+        $Inicial = $_GET['Inicial'];
+        $Final = $_GET['Final'];
+
+        $sucursales = PagosDao::ListaSucursales($this->__usuario);
+        $getSucursales = '';
+        if (
+            $this->__perfil == 'ADMIN'
+            || $this->__perfil == 'ACALL'
+            || $this->__usuario == 'PMAB'
+            || $this->__usuario == 'PAES'
+            || $this->__usuario == 'COCS'
+            || $this->__usuario == 'LGFR'
+            || $this->__usuario == 'FECR'
+            || $this->__usuario == 'JACJ'
+            || $this->__usuario == 'CILA'
+            || $this->__usuario == 'VAMA'
+            || $this->__usuario == 'CRME'
+            || $this->__usuario == 'ZEPG'
+            || $this->__usuario == 'LRAF'
+            || $this->__usuario == 'MAAL'
+            || $this->__usuario == 'REHM'
+            || $this->__usuario == 'JUSA'
+            || $this->__usuario == 'MBAE'
+
+        ) {
+            $getSucursales .= '<option value="">TODAS</option>';
+        }
+
+        foreach ($sucursales as $key => $val2) {
+            $getSucursales .= '<option value="' . $val2['ID_SUCURSAL'] . '">' . $val2['SUCURSAL'] . '</option>';
+        }
+
+        if ($Inicial != '' && $Final != '') {
+            $Consulta = PagosDao::ConsultarPagosFechaSucursalApp($id_sucursal, $Inicial, $Final);
+
+            $tabla = '';
+            foreach ($Consulta as $key => $value) {
+                if ($value['FIDENTIFICAPP'] ==  NULL) {
+                    $medio = '<span class="count_top" style="font-size: 25px"><i class="fa fa-female"></i></span>';
+                    $mensaje = 'InfoAdmin();';
+                } else {
+                    $medio = '<span class="count_top" style="font-size: 30px"><i class="fa fa-phone"></i></span>';
+                    $mensaje = 'InfoPhone();';
+                }
+
+                $monto = number_format($value['MONTO'], 2);
+                $tabla .= <<<HTML
+                <tr style="padding: 0px !important;">
+                    <td style="padding: 0px !important;" width="45" nowrap onclick="{$mensaje}">{$medio}</td>
+                     <td style="padding: 0px !important;">{$value['REGION']}</td>
+                    <td style="padding: 0px !important;">{$value['NOMBRE_SUCURSAL']}</td>
+                    <td style="padding: 0px !important;" width="45" nowrap>{$value['SECUENCIA']}</td>
+                    <td style="padding: 0px !important;">{$value['FECHA']}</td>
+                    <td style="padding: 0px !important;">{$value['CDGNS']}</td>
+                    <td style="padding: 0px !important;">{$value['NOMBRE']}</td>
+                    <td style="padding: 0px !important;">{$value['CICLO']}</td>
+                    <td style="padding: 0px !important;">$ {$monto}</td>
+                    <td style="padding: 0px !important;">{$value['TIPO']}</td>
+                    <td style="padding: 0px !important;">{$value['EJECUTIVO']}</td>
+                    <td style="padding: 0px !important;">{$value['FREGISTRO']}</td>
+                </tr>
+                HTML;
+            }
+
+            if ($Consulta[0] == '') {
+                View::set('header', $this->_contenedor->header($extraHeader));
+                View::set('footer', $this->_contenedor->footer($extraFooter));
+                View::set('getSucursales', $getSucursales);
+                View::set('fechaActual', $fechaActual);
+                View::render("pagos_consulta_busqueda_message");
+            } else {
+                View::set('tabla', $tabla);
+                View::set('Inicial', $Inicial);
+                View::set('Final', $Final);
+                View::set('getSucursales', $getSucursales);
+                View::set('header', $this->_contenedor->header($extraHeader));
+                View::set('footer', $this->_contenedor->footer($extraFooter));
+                View::render("pagos_consulta_busqueda_app");
+            }
+        } else {
+            View::set('header', $this->_contenedor->header($extraHeader));
+            View::set('footer', $this->_contenedor->footer($extraFooter));
+            View::set('fechaActual', $fechaActual);
+            View::set('getSucursales', $getSucursales);
+            View::render("pagos_consulta_all_app");
+        }
     }
 }

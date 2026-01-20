@@ -35,7 +35,7 @@
 
                         <div class="card card-danger col-md-12">
                             <ul class="nav navbar-nav navbar-right">
-                                <b style="font-size: 20px; color: #286090;">Su horario de cierre es: | <?= $Administracion[1]['HORA_CIERRE']; ?> a.m. |</b>
+                                <b style="font-size: 20px; color: #286090;">Su horario de cierre es: | <?= $DetalleGlobal['HORA_CIERRE']; ?> a.m. |</b>
                                 <br>
                                 <b>Si su horario es incorrecto o necesita más tiempo, comuníquelo</b>
                                 <br>
