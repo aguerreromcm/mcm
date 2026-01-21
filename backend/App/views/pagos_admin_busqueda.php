@@ -196,7 +196,7 @@ $oculto = $Administracion[0]['TIPO_C'] === 'MAS POR TI' ? 'style="display:none;"
                                         <option <?= $oculto ?> value="B">AHORRO</option>
                                         <option <?= $oculto ?> value="F">AHORRO ELECTRÓNICO</option>
                                         <option <?= $oculto ?> value="E">ABONO AHORRO (AJUSTE)</option>
-                                        <option <?= $oculto ?> value="H">RETIRO AHORRO (AJUSTE)</option>
+                                        <option <?= $oculto ?> value="A">RETIRO AHORRO (AJUSTE)</option>
                                     </select>
                                 </div>
                             </div>
@@ -313,7 +313,7 @@ $oculto = $Administracion[0]['TIPO_C'] === 'MAS POR TI' ? 'style="display:none;"
                                         <option <?= $oculto ?> value="B">AHORRO</option>
                                         <option <?= $oculto ?> value="F">AHORRO ELECTRÓNICO</option>
                                         <option <?= $oculto ?> value="E">ABONO AHORRO (AJUSTE)</option>
-                                        <option <?= $oculto ?> value="H">RETIRO AHORRO (AJUSTE)</option>
+                                        <option <?= $oculto ?> value="A">RETIRO AHORRO (AJUSTE)</option>
                                     </select>
                                 </div>
                             </div>
@@ -430,7 +430,7 @@ $oculto = $Administracion[0]['TIPO_C'] === 'MAS POR TI' ? 'style="display:none;"
                                         <option <?= $oculto ?> value="B">AHORRO</option>
                                         <option <?= $oculto ?> value="F">AHORRO ELECTRÓNICO</option>
                                         <option <?= $oculto ?> value="E">ABONO AHORRO (AJUSTE)</option>
-                                        <option <?= $oculto ?> value="H">RETIRO AHORRO (AJUSTE)</option>
+                                        <option <?= $oculto ?> value="A">RETIRO AHORRO (AJUSTE)</option>
                                     </select>
                                 </div>
                             </div>

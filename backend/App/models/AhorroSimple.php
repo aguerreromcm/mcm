@@ -28,7 +28,7 @@ class AhorroSimple extends Model
                     FROM PAGOSDIA
                     WHERE CDGNS = CA.CDGNS
                         AND ESTATUS = 'A'
-                        AND TIPO IN ('B', 'F', 'E', 'H')
+                        AND TIPO IN ('B', 'F', 'E', 'A')
                 ), 0) AS ABONOS
                 ,NVL((SELECT SUM(RA.CANT_SOLICITADA)
                     FROM RETIROS_AHORRO RA
@@ -71,7 +71,7 @@ class AhorroSimple extends Model
     {
         $qry = <<<SQL
             SELECT * FROM (
-                SELECT CASE PD.TIPO WHEN 'H' THEN 'RETIRO' ELSE 'ABONO' END AS TIPO
+                SELECT CASE PD.TIPO WHEN 'A' THEN 'RETIRO' ELSE 'ABONO' END AS TIPO
                     ,TIPO_OPERACION(PD.TIPO) AS DESCRIPCION
                     ,TO_CHAR(PD.FECHA, 'DD/MM/YYYY') AS APLICACION
                     ,TO_CHAR(PD.FREGISTRO, 'DD/MM/YYYY HH24:MI:SS') AS REGISTRO
@@ -80,7 +80,7 @@ class AhorroSimple extends Model
                 FROM PAGOSDIA PD
                 WHERE PD.CDGEM = 'EMPFIN'
                     AND PD.ESTATUS = 'A'
-                    AND PD.TIPO IN ('B' ,'F', 'E', 'H')
+                    AND PD.TIPO IN ('B' ,'F', 'E', 'A')
                     AND PD.CDGNS = :credito
                 UNION
                 SELECT 'RETIRO' AS TIPO

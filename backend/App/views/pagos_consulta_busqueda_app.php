@@ -218,7 +218,7 @@
         "AHORRO": "B",
         "AHORRO ELECTRÓNICO": "F",
         "ABONO AHORRO (AJUSTE)": "E",
-        "RETIRO AHORRO (AJUSTE)": "H"
+        "RETIRO AHORRO (AJUSTE)": "A"
 
     };
 

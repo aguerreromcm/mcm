@@ -147,7 +147,7 @@ class Pagos extends Controller
                                 text: "ABONO AHORRO (AJUSTE)"
                             }),
                             $("<option>", {
-                                value: "H",
+                                value: "A",
                                 text: "RETIRO AHORRO (AJUSTE)"
                             })
                         )
@@ -192,7 +192,7 @@ class Pagos extends Controller
                                 text: "ABONO AHORRO (AJUSTE)"
                             }),
                             $("<option>", {
-                                value: "H",
+                                value: "A",
                                 text: "RETIRO AHORRO (AJUSTE)"
                             })
                         )
@@ -219,7 +219,7 @@ class Pagos extends Controller
 					"AHORRO ELECTRÓNICO": "F",
 					"PAGO EXCEDENTE ELECTRÓNICO": "O",
                     "ABONO AHORRO (AJUSTE)": "E",
-                    "RETIRO AHORRO (AJUSTE)": "H"
+                    "RETIRO AHORRO (AJUSTE)": "A"
 				};
 
                 const muestraAdmin = (e) => {
