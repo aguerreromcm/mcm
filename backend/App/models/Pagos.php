@@ -807,13 +807,41 @@ sql;
         return [$consulta, $consulta_horario, $consulta_dia_festivo];
     }
 
-    public static function ConsultarCierreCajaCajera($user)
+    public static function CierreCaja($datos)
     {
+        $qry = 'SELECT * FROM CIERRE_HORARIO WHERE CDGPE = :usuario';
 
-        $mysqli = new Database();
-        $query_horario = "SELECT * FROM CIERRE_HORARIO WHERE CDGPE = '$user'";
+        $prms = [':usuario' => $datos['usuario']];
 
-        return $mysqli->queryOne($query_horario);
+        try {
+            $db = new Database();
+            $res = $db->queryOne($qry, $prms);
+            return self::Responde(true, "Hora de cierre obtenida", $res);
+        } catch (\Exception $e) {
+            return self::Responde(false, "Error al obtener la hora de cierre", null, $e->getMessage());
+        }
+    }
+
+    public static function DiasFestivos()
+    {
+        $qry = <<<SQL
+            SELECT 
+                TO_CHAR(FECHA, 'YYYY-mm-dd') AS FECHA
+            FROM 
+                DIAS_FESTIVOS
+            WHERE 
+                FECHA BETWEEN TRUNC(SYSDATE) - 7 AND TRUNC(SYSDATE) + 7
+            ORDER BY 
+                FECHA ASC
+        SQL;
+
+        try {
+            $db = new Database();
+            $res = $db->queryAll($qry);
+            return self::Responde(true, "Días festivos obtenidos", $res);
+        } catch (\Exception $e) {
+            return self::Responde(false, "Error al obtener los días festivos", null, $e->getMessage());
+        }
     }
 
     public static function ActualizacionCredito($noCredito)
@@ -1209,7 +1237,7 @@ sql;
     public static function GetPagosApp()
     {
         $qry = <<<SQL
-            SELECT (COD_SUC || '{$_SESSION['usuario']}' || COMP_BARRA) AS BARRAS
+            SELECT (COD_SUC || '{$_SESSION['usuario']}' || TO_CHAR(SYSDATE, 'DDMMYYYYHH24MISS')) AS BARRAS
               ,COD_SUC
               ,SUCURSAL
               ,COUNT(NOMBRE) AS NUM_PAGOS
@@ -1217,58 +1245,42 @@ sql;
               ,FECHA_D
               ,FECHA
               ,CDGOCPE
-              
-              -- 🔥 TOTALES
               ,SUM(TOTAL_PAGO) AS TOTAL_PAGOS
               ,SUM(MULTA + MULTA_ELECTRONICA + MULTA_GESTORES) AS TOTAL_MULTA
               ,SUM(SEGURO) AS TOTAL_SEGURO
               ,SUM(AHORRO + AHORRO_ELECTRONICO) AS TOTAL_AHORRO
               ,SUM(MONTO) AS MONTO_TOTAL
-        
             FROM (
-                SELECT TO_CHAR(SYSDATE, 'DDMMYYYYHH24MISS') AS COMP_BARRA
-                      ,CO.CODIGO AS COD_SUC
-                      ,CO.NOMBRE AS SUCURSAL
-                      ,PA.EJECUTIVO AS NOMBRE
-                      ,TO_CHAR(PA.FECHA, 'DAY', 'NLS_DATE_LANGUAGE=SPANISH') 
-                           || '- ' || TO_CHAR(PA.FECHA, 'DD-MON-YYYY') AS FECHA_D
-                      ,TO_CHAR(PA.FECHA, 'DD-MM-YYYY') AS FECHA
-        
-                      -- PAGOS (todos los tipos)
-                      ,DECODE(PA.TIPO, 'P', MONTO, 0) AS PAGOS
-                      ,DECODE(PA.TIPO, 'X', MONTO, 0) AS PAGOS_ELECTRONICOS
-                      ,DECODE(PA.TIPO, 'Y', MONTO, 0) AS PAGOS_EXCEDENTE
-                      ,DECODE(PA.TIPO, 'O', MONTO, 0) AS PAGOS_EXCEDENTE_ELECTRONICO
-        
-                      -- SUMA de todos los tipos de pago
-                      ,DECODE(PA.TIPO,
-                              'P', MONTO,
-                              'X', MONTO,
-                              'Y', MONTO,
-                              'O', MONTO,
-                              0) AS TOTAL_PAGO
-        
-                      -- MULTAS
-                      ,DECODE(PA.TIPO, 'M', MONTO, 0) AS MULTA
-                      ,DECODE(PA.TIPO, 'Z', MONTO, 0) AS MULTA_GESTORES
-                      ,DECODE(PA.TIPO, 'L', MONTO, 0) AS MULTA_ELECTRONICA
-        
-                      -- SEGURO
-                      ,DECODE(PA.TIPO, 'S', MONTO, 0) AS SEGURO
-        
-                      -- AHORRO
-                      ,DECODE(PA.TIPO, 'B', MONTO, 0) AS AHORRO
-                      ,DECODE(PA.TIPO, 'F', MONTO, 0) AS AHORRO_ELECTRONICO
-        
-                      ,PA.MONTO
-                      ,PA.CDGOCPE
+                SELECT CO.CODIGO AS COD_SUC
+                    ,CO.NOMBRE AS SUCURSAL
+                    ,PA.EJECUTIVO AS NOMBRE
+                    ,TO_CHAR(PA.FECHA, 'DAY', 'NLS_DATE_LANGUAGE=SPANISH') 
+                        || ' | ' || TO_CHAR(PA.FECHA, 'DD-MON-YYYY') AS FECHA_D
+                    ,TO_CHAR(PA.FECHA, 'DD-MM-YYYY') AS FECHA
+                    ,DECODE(PA.TIPO, 'P', MONTO, 0) AS PAGOS
+                    ,DECODE(PA.TIPO, 'X', MONTO, 0) AS PAGOS_ELECTRONICOS
+                    ,DECODE(PA.TIPO, 'Y', MONTO, 0) AS PAGOS_EXCEDENTE
+                    ,DECODE(PA.TIPO, 'O', MONTO, 0) AS PAGOS_EXCEDENTE_ELECTRONICO
+                    ,DECODE(PA.TIPO,
+                            'P', MONTO,
+                            'X', MONTO,
+                            'Y', MONTO,
+                            'O', MONTO,
+                            0) AS TOTAL_PAGO
+                    ,DECODE(PA.TIPO, 'M', MONTO, 0) AS MULTA
+                    ,DECODE(PA.TIPO, 'Z', MONTO, 0) AS MULTA_GESTORES
+                    ,DECODE(PA.TIPO, 'L', MONTO, 0) AS MULTA_ELECTRONICA
+                    ,DECODE(PA.TIPO, 'S', MONTO, 0) AS SEGURO
+                    ,DECODE(PA.TIPO, 'B', MONTO, 0) AS AHORRO
+                    ,DECODE(PA.TIPO, 'F', MONTO, 0) AS AHORRO_ELECTRONICO
+                    ,PA.MONTO
+                    ,PA.CDGOCPE
                 FROM PAGOSDIA_APP PA
-                     INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS
-                     INNER JOIN CO  ON CO.CODIGO = PRN.CDGCO
-        
+                    INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS
+                    INNER JOIN CO  ON CO.CODIGO = PRN.CDGCO
                 WHERE NVL(PA.ESTATUS_CAJA, 0) != 2
-                  AND PRN.CICLO = PA.CICLO
-                  AND PRN.CDGCO = CO.CODIGO
+                    AND PRN.CICLO = PA.CICLO
+                    AND PRN.CDGCO = CO.CODIGO
             )
             FILTRO_SUCURSAL
             GROUP BY NOMBRE
@@ -1277,7 +1289,7 @@ sql;
                 ,CDGOCPE
                 ,COD_SUC
                 ,SUCURSAL
-                ,COMP_BARRA
+            ORDER BY TO_DATE(FECHA, 'DD-MM-YYYY')
         SQL;
 
         // Se añade excepcion temporal para el usuario FLHR que apoya con las pruebas
@@ -1600,19 +1612,14 @@ sql;
 
     public static function ProcesarPagosApp($datos)
     {
-        $qry_1 = <<<SQL
-            INSERT INTO FOLIO_APP
-            (ID_FOLIO_APP, FOLIO, CORTECAJA_PAGOSDIA_PK, FECHA_REGISTRO)
-            VALUES(FOLIO_APP_I.nextval, :barcode, :secuencia, CURRENT_TIMESTAMP)
-        SQL;
-
-        $qry_2 = <<<SQL
+        $qry = <<<SQL
             UPDATE
                 PAGOSDIA_APP
             SET  ESTATUS_CAJA = 2
                 , FPROCESAPAGO = SYSDATE
                 , FAPLICACION = TO_DATE(:fecha_aplicacion, 'YYYY-MM-DD')
                 , FOLIO_ENTREGA = :barcode
+                , CDGPE = :cdgpe
             WHERE
                 TRUNC(FECHA) = TO_DATE(:fecha, 'DD/MM/YYYY')
                 AND CDGNS = :grupo
@@ -1625,12 +1632,7 @@ sql;
         try {
             $db = new Database();
             foreach ($datos['pagos'] as $pago) {
-                $qrys[] = $qry_1;
-                $params[] = [
-                    'barcode' => $datos['barcode'],
-                    'secuencia' => $pago['secuencia']
-                ];
-                $qrys[] = $qry_2;
+                $qrys[] = $qry;
                 $params[] = [
                     'fecha' => $pago['fecha'],
                     'grupo' => $pago['grupo'],
@@ -1638,6 +1640,7 @@ sql;
                     'secuencia' => $pago['secuencia'],
                     'fecha_aplicacion' => $datos['fechaAplicacion'],
                     'barcode' => $datos['barcode'],
+                    'cdgpe' => $datos['cdgpe'],
                 ];
             }
 
@@ -1703,18 +1706,6 @@ sql;
             'ejecutivo' => $datos['cdgpe'] ?? null,
         ];
 
-        $qry_folio = <<<SQL
-            SELECT
-                FOLIO
-                , TO_CHAR(TRUNC(FECHA_REGISTRO), 'DD/MM/YYYY') AS FECHA_REGISTRO
-            FROM
-                FOLIO_APP FA
-            WHERE
-                FA.FOLIO = :folio
-            GROUP BY
-                FOLIO, TRUNC(FECHA_REGISTRO)
-        SQL;
-
         $params_folio = [
             'folio' => $datos['barcode'] ?? null,
         ];
@@ -1730,10 +1721,7 @@ sql;
             $ejecutivo = $db->queryOne($qry_ejecutivo, $params_ejecutivo);
             if (!$ejecutivo) return self::Responde(false, "No se encontró el ejecutivo para el recibo solicitado", null);
 
-            $folio = $db->queryOne($qry_folio, $params_folio);
-            if (!$folio) return self::Responde(false, "No se encontró el folio para el recibo solicitado", null);
-
-            $resultado = array_merge($monto, $sucursal, $ejecutivo, $folio);
+            $resultado = array_merge($monto, $sucursal, $ejecutivo);
 
             return self::Responde(true, "Datos para recibo obtenidos", $resultado);
         } catch (\Exception $e) {

@@ -30,20 +30,19 @@
                             </div>
                         </div>
                     </div>
-                    <div class="dataTable_wrapper">
-                        <hr>
-
-                        <div class="card card-danger col-md-12">
-                            <ul class="nav navbar-nav navbar-right">
-                                <b style="font-size: 20px; color: #286090;">Su horario de cierre es: | <?= $DetalleGlobal['HORA_CIERRE']; ?> a.m. |</b>
-                                <br>
-                                <b>Si su horario es incorrecto o necesita más tiempo, comuníquelo</b>
-                                <br>
-                                <b>al área correspondiente.</b>
-                            </ul>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-9">
+                            <p><b><span class="fa fa-sticky-note">&nbsp;</span>Nota:Si ya valido el pago y es correcto marque la casilla (Validado)</b></p>
                         </div>
-                        <p><b><span class="fa fa-sticky-note"></span> Nota:Si ya valido el pago y es correcto marque la casilla (Validado)</b></p>
-                        <hr style="border-top: 1px solid #787878; margin-top: 5px;">
+                        <div class="col-md-3">
+                            <b style="font-size: 20px; color: #286090;">Su horario de cierre es: <?= $DetalleGlobal['HORA_CIERRE']; ?> a.m.</b>
+                            <br>
+                            Si su horario es incorrecto o necesita más tiempo, comuníquelo al área correspondiente.
+                        </div>
+                    </div>
+                    <hr style="border-top: 1px solid #787878; margin-top: 5px;">
+                    <div class="dataTable_wrapper">
                         <table class="table table-striped table-bordered table-hover" id="muestra-cupones">
                             <thead>
                                 <tr>
@@ -118,7 +117,6 @@
                                     ?>
 
                                     <option value="R">REFINANCIAMIENTO</option>
-                                    <!--  <option value="H">RECOMIENDA</option> -->
                                     <option value="S">SEGURO</option>
                                     <option value="B">AHORRO</option>
                                     <option value="F">AHORRO ELECTRÓNICO</option>
@@ -172,7 +170,7 @@
                             <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="Fecha">Fecha de Aplicación</label>
-                                    <input onkeydown="return false" type="date" class="form-control" id="Fecha" name="Fecha" min="<?= $inicio_f; ?>" max="<?= $fin_f; ?>" value="<?= $inicio_f; ?>">
+                                    <input onkeydown="return false" type="date" class="form-control" id="Fecha" name="Fecha" min="<?= $f_anterior; ?>" max="<?= $f_actual; ?>" value="<?= $f_valor; ?>">
                                     <small id="emailHelp" class="form-text text-muted">Fecha de registro en sistema.</small>
                                 </div>
                             </div>

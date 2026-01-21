@@ -806,6 +806,7 @@ html;
 
                 const boton_terminar = (barcode) => {
                     const fechaAplicacion = $("#Fecha").val()
+                    const cdgpe = "{$_GET['ejecutivo']}"
                     const filas = $("#terminar_resumen tbody tr")
                     const pagos = []
 
@@ -816,7 +817,6 @@ html;
                         const grupo = celdas.eq(2).text().trim()
                         const ciclo = celdas.eq(3).text().trim()
 
-
                         pagos.push({
                             secuencia,
                             fecha,
@@ -825,7 +825,7 @@ html;
                         })
                     })
 
-                    consultaServidor("/Pagos/ProcesarPagosApp/", {barcode, fechaAplicacion, pagos}, (respuesta) => {
+                    consultaServidor("/Pagos/ProcesarPagosApp/", {barcode, cdgpe, fechaAplicacion, pagos}, (respuesta) => {
                         if (!respuesta.success) return showError(respuesta.message)
 
                         showSuccess("Corte registrado exitosamente").then(() => {
@@ -892,19 +892,6 @@ html;
         } else {
             $ejecutivo = $_GET['ejecutivo'];
             $barcode = $_GET['barcode'];
-            $cierreCaja = PagosDao::ConsultarCierreCajaCajera($this->__usuario);
-            $hora_cierre = $cierreCaja[1]['HORA_CIERRE'] == '' ? '10:00:00' : $cierreCaja[1]['HORA_CIERRE'];
-            $fechaActual = date("Y-m-d");
-            $inicio_f = $fechaActual;
-            $fin_f = $fechaActual;
-
-            if (date("H:i:s") <= $hora_cierre) {
-                $dias = date("N") == 1 ? '-3 days' : '-1 days';
-                $date_past = strtotime($dias, strtotime($fechaActual));
-                $date_past = date('Y-m-d', $date_past);
-                $inicio_f = $date_past;
-                $fin_f = $date_past;
-            }
 
             $etiquetas_pago = [
                 'P' => 'PAGO',
@@ -1103,6 +1090,12 @@ html;
                         }
                     }
 
+                    $cierreCaja = PagosDao::CierreCaja(['usuario' => $_SESSION['usuario']]);
+                    $festivos = self::GetFestivos(PagosDao::DiasFestivos()['datos'] ?? []);
+
+                    $horaCierre = $cierreCaja['success'] ? $cierreCaja['datos']['HORA_CIERRE'] : '10:00:00';
+                    $f_actual = date("Y-m-d");
+                    $f_anterior = date("H:i:s") <= $horaCierre ? self::DiaHabilAnterior($f_actual, $festivos) : $f_actual;
                     $vista = $procesados ? 'view_pagos_app_detalle_imprimir' : 'view_pagos_app_detalle';
                 } else {
                     $vista = 'view_pagos_app_detalle';
@@ -1118,11 +1111,11 @@ html;
         View::set('tabla_resumen', $tabla_resumen);
         View::set('DetalleGlobal', $detalleGlobal);
         View::set('Ejecutivo', $Ejec);
-        View::set('inicio_f', $inicio_f);
-        View::set('fin_f', $fin_f);
-        View::set('hora_cierre', $hora_cierre);
+        View::set('f_anterior', $f_anterior);
+        View::set('f_actual', $f_actual);
+        View::set('f_valor', $f_anterior);
+        View::set('hora_cierre', $horaCierre);
         View::set('barcode', $barcode);
-        View::set('fechaActual', $fechaActual);
         View::set('pagos_efectivo', $pagos_efectivo);
         View::render($vista);
     }
@@ -1137,6 +1130,26 @@ html;
     {
         $res = PagosDao::ActualizaInfoPagoApp($_POST);
         echo json_encode($res);
+    }
+
+    public function GetFestivos($diasFestivos)
+    {
+        $festivos = [];
+        foreach ($diasFestivos as $key => $value) {
+            $festivos[] = $value['FECHA'];
+        }
+
+        return $festivos;
+    }
+
+    public function DiaHabilAnterior($fecha, $festivos)
+    {
+        $dia = date('Y-m-d', strtotime($fecha . ' -1 day'));
+        if (in_array($dia, $festivos) || date('N', strtotime($dia)) >= 6) {
+            return $this->DiaHabilAnterior($dia, $festivos);
+        }
+
+        return $dia;
     }
 
     public function Ticket()
@@ -1737,25 +1750,6 @@ html;
 
                     agregarPago()
                 }
-
-                // const agregarPago = () => {
-                    // texto = $("#ejecutivo :selected").text()
-                    // $.ajax({
-                    //     type: "POST",
-                    //     url: "/Pagos/PagosAdd/",
-                    //     data: $("#Add").serialize() + "&ejec=" + texto,
-                    //     success: (respuesta) => {
-                    //         if (respuesta === "1 Proceso realizado exitosamente") {
-                    //             showSuccess("Registro guardado exitosamente")
-                    //             location.reload()
-                    //         } else {
-                    //             $("#modal_agregar_pago").modal("hide")
-                    //             $("#monto").val("")
-                    //             showError(respuesta)
-                    //         }
-                    //     }
-                    // })
-                // }
 
                 const agregarPago = () => {
                     let texto = $("#ejecutivo :selected").text()
