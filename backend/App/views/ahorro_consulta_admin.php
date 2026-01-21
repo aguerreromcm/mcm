@@ -28,7 +28,7 @@
         </div>
         <hr>
         <div class="panel-body resultado">
-            <div class="row">
+            <div class="row" style="padding-bottom: 25px;">
                 <table class="table table-striped table-bordered table-hover" id="retiros">
                     <thead>
                         <tr>
