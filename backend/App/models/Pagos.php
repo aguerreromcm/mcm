@@ -934,7 +934,6 @@ sql;
         $tipo_procedure_ = 1;
         $fecha_aux = "";
 
-
         $mysqli = new Database();
         return $mysqli->queryProcedurePago($credito_i, $ciclo_i, $monto_i, $tipo_i, $nombre_i, $user_i,  $ejecutivo_i, $ejecutivo_nombre_i,  $tipo_procedure_, $fecha_aux, "", $fecha_i);
     }

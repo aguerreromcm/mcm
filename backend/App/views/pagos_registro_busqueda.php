@@ -1,7 +1,7 @@
 <?= $header; ?>
 
 <?php
-$oculto = $Administracion[0]['TIPO_C'] === 'MAS POR TI' ? 'style="display:none;"' : '';
+$oculto = $Administracion[0]['TIPO_C'] === 'MAS POR TI' || $Administracion[0]['SITUACION'] !== 'E' ? 'style="display:none;"' : '';
 ?>
 
 <div class="right_col">
