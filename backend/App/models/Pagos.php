@@ -1304,15 +1304,12 @@ sql;
     {
         $qry = <<<SQL
             SELECT
-                -- Total de pagos con ESTATUS A
-                SUM(DECODE(PA.ESTATUS, 'A', 1, 0)) AS TOTAL_PAGOS_TOTAL,
-            
                 -- Total validados
                 SUM(
                     CASE 
                         WHEN NVL(PA.ESTATUS_CAJA,0) <> 0 
                             AND PA.ESTATUS = 'A'
-                            AND NVL(PA.TIPO_NUEVO, PA.TIPO) IN ('P','X','Y','O','M','Z','L','S','B','F')
+                            AND NVL(PA.TIPO_ORIGINAL, PA.TIPO) IN ('P','X','Y','O','M','Z','L','S','B','F')
                         THEN 1
                         ELSE 0
                     END
@@ -1329,45 +1326,21 @@ sql;
                 -- Total de pagos por tipo
                 SUM(
                     CASE 
-                        WHEN NVL(PA.TIPO_NUEVO, PA.TIPO) IN ('P','X','Y','O','M','Z','L','S','B','F')
+                        WHEN PA.TIPO IN ('P','X','Y','O','M','Z','L','S','B','F')
                             AND PA.ESTATUS = 'A'
                         THEN 1
                         ELSE 0
                     END
                 ) AS TOTAL_PAGOS,
             
-                -- Total montos sin modificación
-                SUM(
-                    CASE 
-                        WHEN NVL(PA.ESTATUS_CAJA,0) = 1 
-                            AND PA.INCIDENCIA = 0
-                            AND NVL(PA.TIPO_NUEVO, PA.TIPO) IN ('P','X','Y','O','M','Z','L','S','B','F')
-                            AND PA.ESTATUS = 'A'
-                        THEN PA.MONTO
-                        ELSE 0
-                    END
-                ) AS TOTAL_MONT_SIN_MOD,
-            
-                -- Total montos modificados
-                SUM(
-                    CASE 
-                        WHEN NVL(PA.ESTATUS_CAJA,0) <> 0
-                            AND PA.INCIDENCIA = 1
-                            AND NVL(PA.TIPO_NUEVO, PA.TIPO) IN ('P','X','Y','O','M','Z','L','S','B','F')
-                            AND PA.ESTATUS = 'A'
-                        THEN TO_NUMBER(PA.NUEVO_MONTO)
-                        ELSE 0
-                    END
-                ) AS TOTAL_NUEVOS_MONTOS,
-            
                 --  TOTAL REAL SIN DUPLICAR
                 SUM(
                     CASE
                         WHEN PA.ESTATUS = 'A'
-                            AND NVL(PA.TIPO_NUEVO, PA.TIPO) IN ('P','X','Y','O','M','Z','L','S','B','F')
+                            AND PA.TIPO IN ('P','X','Y','O','M','Z','L','S','B','F')
                             AND NVL(PA.ESTATUS_CAJA,0) <> 0
                         THEN
-                            NVL(PA.NUEVO_MONTO, PA.MONTO)
+                            PA.MONTO
                         ELSE 0
                     END
                 ) AS TOTAL
@@ -1425,21 +1398,16 @@ sql;
                 ,PA.FACTUALIZA
                 ,PA.MONTO
                 ,PA.TIPO
-                ,PA.TIPO_NUEVO
+                ,PA.TIPO_ORIGINAL
                 ,PA.INCIDENCIA
-                ,PA.NUEVO_MONTO
+                ,PA.MONTO_ORIGINAL
                 ,UPPER(PA.COMENTARIOS_EJECUTIVO) AS COMENTARIOS_EJECUTIVO
                 ,PA.COMENTARIOS_INCIDENCIA
                 ,PA.ESTATUS_CAJA
                 ,TO_CHAR(PA.FREGISTRO, 'DD/MM/YYYY HH24:MI:SS') AS FREGISTRO
                 ,TO_CHAR(PA.FREGISTRO_APP, 'DD/MM/YYYY HH24:MI:SS') AS FREGISTRO_APP
                 ,PRN.SITUACION
-                ,CASE NVL(PA.ESTATUS_CAJA, 0)
-                    WHEN '0' THEN 'PENDIENTE'
-                    WHEN '1' THEN 'VALIDADO'
-                    WHEN '2' THEN 'PROCESADO'
-                    ELSE 'DESCONOCIDO'
-                END AS ESTATUS_CAJA_NOMBRE
+                ,DECODE(NVL(PA.ESTATUS_CAJA, 0), '0', 'PENDIENTE', '1', 'VALIDADO', '2', 'PROCESADO', 'DESCONOCIDO') AS ESTATUS_CAJA_NOMBRE
             FROM
                 PAGOSDIA_APP PA
                 INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS
@@ -1493,9 +1461,9 @@ sql;
                 ,PA.FACTUALIZA
                 ,PA.MONTO
                 ,PA.TIPO
-                ,PA.TIPO_NUEVO
+                ,PA.TIPO_ORIGINAL
                 ,PA.INCIDENCIA
-                ,PA.NUEVO_MONTO
+                ,PA.MONTO_ORIGINAL
                 ,PA.COMENTARIOS_EJECUTIVO
                 ,PA.ESTATUS_CAJA
                 ,TO_CHAR(PA.FREGISTRO, 'DD/MM/YYYY HH24:MI:SS') AS FREGISTRO
@@ -1526,9 +1494,9 @@ sql;
                 ,PA.FACTUALIZA
                 ,0 AS MONTO
                 ,PA.TIPO
-                ,PA.TIPO_NUEVO
+                ,PA.TIPO_ORIGINAL
                 ,PA.INCIDENCIA
-                ,PA.NUEVO_MONTO
+                ,PA.MONTO_ORIGINAL
                 ,PA.COMENTARIOS_EJECUTIVO
                 ,PA.ESTATUS_CAJA
                 ,TO_CHAR(PA.FREGISTRO, 'DD/MM/YYYY HH24:MI:SS') AS FREGISTRO
@@ -1597,8 +1565,10 @@ sql;
         $qry = <<<SQL
             UPDATE PAGOSDIA_APP
             SET 
-                TIPO_NUEVO = CASE WHEN :tipo = TIPO THEN TIPO_NUEVO ELSE :tipo END
-                , NUEVO_MONTO = CASE WHEN TO_NUMBER(:nuevo_monto) = MONTO THEN NUEVO_MONTO ELSE TO_NUMBER(:nuevo_monto) END
+                TIPO = :tipo
+                , MONTO = :monto
+                , TIPO_ORIGINAL = DECODE(TIPO_ORIGINAL, NULL, DECODE(TIPO, :tipo, TIPO_ORIGINAL, TIPO), TIPO_ORIGINAL)
+                , MONTO_ORIGINAL = DECODE(MONTO_ORIGINAL, NULL, DECODE(MONTO, :monto, MONTO_ORIGINAL, MONTO), MONTO_ORIGINAL)
                 , COMENTARIOS_INCIDENCIA = :comentario
                 , INCIDENCIA = 1
                 , FACTUALIZA = SYSDATE
@@ -1611,7 +1581,7 @@ sql;
 
         $params = [
             'tipo' => $datos['tipo'] ?? null,
-            'nuevo_monto' => $datos['nuevo_monto'] ?? null,
+            'monto' => $datos['monto'] ?? null,
             'comentario' => $datos['comentario'] ?? null,
             'fecha' => $datos['fecha'] ?? null,
             'grupo' => $datos['grupo'] ?? null,
@@ -1637,7 +1607,8 @@ sql;
         SQL;
 
         $qry_2 = <<<SQL
-            UPDATE PAGOSDIA_APP
+            UPDATE
+                PAGOSDIA_APP
             SET  ESTATUS_CAJA = 2
                 , FPROCESAPAGO = SYSDATE
                 , FAPLICACION = TO_DATE(:fecha_aplicacion, 'YYYY-MM-DD')
@@ -1683,20 +1654,14 @@ sql;
             SELECT
                 TO_CHAR(TRUNC(FECHA), 'DD/MM/YYYY') AS FECHA,
                 TO_CHAR(TRUNC(FAPLICACION), 'DD/MM/YYYY') AS APLICACION,
-                SUM(
-                    CASE 
-                        WHEN PA.NUEVO_MONTO IS NOT NULL
-                            THEN PA.NUEVO_MONTO 
-                            ELSE PA.MONTO 
-                    END
-                ) AS MONTO,
+                SUM(PA.MONTO) AS MONTO,
                 PA.FOLIO_ENTREGA
             FROM
                 PAGOSDIA_APP PA
                 INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS
             WHERE
                 PA.FOLIO_ENTREGA = :folio_entrega
-                AND NVL(PA.TIPO_NUEVO, PA.TIPO) IN ('P', 'Y', 'M', 'Z', 'S', 'B') -- ('P','X','Y','O','M','Z','L','S','B','F')
+                AND NVL(PA.TIPO_ORIGINAL, PA.TIPO) IN ('P', 'Y', 'M', 'Z', 'S', 'B') -- ('P','X','Y','O','M','Z','L','S','B','F')
                 AND PRN.CICLO = PA.CICLO
                 AND NVL(PA.ESTATUS_CAJA, 0) = 2
             GROUP BY

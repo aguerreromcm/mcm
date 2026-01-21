@@ -705,7 +705,7 @@ html;
                     $("#ciclo").val(pago.CICLO)
                     $("#secuencia").val(pago.SECUENCIA)
 
-                    $("#nuevo_monto").val(pago.INCIDENCIA == 1 ? pago.NUEVO_MONTO : pago.MONTO)
+                    $("#nuevo_monto").val(pago.MONTO)
                     $("#monto_detalle").val(parseFloat(pago.MONTO).toLocaleString("es-MX", { style: "currency", currency: "MXN" }))
                     $("#comentario_detalle").val(pago.COMENTARIOS_INCIDENCIA)
                     $("#tipo_pago_detalle").val(pago.TIPO)
@@ -719,8 +719,7 @@ html;
                         grupo: $("#grupo").val(),
                         ciclo: $("#ciclo").val(),
                         secuencia: $("#secuencia").val(),
-                        monto_original: $("#monto_detalle").val().replace(/[$,]/g, ''),
-                        nuevo_monto: $("#nuevo_monto").val(),
+                        monto: $("#nuevo_monto").val(),
                         comentario: $("#comentario_detalle").val(),
                         tipo: $("#tipo_pago_detalle").val()
                     }
@@ -739,8 +738,6 @@ html;
                                 }
                             })
                         })
-
-                    
                 }
 
                 const check_pagos = (fecha, grupo, ciclo, secuencia) => {
@@ -949,13 +946,13 @@ html;
                 foreach ($pagos['datos'] as $key => $value) {
                     $Ejec = $value['EJECUTIVO'];
                     $tipo_pago = $etiquetas_pago[$value['TIPO']] ?? "DESCONOCIDO ({$value['TIPO']})";
-                    $nuevo_tipo_pago = $etiquetas_pago[$value['TIPO_NUEVO']] ?? "DESCONOCIDO ({$value['TIPO_NUEVO']})";
+                    $tipo_pago_original = $etiquetas_pago[$value['TIPO_ORIGINAL']] ?? "DESCONOCIDO ({$value['TIPO_ORIGINAL']})";
                     $monto = number_format($value['MONTO'], 2);
-                    $nuevo_monto = number_format($value['NUEVO_MONTO'], 2);
+                    $monto_original = number_format($value['MONTO_ORIGINAL'], 2);
                     $secuencia = $value['SECUENCIA'];
                     $selected = $value['ESTATUS_CAJA'] == 1 ? 'checked' : '';
-                    $lbl_tipo = $value['TIPO_NUEVO'] ? '<div><del>' . $tipo_pago . '</del></div><div"><b>' . $nuevo_tipo_pago . '</b></div>' : '<div"><b>' . $tipo_pago . '</b></div>';
-                    $campo = !is_null($value['NUEVO_MONTO']) ? '<div><del>$' . $monto . '</del></div> <div style="font-size: 20px!important;"> $' . $nuevo_monto . '</div>' : '<div style="font-size: 20px!important;">$' . $monto . '</div>';
+                    $lbl_tipo = $value['TIPO_ORIGINAL'] ? '<div><del>' . $tipo_pago_original . '</del></div><div"><b>' . $tipo_pago . '</b></div>' : '<div"><b>' . $tipo_pago . '</b></div>';
+                    $campo = !is_null($value['MONTO_ORIGINAL']) ? '<div><del>$' . $monto_original . '</del></div> <div style="font-size: 20px!important;"> $' . $monto . '</div>' : '<div style="font-size: 20px!important;">$' . $monto . '</div>';
                     $color_celda = "background-color: #FFC733 !important;";
                     $check_visible = 'display:none;';
 
@@ -964,7 +961,7 @@ html;
                         $check_visible = '';
                     }
 
-                    $tipo = $value['INCIDENCIA'] == 1 && $value['TIPO_NUEVO'] ? $value['TIPO_NUEVO'] : $value['TIPO'];
+                    $tipo = $value['TIPO'];
                     if (in_array($tipo, ['X', 'O', 'L', 'F'])) $pagos_electronico++;
                     else $pagos_efectivo++;
 

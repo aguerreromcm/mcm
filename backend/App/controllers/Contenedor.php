@@ -167,7 +167,6 @@ class Contenedor extends Controller
             $menu .= '<li><a href="/AhorroSimple/Contrato/">Alta Contrato</a></li>';
         }
 
-
         $permisos = ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'LFGR', 'MGJC', 'MAPH'];
         if ($this->ValidaPermiso($permisos)) {
             $menu .= '<li><a href="/AhorroSimple/EstadoCuenta/">Estado de Cuenta Ahorro</a></li>';
@@ -197,7 +196,6 @@ class Contenedor extends Controller
         if ($this->ValidaPermiso($persmisos)) {
             $menu .= '<li><a href="/Creditos/ControlGarantias/">Control de Garantías</a></li>';
         }
-
 
         $persmisos = ['ADMIN', 'ORHM', 'MAPH'];
         if ($this->ValidaPermiso($persmisos)) {
