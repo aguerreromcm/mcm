@@ -1655,22 +1655,24 @@ sql;
     {
         $qry_monto = <<<SQL
             SELECT
-                TO_CHAR(TRUNC(FECHA), 'DD/MM/YYYY') AS FECHA,
-                TO_CHAR(TRUNC(FAPLICACION), 'DD/MM/YYYY') AS APLICACION,
-                SUM(PA.MONTO) AS MONTO,
-                PA.FOLIO_ENTREGA
+                TO_CHAR(TRUNC(FECHA), 'DD/MM/YYYY') AS FECHA
+                ,TO_CHAR(TRUNC(FAPLICACION), 'DD/MM/YYYY') AS APLICACION
+                ,TO_CHAR(TRUNC(FPROCESAPAGO), 'DD/MM/YYYY') AS FECHA_ENTREGA
+                ,SUM(PA.MONTO) AS MONTO
+                ,PA.FOLIO_ENTREGA AS FOLIO
             FROM
                 PAGOSDIA_APP PA
                 INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS
             WHERE
                 PA.FOLIO_ENTREGA = :folio_entrega
-                AND NVL(PA.TIPO_ORIGINAL, PA.TIPO) IN ('P', 'Y', 'M', 'Z', 'S', 'B') -- ('P','X','Y','O','M','Z','L','S','B','F')
+                AND NVL(PA.TIPO_ORIGINAL, PA.TIPO) IN ('P', 'Y', 'M', 'Z', 'S', 'B')
                 AND PRN.CICLO = PA.CICLO
                 AND NVL(PA.ESTATUS_CAJA, 0) = 2
             GROUP BY
                 TO_CHAR(TRUNC(FECHA), 'DD/MM/YYYY')
-                , TO_CHAR(TRUNC(FAPLICACION), 'DD/MM/YYYY')
-                , PA.FOLIO_ENTREGA
+                ,TO_CHAR(TRUNC(FAPLICACION), 'DD/MM/YYYY')
+                ,TO_CHAR(TRUNC(FPROCESAPAGO), 'DD/MM/YYYY')
+                ,PA.FOLIO_ENTREGA
         SQL;
 
         $params_monto = [
@@ -1704,10 +1706,6 @@ sql;
 
         $params_ejecutivo = [
             'ejecutivo' => $datos['cdgpe'] ?? null,
-        ];
-
-        $params_folio = [
-            'folio' => $datos['barcode'] ?? null,
         ];
 
         try {

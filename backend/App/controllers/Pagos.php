@@ -1262,7 +1262,7 @@ html;
             
                 <div>
                     <span>FECHA DE ENTREGA SUC:</span>
-                    <span><b>{$datos['FECHA_REGISTRO']}</b></span>
+                    <span><b>{$datos['FECHA_ENTREGA']}</b></span>
                 </div>
                 
                 <div class="content-section">
