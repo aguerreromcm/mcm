@@ -28,12 +28,17 @@ class AhorroSimple extends Model
                     FROM PAGOSDIA
                     WHERE CDGNS = CA.CDGNS
                         AND ESTATUS = 'A'
-                        AND TIPO IN ('B', 'F', 'E', 'A')
+                        AND TIPO IN ('B', 'F', 'E')
                 ), 0) AS ABONOS
                 ,NVL((SELECT SUM(RA.CANT_SOLICITADA)
                     FROM RETIROS_AHORRO RA
                     WHERE RA.CDGNS = CA.CDGNS
-                    AND RA.ESTATUS = 'E'
+                    AND RA.ESTATUS = 'E'), 0) +
+                    NVL((SELECT SUM(MONTO)
+                    FROM PAGOSDIA
+                    WHERE CDGNS = CA.CDGNS
+                        AND ESTATUS = 'A'
+                        AND TIPO = 'A'
                 ), 0) AS RETIROS
                 ,NVL((SELECT SUM(RA.CANT_SOLICITADA)
                     FROM RETIROS_AHORRO RA

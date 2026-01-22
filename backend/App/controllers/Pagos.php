@@ -3106,18 +3106,12 @@ html;
 
             $tabla = '';
             foreach ($Consulta as $key => $value) {
-                if ($value['FIDENTIFICAPP'] ==  NULL) {
-                    $medio = '<span class="count_top" style="font-size: 25px"><i class="fa fa-female"></i></span>';
-                    $mensaje = 'InfoAdmin();';
-                } else {
-                    $medio = '<span class="count_top" style="font-size: 30px"><i class="fa fa-phone"></i></span>';
-                    $mensaje = 'InfoPhone();';
-                }
+                $icono = ($value['MEDIO'] == 'APP') ? 'mobile' : 'female';
 
                 $monto = number_format($value['MONTO'], 2);
                 $tabla .= <<<HTML
                 <tr style="padding: 0px !important;">
-                    <td style="padding: 0px !important;" width="45" nowrap onclick="{$mensaje}">{$medio}</td>
+                    <td style="padding: 0px !important;" width="45"><span class="count_top" style="font-size: 25px"><i class="fa fa-{$icono}"></i></span></td>
                      <td style="padding: 0px !important;">{$value['REGION']}</td>
                     <td style="padding: 0px !important;">{$value['NOMBRE_SUCURSAL']}</td>
                     <td style="padding: 0px !important;" width="45" nowrap>{$value['SECUENCIA']}</td>
