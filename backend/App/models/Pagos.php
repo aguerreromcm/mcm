@@ -609,7 +609,7 @@ sql;
         PAGOSDIA.EJECUTIVO,
         PAGOSDIA.CDGOCPE,
         TO_CHAR(PAGOSDIA.FREGISTRO ,'DD/MM/YYYY HH24:MI:SS') AS FREGISTRO,       
-        ----------------PAGOSDIA.FIDENTIFICAPP,
+        CASE WHEN NOT FREGISTRO_APP IS NULL THEN 'APP' ELSE 'OTRO' END AS MEDIO,
         TRUNC(FREGISTRO) + 12/24 AS DE,
         TRUNC(FREGISTRO) + 1 + 12/24 AS HASTA,
         CASE
@@ -1280,6 +1280,7 @@ sql;
                 WHERE NVL(PA.ESTATUS_CAJA, 0) != 2
                     AND PRN.CICLO = PA.CICLO
                     AND PRN.CDGCO = CO.CODIGO
+                    AND PA.ESTATUS = 'P'
             )
             FILTRO_SUCURSAL
             GROUP BY NOMBRE
@@ -1318,9 +1319,9 @@ sql;
                 -- Total validados
                 SUM(
                     CASE 
-                        WHEN NVL(PA.ESTATUS_CAJA,0) <> 0 
-                            AND PA.ESTATUS = 'A'
+                        WHEN PA.ESTATUS = 'P'
                             AND NVL(PA.TIPO_ORIGINAL, PA.TIPO) IN ('P','X','Y','O','M','Z','L','S','B','F')
+                            AND NVL(PA.ESTATUS_CAJA,0) <> 0 
                         THEN 1
                         ELSE 0
                     END
@@ -1337,8 +1338,8 @@ sql;
                 -- Total de pagos por tipo
                 SUM(
                     CASE 
-                        WHEN PA.TIPO IN ('P','X','Y','O','M','Z','L','S','B','F')
-                            AND PA.ESTATUS = 'A'
+                        WHEN PA.ESTATUS = 'P'
+                            AND PA.TIPO IN ('P','X','Y','O','M','Z','L','S','B','F')
                         THEN 1
                         ELSE 0
                     END
@@ -1347,7 +1348,7 @@ sql;
                 --  TOTAL REAL SIN DUPLICAR
                 SUM(
                     CASE
-                        WHEN PA.ESTATUS = 'A'
+                        WHEN PA.ESTATUS = 'P'
                             AND PA.TIPO IN ('P','X','Y','O','M','Z','L','S','B','F')
                             AND NVL(PA.ESTATUS_CAJA,0) <> 0
                         THEN
@@ -1366,6 +1367,7 @@ sql;
                 AND PRN.CICLO = PA.CICLO
                 AND PRN.CDGCO = :sucursal
                 AND TRUNC(PA.FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY')
+                AND PA.ESTATUS = 'P'
                 AND PA.FOLIO_ENTREGA IMPRIMIR
             GROUP BY
                 CH.HORA_CIERRE
@@ -1428,6 +1430,7 @@ sql;
                 AND TRUNC(PA.FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY')
                 AND PRN.CICLO = PA.CICLO
                 AND PRN.CDGCO = :sucursal
+                AND PA.ESTATUS = 'P'
                 AND PA.FOLIO_ENTREGA IMPRIMIR
             ORDER BY
                 DECODE(PA.TIPO, 'P', 1, 'M', 2, 'G', 3, 'D', 4, 'R', 5) ASC, PA.FREGISTRO
@@ -1614,11 +1617,12 @@ sql;
         $qry = <<<SQL
             UPDATE
                 PAGOSDIA_APP
-            SET  ESTATUS_CAJA = 2
-                , FPROCESAPAGO = SYSDATE
-                , FAPLICACION = TO_DATE(:fecha_aplicacion, 'YYYY-MM-DD')
-                , FOLIO_ENTREGA = :barcode
-                , CDGPE = :cdgpe
+            SET  FECHA = TO_DATE(:fecha_aplicacion, 'YYYY-MM-DD')
+                ,ESTATUS = 'A'
+                ,ESTATUS_CAJA = 2
+                ,FPROCESAPAGO = SYSDATE
+                ,FOLIO_ENTREGA = :barcode
+                ,CDGPE = :cdgpe
             WHERE
                 TRUNC(FECHA) = TO_DATE(:fecha, 'DD/MM/YYYY')
                 AND CDGNS = :grupo
@@ -1634,10 +1638,10 @@ sql;
                 $qrys[] = $qry;
                 $params[] = [
                     'fecha' => $pago['fecha'],
+                    'fecha_aplicacion' => $pago['fechaAplicacion'],
                     'grupo' => $pago['grupo'],
                     'ciclo' => $pago['ciclo'],
                     'secuencia' => $pago['secuencia'],
-                    'fecha_aplicacion' => $datos['fechaAplicacion'],
                     'barcode' => $datos['barcode'],
                     'cdgpe' => $datos['cdgpe'],
                 ];
@@ -1724,57 +1728,5 @@ sql;
         } catch (\Exception $e) {
             return self::Responde(false, "Error al obtener los datos para recibo solicitado", null, $e->getMessage());
         }
-    }
-
-    // Temporal para pruebas app
-
-
-    public static function ConsultarPagosFechaSucursalApp($id_sucursal, $Inicial, $Final)
-    {
-
-        if ($id_sucursal) {
-            $valor_sucursal = 'AND NS.CDGCO =' . $id_sucursal;
-        }
-        $query = <<<sql
-            SELECT
-                RG.CODIGO ID_REGION,
-                RG.NOMBRE REGION,
-                NS.CDGCO ID_SUCURSAL,
-                GET_NOMBRE_SUCURSAL(NS.CDGCO) AS NOMBRE_SUCURSAL,
-                PAGOSDIA_APP.SECUENCIA,
-                PAGOSDIA_APP.FECHA,
-                PAGOSDIA_APP.CDGNS,
-                PAGOSDIA_APP.NOMBRE,
-                PAGOSDIA_APP.CICLO,
-                PAGOSDIA_APP.MONTO,
-                TIPO_OPERACION(PAGOSDIA_APP.TIPO) as TIPO,
-                PAGOSDIA_APP.TIPO AS TIP,
-                PAGOSDIA_APP.EJECUTIVO,
-                PAGOSDIA_APP.CDGOCPE,
-                TO_CHAR(PAGOSDIA_APP.FREGISTRO ,'DD/MM/YYYY HH24:MI:SS') AS FREGISTRO,       
-                CASE WHEN NOT FREGISTRO_APP IS NULL THEN 'APP' ELSE 'OTRO' END AS MEDIO,
-                TRUNC(FREGISTRO) + 12/24 AS DE,
-                TRUNC(FREGISTRO) + 1 + 12/24 AS HASTA,
-                CASE
-                WHEN FREGISTRO >= TRUNC(FREGISTRO) + 12/24 AND FREGISTRO <=TRUNC(FREGISTRO) + 1 + 12/24 THEN 'SI'
-                Else 'NO'
-                END AS DESIGNATION
-            FROM
-                PAGOSDIA_APP, NS, CO, RG
-            WHERE
-                PAGOSDIA_APP.CDGEM = 'EMPFIN'
-                AND PAGOSDIA_APP.ESTATUS = 'A'
-                AND PAGOSDIA_APP.FECHA BETWEEN TO_DATE('$Inicial', 'YY-mm-dd') AND TO_DATE('$Final', 'YY-mm-dd') 
-                AND NS.CODIGO = PAGOSDIA_APP.CDGNS
-                AND NS.CDGCO = CO.CODIGO 
-                AND CO.CDGRG = RG.CODIGO
-                $valor_sucursal
-            ORDER BY
-                FREGISTRO DESC, SECUENCIA
-        sql;
-
-        $mysqli = new Database();
-        //var_dump($query);
-        return $mysqli->queryAll($query);
     }
 }

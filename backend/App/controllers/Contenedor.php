@@ -126,8 +126,7 @@ class Contenedor extends Controller
         $permisos = ['ADMIN', 'FLHR', 'HEDC', 'JULM', 'CRCV', 'LUMM', 'EMGL', 'PEAE', 'MCDP', 'LVGA'];
         if ($this->ValidaPermiso($permisos)) {
             $menu .= <<<HTML
-            <li><a href="/Pagos/CorteEjecutivo/">PRUEBAS Pagos App</a></li> 
-            <li><a href="/Pagos/PagosConsultaAPP/">Consultar Pagos App (PRUEBAS)</a></li>
+            <li><a href="/Pagos/CorteEjecutivo/">Pagos App</a></li>
             <li><a href="/Pagos/CorteEjecutivoReimprimir/">Reimprimir Recibos App</a></li> 
             HTML;
         }
@@ -174,6 +173,7 @@ class Contenedor extends Controller
             $menu .= '<li><a href="/AhorroConsulta/">Solicitudes Retiro</a></li>';
         }
 
+        // Permisos temporales para pruebas de retiro de ahorro a 'LVGA', 'MCDP' y 'FLHR'
         $permisos = ['ADMIN', 'LVGA', 'MCDP', 'FLHR'];
         if ($this->ValidaPermiso($permisos)) {
             $menu .= '<li><a href="/Ahorro/SolicitudesRetiroAdmin/">Gestión de Retiros</a></li>';
