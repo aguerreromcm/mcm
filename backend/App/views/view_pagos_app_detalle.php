@@ -167,14 +167,6 @@
                 <div class="container-fluid">
                     <form onsubmit="enviar_add_edit_app(); return false" id="Add_Edit_Pago">
                         <div class="row">
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label for="Fecha">Fecha de Aplicación</label>
-                                    <input onkeydown="return false" type="date" class="form-control" id="Fecha" name="Fecha" min="<?= $f_anterior; ?>" max="<?= $f_actual; ?>" value="<?= $f_valor; ?>">
-                                    <small id="emailHelp" class="form-text text-muted">Fecha de registro en sistema.</small>
-                                </div>
-                            </div>
-
                             <div class="col-md-4" style="display: none">
                                 <div class="form-group">
                                     <input type="text" class="form-control" id="usuario" name="usuario" value="<?= $usuario; ?>">
@@ -206,10 +198,10 @@
                                     <thead>
                                         <tr style="color:#000 !important; text-align:center;">
                                             <th style="display: none; color:#000 !important; text-align:center;"></th>
-                                            <th style="display: none; color:#000 !important; text-align:center;"></th>
-                                            <th style="color:#000 !important;">Cliente</th>
+                                            <th style="color:#000 !important; text-align:center; width: 100px;">Fecha</th>
+                                            <th style="color:#000 !important; text-align:center;">Cliente</th>
                                             <th style="color:#000 !important; text-align:center;">Ciclo</th>
-                                            <th style="color:#000 !important; ">Nombre</th>
+                                            <th style="color:#000 !important; text-align:center;">Nombre</th>
                                             <th style="color:#000 !important; text-align:center;">Tipo</th>
                                             <th style="color:#000 !important; text-align:center;">Monto</th>
                                         </tr>

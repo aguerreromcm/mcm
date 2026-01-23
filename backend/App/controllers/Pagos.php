@@ -805,7 +805,6 @@ html;
                 }
 
                 const boton_terminar = (barcode) => {
-                    const fechaAplicacion = $("#Fecha").val()
                     const cdgpe = "{$_GET['ejecutivo']}"
                     const filas = $("#terminar_resumen tbody tr")
                     const pagos = []
@@ -813,7 +812,8 @@ html;
                     filas.each(function() {
                         const celdas = $(this).find('td');
                         const secuencia = celdas.eq(0).text().trim()
-                        const fecha = celdas.eq(1).text().trim()
+                        const fechaAplicacion = celdas.eq(1).find('input[type="date"]').val();
+                        const fecha = celdas.eq(1).find('input[type="hidden"]').val();
                         const grupo = celdas.eq(2).text().trim()
                         const ciclo = celdas.eq(3).text().trim()
 
@@ -893,6 +893,11 @@ html;
         } else {
             $ejecutivo = $_GET['ejecutivo'];
             $barcode = $_GET['barcode'];
+            $cierreCaja = PagosDao::CierreCaja(['usuario' => $_SESSION['usuario']]);
+            $festivos = self::GetFestivos(PagosDao::DiasFestivos()['datos'] ?? []);
+            $horaCierre = $cierreCaja['success'] ? $cierreCaja['datos']['HORA_CIERRE'] : '10:00:00';
+            $f_actual = date("Y-m-d");
+            $f_anterior = date("H:i:s") >= $horaCierre ? self::DiaHabilAnterior($f_actual, $festivos) : $f_actual;
 
             $etiquetas_pago = [
                 'P' => 'PAGO',
@@ -927,7 +932,6 @@ html;
             }
 
             $pagos = PagosDao::GetPagosAppEjecutivoDetalle($_GET);
-
             if ($pagos['success']) {
                 $pagos_efectivo = 0;
                 $pagos_electronico = 0;
@@ -1063,27 +1067,28 @@ html;
                                     <td style="display: none; padding: 10px !important; background: #9d9d9d; color:#000 !important;">
                                         {$value_resumen['SECUENCIA']}
                                     </td>
-                                    <td style="display: none; padding: 10px !important; background: #9d9d9d; color:#000 !important;">
-                                        {$value_resumen['FECHA']}
+                                    <td style="vertical-align: middle;">
+                                        <input type="date" name="fechaAplicacion" value="{$f_anterior}" min="{$f_anterior}" max="{$f_actual}" />
+                                        <input type="hidden" name="fecha" value="{$value_resumen['FECHA']}" />
                                     </td>
                             
-                                    <td id="codigo" style="text-align: left; padding: 3px !important; color:#000 !important;">
+                                    <td style="vertical-align: middle;">
                                         <b>{$value_resumen['CDGNS']}</b>
                                     </td>
                             
-                                    <td id="ciclo" style="padding: 3px !important; color:#000 !important;">
+                                    <td style="vertical-align: middle;">
                                         <b>{$value_resumen['CICLO']}</b>
                                     </td>
                             
-                                    <td id="nombre" style="text-align: left; padding: 3px !important; color:#000 !important;">
+                                    <td style="vertical-align: middle; text-align: left;">
                                         {$value_resumen['NOMBRE']}
                                     </td>
                             
-                                    <td id="tipo" style="padding: 3px !important; color:#000 !important;">
+                                    <td style="vertical-align: middle;">
                                         {$tipo_pago}
                                     </td>
                             
-                                    <td id="monto" style="background: #173b00; color: #fdfdfd; padding: 3px !important; width:94px !important;">
+                                    <td style="background: #173b00; color: #fdfdfd; vertical-align: middle;">
                                         <b>{$monto}</b>
                                     </td>
                                 </tr>
@@ -1091,12 +1096,6 @@ html;
                         }
                     }
 
-                    $cierreCaja = PagosDao::CierreCaja(['usuario' => $_SESSION['usuario']]);
-                    $festivos = self::GetFestivos(PagosDao::DiasFestivos()['datos'] ?? []);
-
-                    $horaCierre = $cierreCaja['success'] ? $cierreCaja['datos']['HORA_CIERRE'] : '10:00:00';
-                    $f_actual = date("Y-m-d");
-                    $f_anterior = date("H:i:s") <= $horaCierre ? self::DiaHabilAnterior($f_actual, $festivos) : $f_actual;
                     $vista = $procesados ? 'view_pagos_app_detalle_imprimir' : 'view_pagos_app_detalle';
                 } else {
                     $vista = 'view_pagos_app_detalle';
@@ -1112,9 +1111,6 @@ html;
         View::set('tabla_resumen', $tabla_resumen);
         View::set('DetalleGlobal', $detalleGlobal);
         View::set('Ejecutivo', $Ejec);
-        View::set('f_anterior', $f_anterior);
-        View::set('f_actual', $f_actual);
-        View::set('f_valor', $f_anterior);
         View::set('hora_cierre', $horaCierre);
         View::set('barcode', $barcode);
         View::set('pagos_efectivo', $pagos_efectivo);
