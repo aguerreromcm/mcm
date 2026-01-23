@@ -1491,6 +1491,7 @@ sql;
                 AND PA.TIPO IN ('P','X','Y','O','M','Z','L','S','B','F')
                 AND PRN.CICLO = PA.CICLO
                 AND PRN.CDGCO = :sucursal
+                AND PA.ESTATUS = 'P'
                 AND NVL(PA.ESTATUS_CAJA, 0) <> 0
                 AND PA.FOLIO_ENTREGA IS NULL
             UNION
@@ -1524,6 +1525,7 @@ sql;
                 AND PA.TIPO IN ('P','X','Y','O','M','Z','L','S','B','F')
                 AND PRN.CICLO = PA.CICLO
                 AND PRN.CDGCO = :sucursal
+                AND PA.ESTATUS = 'P'
                 AND NVL(PA.ESTATUS_CAJA, 0) = 0
                 AND PA.FOLIO_ENTREGA IS NULL
         SQL;
