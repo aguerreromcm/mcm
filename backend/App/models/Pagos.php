@@ -1316,39 +1316,32 @@ sql;
     {
         $qry = <<<SQL
             SELECT
-                -- Total validados
                 SUM(
                     CASE 
-                        WHEN PA.ESTATUS = 'P'
+                        WHEN PA.ESTATUS <> 'E'
                             AND NVL(PA.TIPO_ORIGINAL, PA.TIPO) IN ('P','X','Y','O','M','Z','L','S','B','F')
                             AND NVL(PA.ESTATUS_CAJA,0) <> 0 
                         THEN 1
                         ELSE 0
                     END
                 ) AS TOTAL_VALIDADOS,
-
-                -- Total validados
                 SUM(
                     CASE 
                         WHEN NVL(PA.ESTATUS_CAJA,0) = 2 THEN 1
                         ELSE 0
                     END
                 ) AS TOTAL_PROCESADOS,
-            
-                -- Total de pagos por tipo
                 SUM(
                     CASE 
-                        WHEN PA.ESTATUS = 'P'
+                        WHEN PA.ESTATUS <> 'E'
                             AND PA.TIPO IN ('P','X','Y','O','M','Z','L','S','B','F')
                         THEN 1
                         ELSE 0
                     END
                 ) AS TOTAL_PAGOS,
-            
-                --  TOTAL REAL SIN DUPLICAR
                 SUM(
                     CASE
-                        WHEN PA.ESTATUS = 'P'
+                        WHEN PA.ESTATUS <> 'E'
                             AND PA.TIPO IN ('P','X','Y','O','M','Z','L','S','B','F')
                             AND NVL(PA.ESTATUS_CAJA,0) <> 0
                         THEN
@@ -1367,8 +1360,7 @@ sql;
                 AND PRN.CICLO = PA.CICLO
                 AND PRN.CDGCO = :sucursal
                 AND TRUNC(PA.FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY')
-                AND PA.ESTATUS = 'P'
-                AND PA.FOLIO_ENTREGA IMPRIMIR
+                IMPRIMIR
             GROUP BY
                 CH.HORA_CIERRE
         SQL;
@@ -1380,10 +1372,10 @@ sql;
         ];
 
         if (isset($datos['imprimir'])) {
-            $qry = str_replace('IMPRIMIR', '= :folio_entrega', $qry);
+            $qry = str_replace('IMPRIMIR', 'AND PA.FOLIO_ENTREGA = :folio_entrega', $qry);
             $params['folio_entrega'] = $datos['barcode'] ?? null;
         } else {
-            $qry = str_replace('IMPRIMIR', 'IS NULL', $qry);
+            $qry = str_replace('IMPRIMIR', "AND PA.ESTATUS = 'P' AND PA.FOLIO_ENTREGA IS NULL", $qry);
         }
 
         try {
@@ -1430,7 +1422,7 @@ sql;
                 AND TRUNC(PA.FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY')
                 AND PRN.CICLO = PA.CICLO
                 AND PRN.CDGCO = :sucursal
-                AND PA.ESTATUS = 'P'
+                AND PA.ESTATUS <> 'E'
                 AND PA.FOLIO_ENTREGA IMPRIMIR
             ORDER BY
                 DECODE(PA.TIPO, 'P', 1, 'M', 2, 'G', 3, 'D', 4, 'R', 5) ASC, PA.FREGISTRO
