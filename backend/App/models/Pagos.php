@@ -1359,7 +1359,6 @@ sql;
                 PA.CDGOCPE = :ejecutivo
                 AND PRN.CICLO = PA.CICLO
                 AND PRN.CDGCO = :sucursal
-                AND TRUNC(PA.FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY')
                 IMPRIMIR
             GROUP BY
                 CH.HORA_CIERRE
@@ -1367,7 +1366,6 @@ sql;
 
         $params = [
             'ejecutivo' => $datos['ejecutivo'] ?? null,
-            'fecha' => $datos['fecha'] ?? null,
             'sucursal' => $datos['sucursal'] ?? null,
         ];
 
@@ -1375,7 +1373,8 @@ sql;
             $qry = str_replace('IMPRIMIR', 'AND PA.FOLIO_ENTREGA = :folio_entrega', $qry);
             $params['folio_entrega'] = $datos['barcode'] ?? null;
         } else {
-            $qry = str_replace('IMPRIMIR', "AND PA.ESTATUS = 'P' AND PA.FOLIO_ENTREGA IS NULL", $qry);
+            $qry = str_replace('IMPRIMIR', "AND TRUNC(PA.FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY') AND PA.ESTATUS <> 'E' AND PA.FOLIO_ENTREGA IS NULL", $qry);
+            $params['fecha'] = $datos['fecha'] ?? null;
         }
 
         try {
@@ -1419,26 +1418,25 @@ sql;
                 INNER JOIN CO ON CO.CODIGO = PRN.CDGCO
             WHERE
                 PA.CDGOCPE = :ejecutivo
-                AND TRUNC(PA.FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY')
                 AND PRN.CICLO = PA.CICLO
                 AND PRN.CDGCO = :sucursal
                 AND PA.ESTATUS <> 'E'
-                AND PA.FOLIO_ENTREGA IMPRIMIR
+                IMPRIMIR
             ORDER BY
                 DECODE(PA.TIPO, 'P', 1, 'M', 2, 'G', 3, 'D', 4, 'R', 5) ASC, PA.FREGISTRO
         SQL;
 
         $params = [
             'ejecutivo' => $datos['ejecutivo'] ?? null,
-            'fecha' => $datos['fecha'] ?? null,
             'sucursal' => $datos['sucursal'] ?? null,
         ];
 
         if (isset($datos['imprimir'])) {
-            $qry = str_replace('IMPRIMIR', '= :folio_entrega', $qry);
+            $qry = str_replace('IMPRIMIR', 'AND PA.FOLIO_ENTREGA = :folio_entrega', $qry);
             $params['folio_entrega'] = $datos['barcode'] ?? null;
         } else {
-            $qry = str_replace('IMPRIMIR', 'IS NULL', $qry);
+            $qry = str_replace('IMPRIMIR', " AND TRUNC(PA.FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY') AND PA.FOLIO_ENTREGA IS NULL", $qry);
+            $params['fecha'] = $datos['fecha'] ?? null;
         }
 
         try {
@@ -1652,9 +1650,7 @@ sql;
     {
         $qry_monto = <<<SQL
             SELECT
-                TO_CHAR(TRUNC(FECHA), 'DD/MM/YYYY') AS FECHA
-                ,TO_CHAR(TRUNC(FAPLICACION), 'DD/MM/YYYY') AS APLICACION
-                ,TO_CHAR(TRUNC(FPROCESAPAGO), 'DD/MM/YYYY') AS FECHA_ENTREGA
+                TO_CHAR(TRUNC(FPROCESAPAGO), 'DD/MM/YYYY') AS FECHA_ENTREGA
                 ,SUM(PA.MONTO) AS MONTO
                 ,PA.FOLIO_ENTREGA AS FOLIO
             FROM
@@ -1662,13 +1658,12 @@ sql;
                 INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS
             WHERE
                 PA.FOLIO_ENTREGA = :folio_entrega
+                AND PA.ESTATUS = 'A'
                 AND NVL(PA.TIPO_ORIGINAL, PA.TIPO) IN ('P', 'Y', 'M', 'Z', 'S', 'B')
                 AND PRN.CICLO = PA.CICLO
                 AND NVL(PA.ESTATUS_CAJA, 0) = 2
             GROUP BY
-                TO_CHAR(TRUNC(FECHA), 'DD/MM/YYYY')
-                ,TO_CHAR(TRUNC(FAPLICACION), 'DD/MM/YYYY')
-                ,TO_CHAR(TRUNC(FPROCESAPAGO), 'DD/MM/YYYY')
+                TO_CHAR(TRUNC(FPROCESAPAGO), 'DD/MM/YYYY')
                 ,PA.FOLIO_ENTREGA
         SQL;
 

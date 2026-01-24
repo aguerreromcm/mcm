@@ -1274,7 +1274,7 @@ html;
                 </div>
 
                 <div class="content-section">
-                    <p>Por concepto de recolección de <b>pagos varios</b> con aplicación a la fecha {$datos['APLICACION']}.
+                    <p>Por concepto de recolección de <b>PAGOS VARIOS</b>.
                     </p>
                 </div>
                 
