@@ -123,6 +123,11 @@ class Contenedor extends Controller
             $menu .= '<li><a href="/Pagos/">Administración Pagos</a></li>';
         }
 
+        $permisos = ['FLHR'];
+        if ($this->ValidaPermiso($permisos)) {
+            $menu .= '<li><a href="/Pagos_temporal/CorteEjecutivo/">Pagos App (DEMO)</a></li>';
+        }
+
         $permisos = ['ADMIN', 'FLHR', 'HEDC', 'JULM', 'CRCV', 'LUMM', 'EMGL', 'PEAE', 'MCDP', 'LVGA'];
         if ($this->ValidaPermiso($permisos)) {
             $menu .= <<<HTML

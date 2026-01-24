@@ -7,10 +7,10 @@ defined("APPPATH") or die("Access denied");
 use Core\View;
 use Core\MasterDom;
 use Core\Controller;
-use App\models\Pagos as PagosDao;
+use App\models\Pagos_temporal as PagosDao;
 use App\models\CallCenter as CallCenterDao;
 
-class Pagos extends Controller
+class Pagos_temporal extends Controller
 {
     private $_contenedor;
 
@@ -52,7 +52,7 @@ class Pagos extends Controller
                         if (!continuar) return
                         $.ajax({
                             type: "POST",
-                            url: "/Pagos/Delete/",
+                            url: "/Pagos_temporal/Delete/",
                             data: { cdgns: credito, fecha: fecha, secuencia: secuencia, usuario: user },
                             success: (response) => {
                                 if (response !== "1 Proceso realizado exitosamente") showError(response)
@@ -75,7 +75,7 @@ class Pagos extends Controller
                     texto = $("#ejecutivo :selected").text()
                     $.ajax({
                         type: "POST",
-                        url: "/Pagos/PagosAdd/",
+                        url: "/Pagos_temporal/PagosAdd/",
                         data: $("#Add").serialize() + "&ejec=" + texto,
                         success: (respuesta) => {
                             if (respuesta === "1 Proceso realizado exitosamente") {
@@ -102,7 +102,7 @@ class Pagos extends Controller
                     texto = $("#ejecutivo_e :selected").text()
                     $.ajax({
                         type: "POST",
-                        url: "/Pagos/PagosEdit/",
+                        url: "/Pagos_temporal/PagosEdit/",
                         data: $("#Edit").serialize() + "&ejec_e=" + texto,
                         success: function (respuesta) {
                             if (respuesta === "1 Proceso realizado exitosamente") {
@@ -257,7 +257,7 @@ class Pagos extends Controller
                     let url
 
                     if (tipo == 0) {
-                        url = "/Pagos/PagosEditAdmin/"
+                        url = "/Pagos_temporal/PagosEditAdmin/"
                         datos.append("_secuencia", $("#secuencia_admin").val())
                         datos.append("_credito", $("#cdgns_admin").val())
                         datos.append("_ciclo", $("#ciclo_admin").val())
@@ -270,7 +270,7 @@ class Pagos extends Controller
                         datos.append("_ejecutivo", $("#ejecutivo_admin").val())
                         datos.append("_ejecutivo_nombre", $("#ejecutivo_admin option:selected").text())
                     } else {
-                        url = "/Pagos/DeleteAdmin/"
+                        url = "/Pagos_temporal/DeleteAdmin/"
                         datos.append("cdgns", $("#cdgns_admin").val())
                         datos.append("secuencia", $("#secuencia_admin").val())
                         datos.append("fecha", $("#Fecha_admin_r").val())
@@ -471,7 +471,7 @@ html;
                     
                     $.ajax({
                     type: 'POST',
-                    url: '/Pagos/HorariosAdd/',
+                    url: '/Pagos_temporal/HorariosAdd/',
                     data: $('#Add_AHC').serialize(),
                     success: function(respuesta) {
                          if(respuesta=='1'){
@@ -497,7 +497,7 @@ html;
           
                     $.ajax({
                     type: 'POST',
-                    url: '/Pagos/HorariosUpdate/',
+                    url: '/Pagos_temporal/HorariosUpdate/',
                     data: $('#Update_AHC').serialize(),
                     success: function(respuesta) {
                          if(respuesta=='1'){
@@ -659,7 +659,7 @@ html;
                     } else {
                         $.ajax({
                             type: "POST",
-                            url: "/Pagos/HorariosAdd/",
+                            url: "/Pagos_temporal/HorariosAdd/",
                             data: $("#Add_AHC").serialize(),
                             success: function (respuesta) {
                                 if (respuesta == "1") {
@@ -681,7 +681,7 @@ html;
                 function enviar_update_horario() {
                     $.ajax({
                         type: "POST",
-                        url: "/Pagos/HorariosUpdate/",
+                        url: "/Pagos_temporal/HorariosUpdate/",
                         data: $("#Update_AHC").serialize(),
                         success: function (respuesta) {
                             if (respuesta == "1") {
@@ -728,7 +728,7 @@ html;
                         .then((continuar) => {
                             if (!continuar) return
 
-                            consultaServidor("/Pagos/ActualizaInfoPagoApp/", params, (respuesta) => {
+                            consultaServidor("/Pagos_temporal/ActualizaInfoPagoApp/", params, (respuesta) => {
                                 if (!respuesta.success) showError(respuesta.message)
                                 else {
                                     showSuccess("Registro modificado exitosamente").then(() => {
@@ -754,7 +754,7 @@ html;
 
                             const params = { estatus, fecha, grupo, ciclo, secuencia }
 
-                            consultaServidor("/Pagos/ActualizaEstatusPagoApp/", params, (respuesta) => {
+                            consultaServidor("/Pagos_temporal/ActualizaEstatusPagoApp/", params, (respuesta) => {
                                 if (!respuesta.success) showError(respuesta.message)
                                 else showSuccess("Registro activado exitosamente")
                                     .then(() => {
@@ -799,7 +799,7 @@ html;
                         sucursal
                     })
 
-                    $("#all").attr("action", "/Pagos/Ticket/?" + parametros.toString())
+                    $("#all").attr("action", "/Pagos_temporal/Ticket/?" + parametros.toString())
                     $("#all").attr("target", "_blank")
                     $("#all").submit()
                 }
@@ -826,7 +826,7 @@ html;
                         })
                     })
 
-                    consultaServidor("/Pagos/ProcesarPagosApp/", {barcode, cdgpe, pagos}, (respuesta) => {
+                    consultaServidor("/Pagos_temporal/ProcesarPagosApp/", {barcode, cdgpe, pagos}, (respuesta) => {
                         if (!respuesta.success) return showError(respuesta.message)
 
                         showSuccess("Corte registrado exitosamente").then(() => {
@@ -882,7 +882,7 @@ html;
                             <td style="padding: 0px !important;">$ {$ahorro}</td>
                             <td style="padding: 0px !important;">$ {$monto_total}</td>
                             <td style="padding: 0px !important;">
-                                <a href="/Pagos/CorteEjecutivo/?ejecutivo={$value['CDGOCPE']}&fecha={$value['FECHA']}&barcode={$value['BARRAS']}&sucursal={$value['COD_SUC']}" type="button" class="btn btn-success btn-circle"><i class="fa fa-edit"></i> Procesar Pagos</a>
+                                <a href="/Pagos_temporal/CorteEjecutivo/?ejecutivo={$value['CDGOCPE']}&fecha={$value['FECHA']}&barcode={$value['BARRAS']}&sucursal={$value['COD_SUC']}" type="button" class="btn btn-success btn-circle"><i class="fa fa-edit"></i> Procesar Pagos</a>
                             </td>
                         </tr>
                     HTML;
@@ -897,7 +897,7 @@ html;
             $festivos = self::GetFestivos(PagosDao::DiasFestivos()['datos'] ?? []);
             $horaCierre = $cierreCaja['success'] ? $cierreCaja['datos']['HORA_CIERRE'] : '10:00:00';
             $f_actual = date("Y-m-d");
-            $f_anterior = date("H:i:s") <= $horaCierre ? self::DiaHabilAnterior($f_actual, $festivos) : $f_actual;
+            $f_anterior = date("H:i:s") >= $horaCierre ? self::DiaHabilAnterior($f_actual, $festivos) : $f_actual;
 
             $etiquetas_pago = [
                 'P' => 'PAGO',
@@ -1361,7 +1361,7 @@ html;
                 $("#export_excel_consulta").click(function () {
                     $("#all").attr(
                         "action",
-                        "/Pagos/generarExcelConsulta/?Inicial=" +
+                        "/Pagos_temporal/generarExcelConsulta/?Inicial=" +
                             fecha1 +
                             "&Final=" +
                             fecha2 +
@@ -1703,7 +1703,7 @@ html;
 
                         $.ajax({
                             type: "POST",
-                            url: "/Pagos/Delete/",
+                            url: "/Pagos_temporal/Delete/",
                             data: { cdgns: credito, fecha: fecha, secuencia: secuencia, usuario: user },
                             success: (response) => {
                                 if (response !== "1 Proceso realizado exitosamente") showError(response)
@@ -1762,7 +1762,7 @@ html;
                 const enviarPago = (texto) => {
                     $.ajax({
                         type: "POST",
-                        url: "/Pagos/PagosAdd/",
+                        url: "/Pagos_temporal/PagosAdd/",
                         data: $("#Add").serialize() + "&ejec=" + texto,
                         success: (respuesta) => {
                             if (respuesta === "1 Proceso realizado exitosamente") {
@@ -1789,7 +1789,7 @@ html;
                     texto = $("#ejecutivo_e :selected").text()
                     $.ajax({
                         type: "POST",
-                        url: "/Pagos/PagosEdit/",
+                        url: "/Pagos_temporal/PagosEdit/",
                         data: $("#Edit").serialize() + "&ejec_e=" + texto,
                         success: function (respuesta) {
                             if (respuesta === "1 Proceso realizado exitosamente") {
@@ -2196,7 +2196,7 @@ html;
               if (willDelete) {
                   $.ajax({
                         type: "POST",
-                        url: "/Pagos/Delete/",
+                        url: "/Pagos_temporal/Delete/",
                         data: {"cdgns" : credito, "fecha" : fecha, "secuencia": secuencia, "usuario" : user},
                         success: function(response){
                             if(response == '1 Proceso realizado exitosamente')
@@ -2240,7 +2240,7 @@ html;
                    
                     $.ajax({
                     type: 'POST',
-                    url: '/Pagos/PagosAdd/',
+                    url: '/Pagos_temporal/PagosAdd/',
                     data: $('#Add').serialize()+ "&ejec="+texto,
                     success: function(respuesta) {
                          if(respuesta=='1 Proceso realizado exitosamente'){
@@ -2282,7 +2282,7 @@ html;
              
                     $.ajax({
                     type: 'POST',
-                    url: '/Pagos/PagosEdit/',
+                    url: '/Pagos_temporal/PagosEdit/',
                     data: $('#Edit').serialize()+ "&ejec_e="+texto,
                     success: function(respuesta) {
                          if(respuesta=='1 Proceso realizado exitosamente'){
@@ -2473,7 +2473,7 @@ html;
                 {
                     $.ajax({
                     type: 'POST',
-                    url: '/Pagos/PagosAdd/',
+                    url: '/Pagos_temporal/PagosAdd/',
                     data: $('#Add').serialize(),
                     success: function(respuesta) {
                         if(respuesta=='ok'){
@@ -2603,7 +2603,7 @@ html;
                 <td>$ {$value['MONTO_REFINANCIAMIENTO']}</td>
                 <td></td>
                 <td class="center" >
-                    <a href="/Pagos/CorteCaja/?Consolidado={$value['CDGPE']}" type="submit" name="id_coordinador" class="btn btn-success"><span class="fa fa-product-hunt" style="color:white"></span> Liberar Pagos</a>
+                    <a href="/Pagos_temporal/CorteCaja/?Consolidado={$value['CDGPE']}" type="submit" name="id_coordinador" class="btn btn-success"><span class="fa fa-product-hunt" style="color:white"></span> Liberar Pagos</a>
                 </td>
                 </tr>
             
@@ -2668,7 +2668,7 @@ html;
             fecha2 = getParameterByName('Final');
             
              $("#export_excel").click(function(){
-              $('#all').attr('action', '/Pagos/generarExcel/?Inicial='+fecha1+'&Final='+fecha2);
+              $('#all').attr('action', '/Pagos_temporal/generarExcel/?Inicial='+fecha1+'&Final='+fecha2);
               $('#all').attr('target', '_blank');
               $("#all").submit();
             });
@@ -2853,7 +2853,7 @@ html;
                     fFin: fechaF
                 }
 
-                consultaServidor("/Pagos/GetPagosAppHistorico/", $.param(datos), (respuesta) => {
+                consultaServidor("/Pagos_temporal/GetPagosAppHistorico/", $.param(datos), (respuesta) => {
                     if (!respuesta) swal({ text: "No se encontraron pagos en el rango de fechas seleccionado.", icon: "error" })
                     
                     $("#tbl-historico").DataTable().destroy()
@@ -2866,7 +2866,7 @@ html;
                 if (!idComprobante) return
                 
                 const titulo = 'Comprobante ' + idComprobante
-                const ruta = window.location.origin + "/Pagos/Ticket/" + idComprobante
+                const ruta = window.location.origin + "/Pagos_temporal/Ticket/" + idComprobante
                 
                 muestraPDF(titulo, ruta)
             }
