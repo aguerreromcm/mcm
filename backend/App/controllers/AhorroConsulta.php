@@ -260,9 +260,9 @@ class AhorroConsulta extends Controller
                         if (datos.length === 0) return showError("No se encontró el crédito especificado.");
                         // Permisos temporales para pruebas de retiro de ahorro a 'FLHR'
                         if (("{$_SESSION['perfil']}" !== 'ADMIN' && "{$_SESSION['usuario']}" !== 'FLHR') && datos.CDGCO !== "{$_SESSION['cdgco']}") return showError("El crédito no pertenece a su sucursal, no es posible realizar retiros de ahorro.");
-                        if (parseInt(datos?.DIAS_MORA_TRADICIONAL) > 0) return showError("El cliente tiene mora en su crédito tradicional, no es posible realizar retiros de ahorro.");
+                        if (parseInt(datos?.DIAS_MORA_TRADICIONAL) > 1) return showError("El cliente tiene mora en su crédito tradicional, no es posible realizar retiros de ahorro.");
                         if (datos?.SITUACION_ADICIONAL === 'E') return showError("El cliente cuenta con un crédito adicional activo, no es posible realizar retiros de ahorro.");
-                        if (parseInt(datos?.DIAS_MORA_ADICIONAL) > 0) return showError("El cliente tiene mora en su crédito adicional, no es posible realizar retiros de ahorro.");
+                        if (parseInt(datos?.DIAS_MORA_ADICIONAL) > 1) return showError("El cliente tiene mora en su crédito adicional, no es posible realizar retiros de ahorro.");
                         
                         const saldo = parseaNumero(datos?.SALDO_ACTUAL);
 

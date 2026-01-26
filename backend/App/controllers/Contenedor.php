@@ -128,11 +128,10 @@ class Contenedor extends Controller
             $menu .= '<li><a href="/Pagos_temporal/CorteEjecutivo/">Pagos App (DEMO)</a></li>';
         }
 
-        $permisos = ['ADMIN', 'FLHR', 'HEDC', 'JULM', 'CRCV', 'LUMM', 'EMGL', 'PEAE', 'MCDP', 'LVGA'];
+        $permisos = ['ADMIN', 'CAJA', 'FLHR', 'HEDC', 'JULM', 'CRCV', 'LUMM', 'EMGL', 'PEAE', 'MCDP', 'LVGA'];
         if ($this->ValidaPermiso($permisos)) {
             $menu .= <<<HTML
             <li><a href="/Pagos/CorteEjecutivo/">Pagos App</a></li>
-            <li><a href="/Pagos/CorteEjecutivoReimprimir/">Reimprimir Recibos App</a></li> 
             HTML;
         }
 
@@ -147,7 +146,9 @@ class Contenedor extends Controller
         }
 
         if ($this->__perfil == 'ACALL') {
-            $menu .= '<li><a href="/Pagos/PagosConsultaUsuarios/">Consulta de Pagos Cliente</a></li>';
+            $menu .= <<<HTML
+            <li><a href="/Pagos/PagosConsultaUsuarios/">Consulta de Pagos Cliente</a></li>
+            HTML;
         }
 
         $permisos = ['ADMIN', 'CAJA', 'GTOCA', 'AMOCA', 'OCOF', 'CPAGO', 'ACALL'];
