@@ -1274,7 +1274,7 @@ sql;
                     ,DECODE(PA.TIPO, 'F', MONTO, 0) AS AHORRO_ELECTRONICO
                     ,PA.MONTO
                     ,PA.CDGOCPE
-                FROM PAGOSDIA_APP PA
+                FROM PAGOSDIA PA
                     INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS
                     INNER JOIN CO  ON CO.CODIGO = PRN.CDGCO
                 WHERE NVL(PA.ESTATUS_CAJA, 0) != 2
@@ -1351,7 +1351,7 @@ sql;
                 ) AS TOTAL
                 ,CH.HORA_CIERRE
             FROM
-                PAGOSDIA_APP PA
+                PAGOSDIA PA
                 INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS
                 INNER JOIN CO  ON CO.CODIGO = PRN.CDGCO
                 INNER JOIN CIERRE_HORARIO CH ON CH.CDGCO = PRN.CDGCO
@@ -1413,7 +1413,7 @@ sql;
                 ,PRN.SITUACION
                 ,DECODE(NVL(PA.ESTATUS_CAJA, 0), '0', 'PENDIENTE', '1', 'VALIDADO', '2', 'PROCESADO', 'DESCONOCIDO') AS ESTATUS_CAJA_NOMBRE
             FROM
-                PAGOSDIA_APP PA
+                PAGOSDIA PA
                 INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS
                 INNER JOIN CO ON CO.CODIGO = PRN.CDGCO
             WHERE
@@ -1472,7 +1472,7 @@ sql;
                 ,PA.ESTATUS_CAJA
                 ,TO_CHAR(PA.FREGISTRO, 'DD/MM/YYYY HH24:MI:SS') AS FREGISTRO
             FROM
-                PAGOSDIA_APP PA
+                PAGOSDIA PA
                 INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS
                 INNER JOIN CO ON CO.CODIGO = PRN.CDGCO
             WHERE
@@ -1506,7 +1506,7 @@ sql;
                 ,PA.ESTATUS_CAJA
                 ,TO_CHAR(PA.FREGISTRO, 'DD/MM/YYYY HH24:MI:SS') AS FREGISTRO
             FROM
-                PAGOSDIA_APP PA
+                PAGOSDIA PA
                 INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS
                 INNER JOIN CO ON CO.CODIGO = PRN.CDGCO
             WHERE
@@ -1539,7 +1539,7 @@ sql;
     public static function ActualizaEstatusPagoApp($datos)
     {
         $qry = <<<SQL
-            UPDATE PAGOSDIA_APP
+            UPDATE PAGOSDIA
             SET 
                 ESTATUS_CAJA = :estatus
             WHERE 
@@ -1569,7 +1569,7 @@ sql;
     public static function ActualizaInfoPagoApp($datos)
     {
         $qry = <<<SQL
-            UPDATE PAGOSDIA_APP
+            UPDATE PAGOSDIA
             SET 
                 TIPO = :tipo
                 , MONTO = :monto
@@ -1608,7 +1608,7 @@ sql;
     {
         $qry = <<<SQL
             UPDATE
-                PAGOSDIA_APP
+                PAGOSDIA
             SET  FECHA = TO_DATE(:fecha_aplicacion, 'YYYY-MM-DD')
                 ,ESTATUS = 'A'
                 ,ESTATUS_CAJA = 2
@@ -1654,7 +1654,7 @@ sql;
                 ,SUM(PA.MONTO) AS MONTO
                 ,PA.FOLIO_ENTREGA AS FOLIO
             FROM
-                PAGOSDIA_APP PA
+                PAGOSDIA PA
                 INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS
             WHERE
                 PA.FOLIO_ENTREGA = :folio_entrega
