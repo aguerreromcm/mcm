@@ -737,13 +737,15 @@ class CallCenter extends Controller
         $opciones_suc .= '<option  value="000">(000) TODAS MIS SUCURSALES</option>';
 
         if ($ComboSucursales['success']) {
-            foreach ($ComboSucursales['datos'] as $key => $val2) {
-                $sel = $suc == $val2['CODIGO'] ? 'selected' : '';
+            if (count($ComboSucursales['datos']) > 0) {
+                foreach ($ComboSucursales['datos'] as $key => $val2) {
+                    $sel = $suc == $val2['CODIGO'] ? 'selected' : '';
 
-                $opciones_suc .= <<<html
-                    <option {$sel} value="{$val2['CODIGO']}">({$val2['CODIGO']}) {$val2['NOMBRE']}</option>
-                html;
-                array_push($cdgco_all, $val2['CODIGO']);
+                    $opciones_suc .= <<<html
+                        <option {$sel} value="{$val2['CODIGO']}">({$val2['CODIGO']}) {$val2['NOMBRE']}</option>
+                    html;
+                    array_push($cdgco_all, $val2['CODIGO']);
+                }
             }
         }
 
