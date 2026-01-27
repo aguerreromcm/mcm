@@ -283,7 +283,7 @@ class CallCenter extends Model
 
         try {
             $db = new Database();
-            $res = $db->queryOne($qry, $prm);
+            $res = $db->queryAll($qry, $prm);
             return self::Responde(true, 'Sucursales obtenidas', $res);
         } catch (\Exception $e) {
             return self::Responde(false, 'Error al obtener sucursales', null, $e->getMessage());

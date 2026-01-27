@@ -736,8 +736,8 @@ class CallCenter extends Controller
         $ComboSucursales = CallCenterDao::getComboSucursales($this->__usuario);
         $opciones_suc .= '<option  value="000">(000) TODAS MIS SUCURSALES</option>';
 
-        if ($ComboSucursales['success']) {
-            if (isset($ComboSucursales['datos']) && count($ComboSucursales['datos']) > 0) {
+        if ($ComboSucursales['success'] && isset($ComboSucursales['datos'])) {
+            if (count($ComboSucursales['datos']) > 0) {
                 foreach ($ComboSucursales['datos'] as $key => $val2) {
                     $sel = $suc == $val2['CODIGO'] ? 'selected' : '';
 
