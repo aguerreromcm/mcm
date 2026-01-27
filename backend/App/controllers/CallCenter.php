@@ -1854,12 +1854,17 @@ html;
         $opciones_suc .= <<<html
                 <option  value="000">(000) TODAS LAS SUCURSALES</option>
 html;
-        foreach ($ComboSucursales as $key => $val2) {
+        if ($ComboSucursales['success']) {
+            if (isset($ComboSucursales['datos']) && count($ComboSucursales['datos']) > 0) {
+                foreach ($ComboSucursales['datos'] as $key => $val2) {
+                    $sel = $suc == $val2['CODIGO'] ? 'selected' : '';
 
-            $opciones_suc .= <<<html
-                <option  value="{$val2['CODIGO']}">({$val2['CODIGO']}) {$val2['NOMBRE']}</option>
-html;
-            array_push($cdgco_all, $val2['CODIGO']);
+                    $opciones_suc .= <<<html
+                        <option {$sel} value="{$val2['CODIGO']}">({$val2['CODIGO']}) {$val2['NOMBRE']}</option>
+                    html;
+                    array_push($cdgco_all, $val2['CODIGO']);
+                }
+            }
         }
 
         $AdministracionOne = CallCenterDao::getAllDescription($credito, $ciclo, $fec);
@@ -2584,12 +2589,17 @@ html;
         $opciones_suc .= <<<html
                 <option  value="000">(000) TODAS LAS SUCURSALES</option>
 html;
-        foreach ($ComboSucursales as $key => $val2) {
+        if ($ComboSucursales['success']) {
+            if (isset($ComboSucursales['datos']) && count($ComboSucursales['datos']) > 0) {
+                foreach ($ComboSucursales['datos'] as $key => $val2) {
+                    $sel = $suc == $val2['CODIGO'] ? 'selected' : '';
 
-            $opciones_suc .= <<<html
-                <option  value="{$val2['CODIGO']}">({$val2['CODIGO']}) {$val2['NOMBRE']}</option>
-html;
-            array_push($cdgco_all, $val2['CODIGO']);
+                    $opciones_suc .= <<<html
+                        <option {$sel} value="{$val2['CODIGO']}">({$val2['CODIGO']}) {$val2['NOMBRE']}</option>
+                    html;
+                    array_push($cdgco_all, $val2['CODIGO']);
+                }
+            }
         }
 
         $AdministracionOne = CallCenterDao::getAllDescription($credito, $ciclo, $fec);
@@ -3290,10 +3300,17 @@ html;
 
         $ComboSucursales = CallCenterDao::getComboSucursales($this->__usuario);
         $opciones_suc .= '<option value="000">(000) TODAS MIS SUCURSALES INCLUIDAS OTRAS NO MOSTRADAS EN LA LISTA</option>';
-        foreach ($ComboSucursales as $key => $val2) {
-            $sel = $Sucursal == $val2['CODIGO'] ? 'selected' : '';
-            $opciones_suc .= "<option $sel value='{$val2['CODIGO']}'>({$val2['CODIGO']}) {$val2['NOMBRE']}</option>";
-            array_push($cdgco, $val2['CODIGO']);
+        if ($ComboSucursales['success']) {
+            if (isset($ComboSucursales['datos']) && count($ComboSucursales['datos']) > 0) {
+                foreach ($ComboSucursales['datos'] as $key => $val2) {
+                    $sel = $Sucursal == $val2['CODIGO'] ? 'selected' : '';
+
+                    $opciones_suc .= <<<html
+                        <option {$sel} value="{$val2['CODIGO']}">({$val2['CODIGO']}) {$val2['NOMBRE']}</option>
+                    html;
+                    array_push($cdgco_all, $val2['CODIGO']);
+                }
+            }
         }
 
         if ($Inicial != '' || $Final != '' || $Sucursal != '') {
@@ -3738,8 +3755,17 @@ html;
         $cdgco = array();
         $ComboSucursales = CallCenterDao::getComboSucursales($this->__usuario);
 
-        foreach ($ComboSucursales as $key => $val2) {
-            array_push($cdgco, $val2['CODIGO']);
+        if ($ComboSucursales['success']) {
+            if (isset($ComboSucursales['datos']) && count($ComboSucursales['datos']) > 0) {
+                foreach ($ComboSucursales['datos'] as $key => $val2) {
+                    $sel = $Sucursal == $val2['CODIGO'] ? 'selected' : '';
+
+                    $opciones_suc .= <<<html
+                        <option {$Sucursal} value="{$val2['CODIGO']}">({$val2['CODIGO']}) {$val2['NOMBRE']}</option>
+                    html;
+                    array_push($cdgco_all, $val2['CODIGO']);
+                }
+            }
         }
 
         if ($Inicial != '' || $Final != '') {
