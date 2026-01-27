@@ -727,7 +727,7 @@ class CallCenter extends Controller
 
         $credito = $_GET['Credito'];
         $ciclo = $_GET['Ciclo'];
-        $suc = $_GET['Suc'];
+        $suc = $_GET['Suc'] ?? '';
         $reg = $_GET['Reg'];
         $fec = $_GET['Fec'];
         $opciones_suc = '';
@@ -788,24 +788,16 @@ class CallCenter extends Controller
             }
         } else {
             $param = null;
-
-            if ($credito === '' && $ciclo === '') {
-
-                if ($suc === '000' || $suc === '') {
-                    $param = $cdgco_all;
-                } elseif ($this->__perfil === 'ADMIN' || $this->__perfil === 'ACALL') {
-                    $param = '';
-                } else {
-                    $cdgco_suc[] = $suc;
-                    $param = $cdgco_suc;
-                }
+            if ($this->__perfil === 'ADMIN' || $this->__perfil === 'ACALL') {
+                $param = [];
+            } elseif ($suc === '000' || $suc === '' || $suc === null) {
+                $param = $cdgco_all;
             } else {
                 $cdgco_suc[] = $suc;
                 $param = $cdgco_suc;
             }
 
             $Solicitudes = CallCenterDao::getAllSolicitudes($param);
-
 
             $filas = [];
             foreach ($Solicitudes as $key => $value) {
