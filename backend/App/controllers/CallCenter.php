@@ -3308,7 +3308,7 @@ html;
                     $opciones_suc .= <<<html
                         <option {$sel} value="{$val2['CODIGO']}">({$val2['CODIGO']}) {$val2['NOMBRE']}</option>
                     html;
-                    array_push($cdgco_all, $val2['CODIGO']);
+                    array_push($cdgco, $val2['CODIGO']);
                 }
             }
         }
@@ -3763,7 +3763,7 @@ html;
                     $opciones_suc .= <<<html
                         <option {$Sucursal} value="{$val2['CODIGO']}">({$val2['CODIGO']}) {$val2['NOMBRE']}</option>
                     html;
-                    array_push($cdgco_all, $val2['CODIGO']);
+                    array_push($cdgco, $val2['CODIGO']);
                 }
             }
         }
