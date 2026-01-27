@@ -976,108 +976,110 @@ class CallCenter extends Controller
                 ];
             }
 
-            $retiros = CallCenterDao::getSolicitudesRetiro($param);
+            if (false) {
+                $retiros = CallCenterDao::getSolicitudesRetiro($param);
 
-            if ($retiros['success']) {
-                foreach ($retiros['datos'] as $key => $retiro) {
-                    $orden = \DateTime::createFromFormat(
-                        'd/m/Y H:i:s',
-                        $retiro['FECHA_CREACION']
-                    );
+                if ($retiros['success']) {
+                    foreach ($retiros['datos'] as $key => $retiro) {
+                        $orden = \DateTime::createFromFormat(
+                            'd/m/Y H:i:s',
+                            $retiro['FECHA_CREACION']
+                        );
 
-                    $telefono = $retiro['TELEFONO'];
-                    $telefono = sprintf(
-                        '(%s) %s - %s',
-                        substr($telefono, 0, 3),
-                        substr($telefono, 3, 3),
-                        substr($telefono, 6, 4)
-                    );
+                        $telefono = $retiro['TELEFONO'];
+                        $telefono = sprintf(
+                            '(%s) %s - %s',
+                            substr($telefono, 0, 3),
+                            substr($telefono, 3, 3),
+                            substr($telefono, 6, 4)
+                        );
 
-                    $color = 'success';
-                    $icon = 'fa-check';
-                    $icon_ci = $retiro['COMENTARIO_INTERNO'] == '' ? 'fa-close' : 'fa-check';
-                    $color_ci = $retiro['COMENTARIO_INTERNO'] == '' ? 'danger' : 'success';
-                    $icon_cf = $retiro['COMENTARIO_EXTERNO'] == '' ? 'fa-close' : 'fa-check';
-                    $color_cf = $retiro['COMENTARIO_EXTERNO'] == '' ? 'danger' : 'success';
-                    $icon_ef = 'fa-check';
-                    $color_ef = 'success';
-                    $titulo_boton = 'Iniciar';
-                    $color_boton = '#029f3f';
-                    $fuente = '';
+                        $color = 'success';
+                        $icon = 'fa-check';
+                        $icon_ci = $retiro['COMENTARIO_INTERNO'] == '' ? 'fa-close' : 'fa-check';
+                        $color_ci = $retiro['COMENTARIO_INTERNO'] == '' ? 'danger' : 'success';
+                        $icon_cf = $retiro['COMENTARIO_EXTERNO'] == '' ? 'fa-close' : 'fa-check';
+                        $color_cf = $retiro['COMENTARIO_EXTERNO'] == '' ? 'danger' : 'success';
+                        $icon_ef = 'fa-check';
+                        $color_ef = 'success';
+                        $titulo_boton = 'Iniciar';
+                        $color_boton = '#029f3f';
+                        $fuente = '';
 
 
-                    if ($retiro['ESTATUS'] == 'P') {
-                        $color = 'primary';
-                        $icon = 'fa-frown-o';
-                        $icon_ef = 'fa-close';
-                        $color_ef = 'danger';
-                    } else if ($retiro['ESTATUS'] == 'I') {
-                        $color = 'warning';
-                        $icon = 'fa-clock-o';
-                        $icon_ef = 'fa-clock-o';
-                        $color_ef = 'warning';
-                        $titulo_boton = 'Seguir';
-                        $color_boton = '#F0AD4E';
-                        $fuente = '#0D0A0A';
-                    } else if ($retiro['ESTATUS'] == 'C') {
-                        $titulo_boton = 'Acabar';
-                        $color_boton = '#000';
-                        $fuente = '#fff';
-                        $icon_ef = 'fa-clock-o';
-                        $color_ef = 'warning';
-                    }
+                        if ($retiro['ESTATUS'] == 'P') {
+                            $color = 'primary';
+                            $icon = 'fa-frown-o';
+                            $icon_ef = 'fa-close';
+                            $color_ef = 'danger';
+                        } else if ($retiro['ESTATUS'] == 'I') {
+                            $color = 'warning';
+                            $icon = 'fa-clock-o';
+                            $icon_ef = 'fa-clock-o';
+                            $color_ef = 'warning';
+                            $titulo_boton = 'Seguir';
+                            $color_boton = '#F0AD4E';
+                            $fuente = '#0D0A0A';
+                        } else if ($retiro['ESTATUS'] == 'C') {
+                            $titulo_boton = 'Acabar';
+                            $color_boton = '#000';
+                            $fuente = '#fff';
+                            $icon_ef = 'fa-clock-o';
+                            $color_ef = 'warning';
+                        }
 
-                    $fila = <<<HTML
-                        <tr style="vertical-align: middle;">
-                            <td>
-                                <div><span class="label label-success" style="color: #0D0A0A">MCM - {$retiro['ID']}</span></div>
-                                <hr>
-                                <div><label>{$retiro['CREDITO']}-{$retiro['CICLO']}</label></div>
-                            </td>
-                            <td style="text-align: left; vertical-align: middle;">
-                                <span class="fa fa-building">&nbsp;</span>GERENCIA REGIONAL: ({$retiro['REGION']}) {$retiro['NOMBRE_REGION']}
-                                <br>
-                                <span class="fa fa-map-marker">&nbsp;</span>SUCURSAL: ({$retiro['SUCURSAL']}) {$retiro['NOMBRE_SUCURSAL']}
-                                <br>
-                                <span class="fa fa-briefcase">&nbsp;</span>EJECUTIVO: {$retiro['NOMBRE_EJECUTIVO']}
-                            </td>
-                            <td style="vertical-align: middle;">
-                                <div>
-                                    <span class="fa fa-user"></span> <label style="color: #1c4e63">{$retiro['NOMBRE_CLIENTE']}</label><br><label><span class="fa fa-phone">&nbsp;</span>{$telefono}</label>
+                        $fila = <<<HTML
+                            <tr style="vertical-align: middle;">
+                                <td>
+                                    <div><span class="label label-success" style="color: #0D0A0A">MCM - {$retiro['ID']}</span></div>
                                     <hr>
-                                    <div><b>TIPO:</b> <span class="label label-success" style=" font-size: 95% !important; border-radius: 50em !important; background: #25895b"><span class="fa fa-university"></span></span></div><b><em>RETIRO DE AHORRO<em></em></b><hr>
-                                </div>
-                            </td>
-                            <td style="text-align: left; vertical-align: middle;">
-                                <div>
-                                    <b>CLIENTE: </b>{$retiro['ESTATUS_ETIQUETA']} <span class="label label-$color" style="font-size: 95% !important; border-radius: 50em !important;"><span class="fa $icon"></span></span>
-                                </div>
-                            </td>
-                            <td  style="text-align: left; vertical-align: middle;">
-                                {$retiro['FECHA_CREACION']}
-                            </td>
-                            <td style="text-align: left; vertical-align: middle;">
-                                <div><span class="label label-$color_ci" ><span class="fa $icon_ci"></span></span>&nbsp;Comentarios Iniciales</div>
-                                <div><span class="label label-$color_cf"><span class="fa $icon_cf"></span></span>&nbsp;Comentarios Finales</div>
-                                <div><span class="label label-$color_ef"><span class="fa $icon_ef"></span></span>&nbsp;Estatus Final Solicitud</div>
-                            </td>
-                            <td  style="vertical-align: middle;">
-                                <a type="button" href="/CallCenter/Pendientes/?credito={$retiro['CREDITO']}&ciclo={$retiro['CICLO']}&usuario={$_SESSION['usuario']}&retiro={$retiro['ID']}" class="btn btn-primary btn-circle" style="background: $color_boton; color: $fuente "><i class="fa fa-edit"></i> <b>$titulo_boton</b>
-                                </a>
-                            </td>
-                        </tr>
-                    HTML;
+                                    <div><label>{$retiro['CREDITO']}-{$retiro['CICLO']}</label></div>
+                                </td>
+                                <td style="text-align: left; vertical-align: middle;">
+                                    <span class="fa fa-building">&nbsp;</span>GERENCIA REGIONAL: ({$retiro['REGION']}) {$retiro['NOMBRE_REGION']}
+                                    <br>
+                                    <span class="fa fa-map-marker">&nbsp;</span>SUCURSAL: ({$retiro['SUCURSAL']}) {$retiro['NOMBRE_SUCURSAL']}
+                                    <br>
+                                    <span class="fa fa-briefcase">&nbsp;</span>EJECUTIVO: {$retiro['NOMBRE_EJECUTIVO']}
+                                </td>
+                                <td style="vertical-align: middle;">
+                                    <div>
+                                        <span class="fa fa-user"></span> <label style="color: #1c4e63">{$retiro['NOMBRE_CLIENTE']}</label><br><label><span class="fa fa-phone">&nbsp;</span>{$telefono}</label>
+                                        <hr>
+                                        <div><b>TIPO:</b> <span class="label label-success" style=" font-size: 95% !important; border-radius: 50em !important; background: #25895b"><span class="fa fa-university"></span></span></div><b><em>RETIRO DE AHORRO<em></em></b><hr>
+                                    </div>
+                                </td>
+                                <td style="text-align: left; vertical-align: middle;">
+                                    <div>
+                                        <b>CLIENTE: </b>{$retiro['ESTATUS_ETIQUETA']} <span class="label label-$color" style="font-size: 95% !important; border-radius: 50em !important;"><span class="fa $icon"></span></span>
+                                    </div>
+                                </td>
+                                <td  style="text-align: left; vertical-align: middle;">
+                                    {$retiro['FECHA_CREACION']}
+                                </td>
+                                <td style="text-align: left; vertical-align: middle;">
+                                    <div><span class="label label-$color_ci" ><span class="fa $icon_ci"></span></span>&nbsp;Comentarios Iniciales</div>
+                                    <div><span class="label label-$color_cf"><span class="fa $icon_cf"></span></span>&nbsp;Comentarios Finales</div>
+                                    <div><span class="label label-$color_ef"><span class="fa $icon_ef"></span></span>&nbsp;Estatus Final Solicitud</div>
+                                </td>
+                                <td  style="vertical-align: middle;">
+                                    <a type="button" href="/CallCenter/Pendientes/?credito={$retiro['CREDITO']}&ciclo={$retiro['CICLO']}&usuario={$_SESSION['usuario']}&retiro={$retiro['ID']}" class="btn btn-primary btn-circle" style="background: $color_boton; color: $fuente "><i class="fa fa-edit"></i> <b>$titulo_boton</b>
+                                    </a>
+                                </td>
+                            </tr>
+                        HTML;
 
-                    $filas[] = [
-                        'fecha' => $orden->getTimestamp(),
-                        'fila' => $fila
-                    ];
+                        $filas[] = [
+                            'fecha' => $orden->getTimestamp(),
+                            'fila' => $fila
+                        ];
+                    }
                 }
-            }
 
-            usort($filas, function ($a, $b) {
-                return $a['fecha'] <=> $b['fecha'];
-            });
+                usort($filas, function ($a, $b) {
+                    return $a['fecha'] <=> $b['fecha'];
+                });
+            }
 
             $filas = array_column($filas, 'fila');
             $tabla = $filas != [] ? implode("", $filas) : '';
