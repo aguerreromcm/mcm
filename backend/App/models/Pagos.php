@@ -1610,6 +1610,9 @@ sql;
             UPDATE
                 PAGOSDIA
             SET  FECHA = TO_DATE(:fecha_aplicacion, 'YYYY-MM-DD')
+                ,SECUENCIA = CASE WHEN FECHA <> TO_DATE(:fecha_aplicacion, 'YYYY-MM-DD') THEN 
+                    (SELECT NVL(MAX(SECUENCIA), 0) + 1 FROM PAGOSDIA WHERE CDGNS = :grupo AND TRUNC(FECHA) = TO_DATE(:fecha_aplicacion, 'YYYY-MM-DD'))
+                  ELSE SECUENCIA END
                 ,ESTATUS = 'A'
                 ,ESTATUS_CAJA = 2
                 ,FPROCESAPAGO = SYSDATE
