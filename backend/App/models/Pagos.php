@@ -1614,6 +1614,7 @@ sql;
                     (SELECT NVL(MAX(SECUENCIA), 0) + 1 FROM PAGOSDIA WHERE CDGNS = :grupo AND TRUNC(FECHA) = TO_DATE(:fecha_aplicacion, 'YYYY-MM-DD'))
                   ELSE SECUENCIA END
                 ,ESTATUS = 'A'
+                ,FREGISTRO = SYSDATE
                 ,ESTATUS_CAJA = 2
                 ,FPROCESAPAGO = SYSDATE
                 ,FOLIO_ENTREGA = :barcode
@@ -1630,8 +1631,7 @@ sql;
         try {
             $db = new Database();
             foreach ($datos['pagos'] as $pago) {
-                $qrys[] = $qry;
-                $params[] = [
+                $params = [
                     'fecha' => $pago['fecha'],
                     'fecha_aplicacion' => $pago['fechaAplicacion'],
                     'grupo' => $pago['grupo'],
@@ -1640,9 +1640,9 @@ sql;
                     'barcode' => $datos['barcode'],
                     'cdgpe' => $datos['cdgpe'],
                 ];
+                $db->insertar($qry, $params);
             }
 
-            $db->insertaMultiple($qrys, $params);
             return self::Responde(true, 'Pago agregado correctamente');
         } catch (\Exception $e) {
             return self::Responde(false, 'Error al agregar pago', null, $e->getMessage());

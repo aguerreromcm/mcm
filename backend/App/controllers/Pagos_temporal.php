@@ -897,7 +897,7 @@ html;
             $festivos = self::GetFestivos(PagosDao::DiasFestivos()['datos'] ?? []);
             $horaCierre = $cierreCaja['success'] ? $cierreCaja['datos']['HORA_CIERRE'] : '10:00:00';
             $f_actual = date("Y-m-d");
-            $f_anterior = date("H:i:s") >= $horaCierre ? self::DiaHabilAnterior($f_actual, $festivos) : $f_actual;
+            $f_anterior = date("H:i:s") <= $horaCierre ? self::DiaHabilAnterior($f_actual, $festivos) : $f_actual;
 
             $etiquetas_pago = [
                 'P' => 'PAGO',
