@@ -5776,6 +5776,7 @@ html;
                             dato.FECHA_CREACION,
                             dato.FECHA_ENTREGA,
                             dato.FECHA_DEVOLUCION || "-",
+                            dato.ESTATUS,
                             dato.CDGPE_ADMINISTRADORA
                         ]
                     })

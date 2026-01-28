@@ -194,7 +194,6 @@ sql;
                 INNER JOIN PE ON PE.CODIGO = SN.CDGOCPE
             WHERE 
                 RA.FECHA_ENTREGA BETWEEN TO_DATE(:fechaI, 'YYYY-MM-DD') AND TO_DATE(:fechaF, 'YYYY-MM-DD')
-                AND RA.ESTATUS NOT IN ('C', 'R')
             ORDER BY 
                 RA.FECHA_ENTREGA ASC
         SQL;

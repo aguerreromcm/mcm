@@ -47,6 +47,7 @@
                             <th style="word-wrap: break-word; width: 150px;">Fecha de registro</th>
                             <th style="word-wrap: break-word; width: 150px;">Fecha de entrega programada</th>
                             <th style="word-wrap: break-word; width: 150px;">Fecha de devolución</th>
+                            <th>Estatus</th>
                             <th>Administradora</th>
                         </tr>
                     </thead>
