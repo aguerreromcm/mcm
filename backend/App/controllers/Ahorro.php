@@ -5829,9 +5829,7 @@ html;
 
         $columnas = [
             \PHPSpreadsheet::ColumnaExcel('ID', 'ID retiro'),
-            \PHPSpreadsheet::ColumnaExcel('REGION', 'ID Región'),
             \PHPSpreadsheet::ColumnaExcel('NOMBRE_REGION', 'Región'),
-            \PHPSpreadsheet::ColumnaExcel('SUCURSAL', 'ID Sucursal'),
             \PHPSpreadsheet::ColumnaExcel('NOMBRE_SUCURSAL', 'Sucursal'),
             \PHPSpreadsheet::ColumnaExcel('CDGNS', 'No. Crédito'),
             \PHPSpreadsheet::ColumnaExcel('CANT_SOLICITADA', 'Monto', ['estilo' => $estilos['moneda'], 'total' => true]),
@@ -5840,6 +5838,7 @@ html;
             \PHPSpreadsheet::ColumnaExcel('FECHA_ENTREGA', 'Fecha Entrega Programada', ['estilo' => $estilos['fecha']]),
             \PHPSpreadsheet::ColumnaExcel('FECHA_DEVOLUCION', 'Fecha Devolución', ['estilo' => $estilos['fecha_hora']]),
             \PHPSpreadsheet::ColumnaExcel('CDGPE_ADMINISTRADORA', 'Administradora'),
+            \PHPSpreadsheet::ColumnaExcel('ESTATUS', 'Estatus'),
         ];
 
         $filas = AhorroDao::ReporteSolicitudesRetiro($_GET);

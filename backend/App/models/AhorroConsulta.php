@@ -73,22 +73,22 @@ class AhorroConsulta extends Model
                 ,GET_NOMBRE_EMPLEADO(RA.CDGPE_ADMINISTRADORA) AS NOMBRE_ADMINISTRADORA
                 ,TO_CHAR(RA.FECHA_CREACION, 'DD/MM/YYYY HH24:MI:SS') AS FECHA_CREACION
                 ,RA.ESTATUS
-                ,CASE RA.ESTATUS
-                    WHEN 'V' THEN 'Validado'
-                    WHEN 'C' THEN 'Cancelado'
-                    WHEN 'R' THEN 'Rechazado'
-                    WHEN 'P' THEN 'Pendiente'
-                    WHEN 'A' THEN 'Aprobado'
-                    WHEN 'E' THEN 'Entregado'
-                    WHEN 'D' THEN 'Devuelto'
-                    ELSE NULL
-                 END AS ESTATUS_ETIQUETA
+                ,DECODE(RA.ESTATUS, 
+                    'V', 'VALIDADO',
+                    'C', 'CANCELADO',
+                    'R', 'RECHAZADO',
+                    'P', 'PENDIENTE',
+                    'A', 'APROBADO',
+                    'E', 'ENTREGADO',
+                    'D', 'DEVUELTO',
+                    NULL
+                  ) AS ESTATUS_ETIQUETA
                 ,RAC.ESTATUS AS ESTATUS_CC
-                ,CASE RAC.ESTATUS
-                    WHEN 'C' THEN 'Completado'
-                    WHEN 'I' THEN 'Incompleto'
-                    ELSE 'Pendiente'
-                 END AS ESTATUS_CC_ETIQUETA
+                ,DECODE(RAC.ESTATUS,
+                    'C', 'COMPLETADO',
+                    'I', 'INCOMPLETO',
+                    'P', 'PENDIENTE',
+                    NULL) AS ESTATUS_CC_ETIQUETA
                 ,RAC.CDGPE AS CDGPE_CC
                 ,RAC.COMENTARIO_EXTERNO
                 ,TO_CHAR(CASE WHEN RAC.FECHA_LLAMADA_2 IS NOT NULL THEN RAC.FECHA_LLAMADA_2 ELSE RAC.FECHA_LLAMADA_1 END, 'DD/MM/YYYY HH24:MI:SS') AS ULTIMA_LLAMADA

@@ -174,6 +174,16 @@ sql;
                 , RG.NOMBRE AS NOMBRE_REGION
                 , CO.CODIGO AS SUCURSAL
                 , CO.NOMBRE AS NOMBRE_SUCURSAL
+                , DECODE(RA.ESTATUS, 
+                    'V', 'VALIDADO',
+                    'C', 'CANCELADO',
+                    'R', 'RECHAZADO',
+                    'P', 'PENDIENTE',
+                    'A', 'APROBADO',
+                    'E', 'ENTREGADO',
+                    'D', 'DEVUELTO',
+                    NULL
+                ) AS ESTATUS
             FROM 
                 RETIROS_AHORRO RA
                 INNER JOIN SN ON SN.CDGNS = RA.CDGNS AND SN.CICLO = RA.CICLO
