@@ -346,7 +346,6 @@
                                         <?php
                                         if ($Administracion[3]['PRORROGA'] == 2) {
                                             $com_prorroga = $Administracion[3]['COMENTARIO_PRORROGA'];
-                                            /** @noinspection LanguageDetectionInspection */
                                             $comentario_prorroga = <<<html
                                                     <div class="col-lg-4">
                                                     <label for="comentarios_prorroga">Comentarios de Prorroga *</label>
@@ -436,7 +435,8 @@ html;
 <div class="modal fade" id="modal_encuesta_cliente" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg" style="width: 1300px !important;">
         <div class="modal-content">
-            <form onsubmit="enviar_add_cl_mas_por_ti(); return false" id="Add_cll">
+            <form onsubmit="enviar_add_cl(1); return false" id="Add_cll">
+            <!-- <form onsubmit="enviar_add_cl_mas_por_ti(); return false" id="Add_cll"> -->
                 <div class="modal-header">
                     <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
                     <span class="label label-danger" style="font-size: 95% !important; border-radius: 50em !important; background: #787878FF">CLIENTE</span>

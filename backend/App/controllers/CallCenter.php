@@ -97,9 +97,7 @@ class CallCenter extends Controller
                     )
                 }
 
-                function enviar_add_cl() {
-                    
-                    adicional = document.getElementById("adicional").value
+                function enviar_add_cl(adicional = 0) {
                     fecha_trabajo = document.getElementById("fecha_cl").value
                     ciclo = document.getElementById("ciclo_cl").value
                     num_telefono = document.getElementById("movil_cl").value
@@ -156,7 +154,7 @@ class CallCenter extends Controller
                                                 swal("Registro guardado exitosamente", {
                                                     icon: "success"
                                                 })
-                                                location.reload()
+                                                //location.reload()
                                             } else {
                                                 $("#modal_encuesta_cliente").modal("hide")
                                                 swal(respuesta, {
