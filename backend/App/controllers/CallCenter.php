@@ -154,7 +154,7 @@ class CallCenter extends Controller
                                                 swal("Registro guardado exitosamente", {
                                                     icon: "success"
                                                 })
-                                                //location.reload()
+                                                location.reload()
                                             } else {
                                                 $("#modal_encuesta_cliente").modal("hide")
                                                 swal(respuesta, {
