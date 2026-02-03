@@ -301,14 +301,10 @@ class Contenedor extends Controller
             HTML;
         }
 
-        $permisos = ['ADMIN', 'PLMV', 'MCDP', 'LGFR', 'MACI', 'MGJC', 'JACJ'];
+        // Permisos temporales para pruebas de retiro de ahorro a 'LVGA' y 'FLHR'
+        $permisos = ['ADMIN', 'PLMV', 'MCDP', 'LGFR', 'MACI', 'MGJC', 'JACJ', 'LVGA', 'FLHR'];
         if ($this->ValidaPermiso($permisos)) {
             $menu .= '<li><a href="/Tesoreria/ReportePC">Reporte Productora Cultiva</a></li>';
-        }
-
-        // Permisos temporales para pruebas de retiro de ahorro a 'LVGA', 'MCDP' y 'FLHR'
-        $permisos = ['ADMIN', 'LVGA', 'MCDP', 'FLHR'];
-        if ($this->ValidaPermiso($permisos)) {
             $menu .= '<li><a href="/Ahorro/Retiros/">Solicitudes de Retiro</a></li>';
         }
 
