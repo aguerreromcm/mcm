@@ -3175,9 +3175,9 @@ html;
                             "&Final=" +
                             fecha2 +
                             "&Suc=" +
-                            cdgco +
+                            cdgco + ("{$_SESSION['perfil']}" == "ADMIN" ? "" :
                             "&Usuario=" +
-                            usuario
+                            usuario)
                     )
                     $("#all").attr("target", "_blank")
                     $("#all").submit()
@@ -4305,6 +4305,7 @@ html;
         ];
 
         $sucursales = CallCenterDao::getComboSucursalesAllCDGCO($_GET);
+
         $sucursales = $sucursales['success'] && $sucursales['datos']['SUCURSALES'] ? $sucursales['datos']['SUCURSALES'] : '000';
         $datos = [
             'fechaI' => $_GET['Inicial'] == '' ? date('Y-m-d') : $_GET['Inicial'],
@@ -4312,7 +4313,6 @@ html;
             'sucursales' => $sucursales,
             'usuario' => $_GET['Usuario'],
         ];
-
         $filas = CallCenterDao::getAllSolicitudesHistoricoExcel($datos);
         $filas = $filas['success'] ? $filas['datos'] : [];
 
