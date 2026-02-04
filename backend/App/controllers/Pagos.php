@@ -2040,6 +2040,10 @@ html;
                 }
             }
 
+            // Fecha para captura temporal, quitar despues del cierre
+            $date_past = strtotime('-5 days', strtotime($fechaActual));
+            $date_past = date('Y-m-d', $date_past);
+
             $inicio_f = $date_past;
         }
 
