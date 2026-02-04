@@ -341,7 +341,8 @@ HTML;
 
         $fechaActual = date("Y-m-d");
         $tabla = '';
-        $dias = date("N") == 1 ? '-3 days' : '-4 days';
+        // $dias = date("N") == 1 ? '-3 days' : '-4 days';
+        $dias = '-5 days';
         $date_past = strtotime($dias, strtotime($fechaActual));
         $date_past = date('Y-m-d', $date_past);
         $inicio_f = $date_past;
