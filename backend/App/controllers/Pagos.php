@@ -371,7 +371,7 @@ HTML;
 					HTML;
                 }
             } else {
-                $date_past = strtotime('-4 days', strtotime($fechaActual));
+                $date_past = strtotime('-6 days', strtotime($fechaActual));
                 $date_past = date('Y-m-d', $date_past);
                 $fecha_base = strtotime($value['FECHA']);
                 $fecha_base = date('Y-m-d', $fecha_base);
