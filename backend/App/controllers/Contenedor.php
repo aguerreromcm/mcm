@@ -145,7 +145,8 @@ class Contenedor extends Controller
             $menu .= '<li><a href="/Pagos/PagosRegistro/">Registro de Pagos Caja</a></li>';
         }
 
-        if ($this->__perfil == 'ACALL') {
+        $permisos = ['ADMIN', 'ACALL'];
+        if ($this->ValidaPermiso($permisos)) {
             $menu .= <<<HTML
             <li><a href="/Pagos/PagosConsultaUsuarios/">Consulta de Pagos Cliente</a></li>
             HTML;
