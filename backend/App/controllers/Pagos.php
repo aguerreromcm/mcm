@@ -2517,8 +2517,6 @@ html;
             $CorteCaja = PagosDao::getAllByIdCorteCaja(1);
 
             foreach ($CorteCaja as $key => $value) {
-
-                //////////////////////////////////////
                 if ($value['TIPO'] == 'P') {
                     $tipo_pago = 'PAGO';
                 }
