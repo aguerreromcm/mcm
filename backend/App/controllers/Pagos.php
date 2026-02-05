@@ -341,8 +341,7 @@ HTML;
 
         $fechaActual = date("Y-m-d");
         $tabla = '';
-        // $dias = date("N") == 1 ? '-3 days' : '-4 days';
-        $dias = '-7 days';
+        $dias = date("N") == 1 ? '-3 days' : '-4 days';
         $date_past = strtotime($dias, strtotime($fechaActual));
         $date_past = date('Y-m-d', $date_past);
         $inicio_f = $date_past;
@@ -371,7 +370,7 @@ HTML;
 					HTML;
                 }
             } else {
-                $date_past = strtotime('-6 days', strtotime($fechaActual));
+                $date_past = strtotime('-4 days', strtotime($fechaActual));
                 $date_past = date('Y-m-d', $date_past);
                 $fecha_base = strtotime($value['FECHA']);
                 $fecha_base = date('Y-m-d', $fecha_base);
@@ -2040,11 +2039,7 @@ html;
                     $date_past = date('Y-m-d', $date_past);
                 }
             }
-
-            // Fecha para captura temporal, quitar despues del cierre
-            $date_past = strtotime('-5 days', strtotime($fechaActual));
-            $date_past = date('Y-m-d', $date_past);
-
+            
             $inicio_f = $date_past;
         }
 
