@@ -159,7 +159,7 @@ class Contenedor extends Controller
 
         $menu .= '</ul></li>';
 
-        $permisos = ['ADMIN', 'QARO', 'AMOCA', 'MAPH'];
+        $permisos = ['ADMIN', 'QARO', 'AMOCA', 'MAPH', 'LGFR'];
         if ($this->ValidaPermiso($permisos)) {
             $menu .= <<<HTML
             <li><a><i class="fa fa-money"> </i>&nbsp; Resumen Ahorro <span class="fa fa-chevron-down"></span></a>
@@ -172,9 +172,13 @@ class Contenedor extends Controller
             $menu .= '<li><a href="/AhorroSimple/Contrato/">Alta Contrato</a></li>';
         }
 
-        $permisos = ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'LFGR', 'MGJC', 'MAPH'];
+        $permisos = ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'LGFR', 'MGJC', 'MAPH'];
         if ($this->ValidaPermiso($permisos)) {
             $menu .= '<li><a href="/AhorroSimple/EstadoCuenta/">Estado de Cuenta Ahorro</a></li>';
+        }
+        
+        $permisos = ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'MGJC', 'MAPH'];
+        if ($this->ValidaPermiso($permisos)) {
             $menu .= '<li><a href="/AhorroSimple/ValidaAdicional/">Valida Crédito Adicional </a></li>';
             $menu .= '<li><a href="/AhorroSimple/ExepcionesMXT/">Agregar Exepciones MXT</a></li>';
             $menu .= '<li><a href="/AhorroConsulta/">Solicitudes Retiro</a></li>';
