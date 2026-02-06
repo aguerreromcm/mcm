@@ -172,7 +172,7 @@ class Contenedor extends Controller
             $menu .= '<li><a href="/AhorroSimple/Contrato/">Alta Contrato</a></li>';
         }
 
-        $permisos = ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'LGFR', 'MGJC', 'MAPH'];
+        $permisos = ['ADMIN', 'AMOCA', 'CONS', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'LGFR', 'MGJC', 'MAPH'];
         if ($this->ValidaPermiso($permisos)) {
             $menu .= '<li><a href="/AhorroSimple/EstadoCuenta/">Estado de Cuenta Ahorro</a></li>';
         }

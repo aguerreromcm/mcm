@@ -1662,7 +1662,7 @@ sql;
             WHERE
                 PA.FOLIO_ENTREGA = :folio_entrega
                 AND PA.ESTATUS = 'A'
-                AND NVL(PA.TIPO_ORIGINAL, PA.TIPO) IN ('P', 'Y', 'M', 'Z', 'S', 'B')
+                AND PA.TIPO IN ('P', 'Y', 'M', 'Z', 'S', 'B')
                 AND PRN.CICLO = PA.CICLO
                 AND NVL(PA.ESTATUS_CAJA, 0) = 2
             GROUP BY
