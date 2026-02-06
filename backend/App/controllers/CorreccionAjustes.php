@@ -33,6 +33,7 @@ class CorreccionAjustes extends Controller
                 {$this->formatoMoneda}
 
                 const idTabla = "refinanciamientos"
+                let datosFilasAjustes = []
 
                 const buscarEnter = (e) => {
                     if (e.key === "Enter") buscarAjustes()
@@ -50,37 +51,35 @@ class CorreccionAjustes extends Controller
                 }
 
                 const resultadoOK = (datos) => {
-                    const datosEdit = {
-                        credito: datos[0].CREDITO,
-                        ciclo: datos[0].CICLO,
-                        periodos: [],
-                        secuencias: [],
-                        razon: datos[0].RAZON,
-                        descripcion: datos[0].RAZON_DESC,
-                        fecha: datos[0].FECHA,
-                        monto: 0
-                    }
+                    datosFilasAjustes = datos.map((dato) => ({
+                        credito: dato.CREDITO,
+                        ciclo: dato.CICLO,
+                        periodo: dato.PERIODO,
+                        secuencia: dato.SECUENCIA,
+                        razon: dato.RAZON,
+                        descripcion: dato.RAZON_DESC,
+                        fecha: dato.FECHA,
+                        monto: parseFloat(dato.CANTIDAD),
+                        observaciones: dato.OBSERVACIONES,
+                        referencia: dato.REFERENCIA
+                    }))
 
-                    datos = datos.map((dato, fila) => {
-                        datosEdit.monto += parseFloat(dato.CANTIDAD)
-                        datosEdit.periodos.push(dato.PERIODO)
-                        datosEdit.secuencias.push(dato.SECUENCIA)
+                    const datosTabla = datos.map((dato) => [
+                        dato.CREDITO,
+                        dato.CICLO,
+                        dato.RAZON_DESC,
+                        dato.OBSERVACIONES,
+                        dato.FECHA,
+                        "$ " + formatoMoneda(dato.CANTIDAD),
+                        dato.REFERENCIA,
+                        '<button type="button" class="btn btn-xs btn-info btn-cambiar-razon">Cambiar razón</button>'
+                    ])
 
-                        const nuevo = [
-                            dato.CREDITO,
-                            dato.CICLO,
-                            dato.RAZON_DESC,
-                            dato.OBSERVACIONES,
-                            dato.FECHA,
-                            "$ " + formatoMoneda(dato.CANTIDAD),
-                            dato.REFERENCIA
-                        ]
-                        
-                        return nuevo
+                    actualizaDatosTabla(idTabla, datosTabla)
+                    const tabla = $("#" + idTabla).DataTable()
+                    tabla.rows().every(function(rowIdx) {
+                        if (datosFilasAjustes[rowIdx]) $(this.node()).data("rowAjuste", datosFilasAjustes[rowIdx])
                     })
-
-                    $("#datosEdit").val(JSON.stringify(datosEdit))
-                    actualizaDatosTabla(idTabla, datos)
                     $(".resultado").toggleClass("conDatos", true)
                 }
 
@@ -111,15 +110,25 @@ class CorreccionAjustes extends Controller
                     })
                 }
 
-                const muestraModal = () => {
-                    const datos = JSON.parse($("#datosEdit").val())
+                const abreModalRazon = (rowData) => {
+                    const datosEdit = {
+                        credito: rowData.credito,
+                        ciclo: rowData.ciclo,
+                        periodos: [rowData.periodo],
+                        secuencias: [rowData.secuencia],
+                        razon: rowData.razon,
+                        descripcion: rowData.descripcion,
+                        fecha: rowData.fecha,
+                        monto: rowData.monto
+                    }
+                    $("#datosEdit").val(JSON.stringify(datosEdit))
 
-                    $("#credito").val(datos.credito)
-                    $("#ciclo").val(datos.ciclo)
-                    $("#monto").val("$ " + formatoMoneda(datos.monto))
-                    $("#fecha").val(datos.fecha)
-                    $("#razonActual").val(datos.descripcion)
-                    $("#razon").val(datos.razon)
+                    $("#credito").val(rowData.credito)
+                    $("#ciclo").val(rowData.ciclo)
+                    $("#monto").val("$ " + formatoMoneda(rowData.monto))
+                    $("#fecha").val(rowData.fecha)
+                    $("#razonActual").val(rowData.descripcion)
+                    $("#razon").val(rowData.razon)
 
                     $("#modalRazones").modal("show")
                 }
@@ -138,9 +147,7 @@ class CorreccionAjustes extends Controller
                             if (!resultado.success) return showError(resultado.mensaje)
                             $("#modalRazones").modal("hide")
 
-                            showSuccess(resultado.mensaje).then(() => {
-                                buscarAjustes(credito, ciclo)
-                            })
+                            showSuccess(resultado.mensaje).then(() => buscarAjustes())
                         })
                     })
                 }
@@ -151,7 +158,10 @@ class CorreccionAjustes extends Controller
                     $("#creditoBuscar").on("keypress", buscarEnter)
                     $("#cicloBuscar").on("keypress", buscarEnter)
                     $("#buscar").on("click", buscarAjustes)
-                    $("#muestraDatos").on("click", muestraModal)
+                    $("#" + idTabla).on("click", ".btn-cambiar-razon", function() {
+                        const rowData = $(this).closest("tr").data("rowAjuste")
+                        if (rowData) abreModalRazon(rowData)
+                    })
                     $("#modificar").on("click", modificaRazon)
                 })
             </script>

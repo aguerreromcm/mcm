@@ -28,7 +28,6 @@
                         <div class="col-md-8">
                             <div class="form-group" style="min-height: 68px; display: flex; align-items: center; justify-content: space-between;">
                                 <button type="button" class="btn btn-primary" id="buscar">Buscar</button>
-                                <button type="button" class="btn btn-info" id="muestraDatos" style="display: none;"><i class="glyphicon glyphicon-edit">&nbsp;</i>Modificar</button>
                                 <input type="hidden" id="datosEdit" />
                             </div>
                         </div>
@@ -48,6 +47,7 @@
                             <th>Fecha</th>
                             <th>Monto</th>
                             <th>Concepto</th>
+                            <th>Acción</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -95,7 +95,7 @@
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label for="razonActual">Razón actual</label>
+                            <label for="razonActual">Razón actual (solo lectura)</label>
                             <input type="text" class="form-control" id="razonActual" readonly>
                         </div>
                     </div>
