@@ -159,7 +159,7 @@ class Contenedor extends Controller
 
         $menu .= '</ul></li>';
 
-        $permisos = ['ADMIN', 'QARO', 'AMOCA', 'MAPH', 'LGFR'];
+        $permisos = ['ADMIN', 'CONS', 'QARO', 'AMOCA', 'MAPH', 'LGFR'];
         if ($this->ValidaPermiso($permisos)) {
             $menu .= <<<HTML
             <li><a><i class="fa fa-money"> </i>&nbsp; Resumen Ahorro <span class="fa fa-chevron-down"></span></a>
