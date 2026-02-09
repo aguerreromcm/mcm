@@ -145,7 +145,8 @@ class Contenedor extends Controller
             $menu .= '<li><a href="/Pagos/PagosRegistro/">Registro de Pagos Caja</a></li>';
         }
 
-        if ($this->__perfil == 'ACALL') {
+        $permisos = ['ADMIN', 'ACALL'];
+        if ($this->ValidaPermiso($permisos)) {
             $menu .= <<<HTML
             <li><a href="/Pagos/PagosConsultaUsuarios/">Consulta de Pagos Cliente</a></li>
             HTML;
@@ -158,7 +159,7 @@ class Contenedor extends Controller
 
         $menu .= '</ul></li>';
 
-        $permisos = ['ADMIN', 'QARO', 'AMOCA', 'MAPH'];
+        $permisos = ['ADMIN', 'CPAGO', 'QARO', 'AMOCA', 'MAPH', 'LGFR'];
         if ($this->ValidaPermiso($permisos)) {
             $menu .= <<<HTML
             <li><a><i class="fa fa-money"> </i>&nbsp; Resumen Ahorro <span class="fa fa-chevron-down"></span></a>
@@ -171,9 +172,13 @@ class Contenedor extends Controller
             $menu .= '<li><a href="/AhorroSimple/Contrato/">Alta Contrato</a></li>';
         }
 
-        $permisos = ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'LFGR', 'MGJC', 'MAPH'];
+        $permisos = ['ADMIN', 'AMOCA', 'CPAGO', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'LGFR', 'MGJC', 'MAPH'];
         if ($this->ValidaPermiso($permisos)) {
             $menu .= '<li><a href="/AhorroSimple/EstadoCuenta/">Estado de Cuenta Ahorro</a></li>';
+        }
+
+        $permisos = ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'MGJC', 'MAPH'];
+        if ($this->ValidaPermiso($permisos)) {
             $menu .= '<li><a href="/AhorroSimple/ValidaAdicional/">Valida Crédito Adicional </a></li>';
             $menu .= '<li><a href="/AhorroSimple/ExepcionesMXT/">Agregar Exepciones MXT</a></li>';
             $menu .= '<li><a href="/AhorroConsulta/">Solicitudes Retiro</a></li>';
@@ -301,14 +306,10 @@ class Contenedor extends Controller
             HTML;
         }
 
-        $permisos = ['ADMIN', 'PLMV', 'MCDP', 'LGFR', 'MACI', 'MGJC', 'JACJ'];
+        // Permisos temporales para pruebas de retiro de ahorro a 'LVGA' y 'FLHR'
+        $permisos = ['ADMIN', 'PLMV', 'MCDP', 'LGFR', 'MACI', 'MGJC', 'JACJ', 'LVGA', 'FLHR'];
         if ($this->ValidaPermiso($permisos)) {
             $menu .= '<li><a href="/Tesoreria/ReportePC">Reporte Productora Cultiva</a></li>';
-        }
-
-        // Permisos temporales para pruebas de retiro de ahorro a 'LVGA', 'MCDP' y 'FLHR'
-        $permisos = ['ADMIN', 'LVGA', 'MCDP', 'FLHR'];
-        if ($this->ValidaPermiso($permisos)) {
             $menu .= '<li><a href="/Ahorro/Retiros/">Solicitudes de Retiro</a></li>';
         }
 
@@ -401,6 +402,23 @@ class Contenedor extends Controller
                     <ul class="nav child_menu">
                         <li>
                             <a href="/RadarCobranza/DashboardDia">Dashboard Día</a>
+                        </li>
+                    </ul>
+                </li>
+            HTML;
+        }
+
+        $permisos = ['AMGM', 'ADMIN'];
+        if ($this->ValidaPermiso($permisos)) {
+            $menu .= <<<HTML
+                <li>
+                    <a>
+                        <i class="glyphicon glyphicon-wrench">&nbsp;</i>Herramientas
+                        <span class="fa fa-chevron-down"></span>
+                    </a>
+                    <ul class="nav child_menu">
+                        <li>
+                            <a href="/Herramientas/RepDiaAtraso/">Rep Dia de Atraso</a>
                         </li>
                     </ul>
                 </li>

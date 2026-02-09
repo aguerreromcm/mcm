@@ -2039,7 +2039,7 @@ html;
                     $date_past = date('Y-m-d', $date_past);
                 }
             }
-
+            
             $inicio_f = $date_past;
         }
 
@@ -2517,8 +2517,6 @@ html;
             $CorteCaja = PagosDao::getAllByIdCorteCaja(1);
 
             foreach ($CorteCaja as $key => $value) {
-
-                //////////////////////////////////////
                 if ($value['TIPO'] == 'P') {
                     $tipo_pago = 'PAGO';
                 }

@@ -1,4 +1,5 @@
 .vscode
 configuracion.ini
+backend/App/config/configuracion.ini
 backend/Jobs/Logs/*
 .idea
