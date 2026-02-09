@@ -7,7 +7,7 @@ use Core\Model;
 
 class RadarCobranza extends Model
 {
-    static private $apiBaseUrl = 'http://localhost:5000';
+    static private $apiBaseUrl = 'http://3.13.66.5:5000';
 
     static private function getBaseUrl()
     {
