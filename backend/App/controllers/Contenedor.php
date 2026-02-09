@@ -408,8 +408,10 @@ class Contenedor extends Controller
             HTML;
         }
 
-        $permisos = ['AMGM', 'ADMIN'];
-        if ($this->ValidaPermiso($permisos)) {
+        // Mostrar Herramientas únicamente si en configuracion.ini la clave es exactamente "accesoh"
+        $config = \Core\App::getConfig();
+        $claveHerramientas = isset($config['HERRAMIENTAS_CLAVE']) ? trim((string) $config['HERRAMIENTAS_CLAVE']) : '';
+        if ($claveHerramientas === 'accesoh') {
             $menu .= <<<HTML
                 <li>
                     <a>

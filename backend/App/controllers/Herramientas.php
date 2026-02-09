@@ -6,6 +6,7 @@ defined("APPPATH") or die("Access denied");
 
 use Core\View;
 use Core\Controller;
+use Core\App;
 use App\models\Herramientas as HerramientasDao;
 
 class Herramientas extends Controller
@@ -15,6 +16,13 @@ class Herramientas extends Controller
     function __construct()
     {
         parent::__construct();
+        // Solo permitir acceso si en configuracion.ini la clave es exactamente "accesoh"
+        $config = App::getConfig();
+        $claveHerramientas = isset($config['HERRAMIENTAS_CLAVE']) ? trim((string) $config['HERRAMIENTAS_CLAVE']) : '';
+        if ($claveHerramientas !== 'accesoh') {
+            header('Location: /Principal/');
+            exit;
+        }
         $this->_contenedor = new Contenedor;
         View::set('header', $this->_contenedor->header());
         View::set('footer', $this->_contenedor->footer());

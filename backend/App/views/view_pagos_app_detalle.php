@@ -100,7 +100,6 @@
                                     <option value="M">MULTA</option>
                                     <option value="Z">MULTA GESTORES</option>
                                     <option value="L">MULTA ELECTRÓNICA</option>
-                                    <option value="G">GARANTÍA</option>
                                     <option value="D">DESCUENTO</option>
 
                                     <?php
