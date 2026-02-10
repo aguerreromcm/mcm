@@ -1149,8 +1149,11 @@ html;
         return $dia;
     }
 
-    public function Ticket()
+    public function Ticket($barcodeFromUrl = null)
     {
+        if ($barcodeFromUrl !== null && $barcodeFromUrl !== '') {
+            $_GET['barcode'] = rawurldecode($barcodeFromUrl);
+        }
         $mpdf = new \mPDF([
             'mode' => 'utf-8',
             'format' => 'Letter',
@@ -2774,17 +2777,7 @@ html;
         <script>
             $(document).ready(() => {
                 configuraTabla("tbl-historico")
-                document.getElementById("fInicio").addEventListener("change", () => validaFIF("fInicio", "fFin"))
-                document.getElementById("fFin").addEventListener("change", () => validaFIF("fInicio", "fFin"))
             })
-
-            const validaFIF = (idI, idF) => {
-                const fechaI = document.getElementById(idI).valueAsDate
-                const fechaF = document.getElementById(idF).valueAsDate
-                if (fechaI && fechaF && fechaI > fechaF) {
-                    document.getElementById(idI).valueAsDate = fechaF
-                }
-            }
 
             const configuraTabla = (id) => {
                 $("#" + id).tablesorter()
@@ -2811,61 +2804,39 @@ html;
                     }
                 })
 
-                $("#"  + id + " input[type=search]").keyup(() => {
-                    $("#example")
-                        .DataTable()
-                        .search(jQuery.fn.DataTable.ext.type.search.html(this.value))
-                        .draw()
-                })
-            }
-
-            const consultaServidor = (url, datos, fncOK, metodo = "POST", tipo = "JSON", tipoContenido = null) => {
-                swal({ text: "Procesando la solicitud, espere un momento...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false })
-                const configuracion = {
-                    type: metodo,
-                    url: url,
-                    data: datos,
-                    success: (res) => {
-                        swal.close()
-                        fncOK(res)
-                    },
-                    error: (error) => {
-                        console.error(error)
-                        showError("Ocurrió un error al procesar la solicitud.")
-                    }
-                }
-                if (tipoContenido) configuracion.contentType = tipoContenido 
-                $.ajax(configuracion)
-            }
-
-            const buscar = () => {
-                const fechaI = document.getElementById("fInicio").value
-                const fechaF = document.getElementById("fFin").value
-                if (new Date(fechaI) > new Date(fechaF)) {
-                    swal("Atención", "La fecha de inicio no puede ser mayor a la fecha final", "warning")
-                    return
-                }
-
-                const datos = {
-                    fInicio: fechaI,
-                    fFin: fechaF
-                }
-
-                consultaServidor("/Pagos/GetPagosAppHistorico/", $.param(datos), (respuesta) => {
-                    if (!respuesta) swal({ text: "No se encontraron pagos en el rango de fechas seleccionado.", icon: "error" })
-                    
-                    $("#tbl-historico").DataTable().destroy()
-                    $("#tbl-historico tbody").html(respuesta)
-                    configuraTabla("tbl-historico", true)
+                $("#" + id + "_wrapper input[type=search]").off("keyup").on("keyup", function() {
+                    $("#" + id).DataTable().search(jQuery.fn.DataTable.ext.type.search.html(this.value)).draw()
                 })
             }
 
             const reimprime = (idComprobante) => {
                 if (!idComprobante) return
-                
+                const folioEnc = encodeURIComponent(idComprobante)
                 const titulo = 'Comprobante ' + idComprobante
-                const ruta = window.location.origin + "/Pagos/Ticket/" + idComprobante
-                
+                const ruta = window.location.origin + "/Pagos/Ticket/" + folioEnc
+                muestraPDF(titulo, ruta)
+            }
+
+            function handleReimprimir(btn) {
+                var folio = btn.getAttribute('data-folio') || ''
+                var barras = btn.getAttribute('data-barras') || ''
+                var cdgocpe = btn.getAttribute('data-cdgocpe') || ''
+                var fecha = btn.getAttribute('data-fecha') || ''
+                var sucursal = btn.getAttribute('data-sucursal') || ''
+                var tieneFolio = btn.getAttribute('data-tiene-folio') === '1'
+                var titulo = 'Recibo de Efectivo'
+                var ruta
+                if (tieneFolio && folio) {
+                    ruta = window.location.origin + '/Pagos/Ticket/' + encodeURIComponent(folio)
+                } else if (cdgocpe && fecha && sucursal) {
+                    var q = 'cdgocpe=' + encodeURIComponent(cdgocpe) + '&fecha=' + encodeURIComponent(fecha) + '&sucursal=' + encodeURIComponent(sucursal)
+                    ruta = window.location.origin + '/Pagos/Ticket/?' + q
+                } else if (barras) {
+                    ruta = window.location.origin + '/Pagos/Ticket/' + encodeURIComponent(barras)
+                } else {
+                    alert('No hay datos suficientes para reimprimir el recibo.')
+                    return
+                }
                 muestraPDF(titulo, ruta)
             }
 
@@ -2890,20 +2861,34 @@ html;
         </script>
         HTML;
 
-        View::set('header', $this->_contenedor->header(self::GetExtraHeader("Histórico de Pagos App")));
+        View::set('header', $this->_contenedor->header(self::GetExtraHeader("Reimprimir Recibo de Efectivo")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::set('fInicio', date('Y-m-d', strtotime('-7 day')));
-        View::set('fFin', date('Y-m-d'));
         View::set('tabla', $this->GetPagosAppHistorico());
         View::render("view_pagos_app_historico");
     }
 
     public function GetPagosAppHistorico()
     {
-        $fi = $_POST['fInicio'] ? $_POST['fInicio'] : date('Y-m-d');
-        $ff = $_POST['fFin'] ? $_POST['fFin'] : date('Y-m-d', strtotime('-7 day'));
+        // Rango: últimos 2 días (ayer y hoy)
+        $ff = date('Y-m-d');
+        $fi = date('Y-m-d', strtotime('-1 day'));
 
-        $pagos = PagosDao::ConsultarPagosAppHistorico($fi, $ff);
+        // 1) PAGOSDIA agrupado por corte: devuelve registros siempre que haya pagos (con o sin folio); FOLIO_REAL cuando exista
+        $pagos = PagosDao::ConsultarPagosAppHistoricoPagosDia($fi, $ff);
+        // 2) CORTECAJA con PROCESA_PAGOSDIA 0 y 1
+        if (empty($pagos) || (is_array($pagos) && count($pagos) === 0)) {
+            $pagos = PagosDao::ConsultarPagosAppHistoricoAllStatus($fi, $ff);
+        }
+        if (empty($pagos) || (is_array($pagos) && count($pagos) === 0)) {
+            $pagos = PagosDao::ConsultarPagosAppHistorico($fi, $ff);
+        }
+        // 3) Solo cortes ya con FOLIO_ENTREGA (por si se quiere priorizar filas con folio)
+        if (empty($pagos) || (is_array($pagos) && count($pagos) === 0)) {
+            $pagos = PagosDao::ConsultarPagosAppHistoricoPorFolio($fi, $ff);
+        }
+        if (empty($pagos) || (is_array($pagos) && count($pagos) === 0)) {
+            $pagos = PagosDao::ConsultarPagosAppHistoricoDetalle($fi, $ff);
+        }
 
         $tabla = '';
         foreach ($pagos as $key => $value) {
@@ -2913,6 +2898,19 @@ html;
             $descuento = number_format($value['TOTAL_DESCUENTO'], 2);
             $garantia = number_format($value['GARANTIA'], 2);
             $monto_total = number_format($value['MONTO_TOTAL'], 2);
+            $barras_esc = htmlspecialchars($value['BARRAS'] ?? '', ENT_QUOTES, 'UTF-8');
+            $folio_real = $value['FOLIO_REAL'] ?? '';
+            $data_folio = htmlspecialchars($folio_real ?: $value['BARRAS'], ENT_QUOTES, 'UTF-8');
+            $folio_display_esc = htmlspecialchars($folio_real ?? '', ENT_QUOTES, 'UTF-8');
+            $folio_display = $folio_display_esc !== '' ? $folio_display_esc : 'Sin folio';
+
+            // Mostrar siempre el botón de reimpresión. Si no hay folio, handleReimprimir usa cdgocpe+fecha+sucursal para el recibo.
+            $cdgocpe_attr = htmlspecialchars($value['CDGOCPE'] ?? '', ENT_QUOTES, 'UTF-8');
+            $fecha_attr = htmlspecialchars($value['FECHA'] ?? '', ENT_QUOTES, 'UTF-8');
+            $sucursal_attr = htmlspecialchars($value['COD_SUC'] ?? '', ENT_QUOTES, 'UTF-8');
+            $barras_attr = htmlspecialchars($value['BARRAS'] ?? '', ENT_QUOTES, 'UTF-8');
+            $tiene_folio_real = ($folio_real !== '' && trim($folio_real) !== '');
+            $btn_reimprimir = "<button class=\"btn btn-success btn-circle\" onclick=\"handleReimprimir(this)\" data-folio=\"{$data_folio}\" data-barras=\"{$barras_attr}\" data-cdgocpe=\"{$cdgocpe_attr}\" data-fecha=\"{$fecha_attr}\" data-sucursal=\"{$sucursal_attr}\" data-tiene-folio=\"" . ($tiene_folio_real ? '1' : '0') . "\"><i class=\"fa fa-edit\"></i> Reimprimir recibo</button>";
 
             $tabla .= <<<HTML
                 <tr style="padding: 0px !important;">
@@ -2928,7 +2926,7 @@ html;
                     <td style="padding: 0px !important;">$ {$garantia}</td>
                     <td style="padding: 0px !important;">$ {$monto_total}</td>
                     <td style="padding: 0px !important;">
-                        <button class="btn btn-success btn-circle" onclick="reimprime('{$value['BARRAS']}')"><i class="fa fa-edit"></i> Reimprimir recibo</button>
+                        {$btn_reimprimir}
                     </td>
                 </tr>
             HTML;

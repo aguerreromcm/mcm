@@ -92,13 +92,6 @@ class Menu
                                 ]
                             ],
                             [
-                                'titulo' => 'Reimprimir Recibos App',
-                                'url' => [
-                                    'directorio' => '/Pagos/CorteEjecutivoReimprimir/',
-                                    'permisos' => ['ADMIN']
-                                ]
-                            ],
-                            [
                                 'titulo' => 'Layout Contable',
                                 'url' => [
                                     'directorio' => '/Pagos/Layout/',
@@ -124,6 +117,13 @@ class Menu
                                 'url' => [
                                     'directorio' => '/Pagos/PagosConsulta/',
                                     'permisos' => ['ADMIN', 'CAJA', 'GTOCA', 'AMOCA', 'OCOF', 'CPAGO', 'ACALL']
+                                ]
+                            ],
+                            [
+                                'titulo' => 'Reimprimir Recibo de Efectivo',
+                                'url' => [
+                                    'directorio' => '/Pagos/CorteEjecutivoReimprimir/',
+                                    'permisos' => ['ADMIN', 'CAJA', 'LGFR', 'PLMV', 'PMAB', 'MGJC', 'AVGA', 'FLCR', 'COCS', 'GOIY', 'DAGC', 'COVG', 'TESP']
                                 ]
                             ],
                         ]
