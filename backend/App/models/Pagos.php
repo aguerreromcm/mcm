@@ -1420,7 +1420,8 @@ sql;
                 PA.CDGOCPE = :ejecutivo
                 AND PRN.CICLO = PA.CICLO
                 AND PRN.CDGCO = :sucursal
-                AND PA.ESTATUS <> 'E'
+                AND PA.ESTATUS <> 'E'                
+                AND NOT PA.FREGISTRO_APP IS NULL
                 IMPRIMIR
             ORDER BY
                 DECODE(PA.TIPO, 'P', 1, 'M', 2, 'G', 3, 'D', 4, 'R', 5) ASC, PA.FREGISTRO
