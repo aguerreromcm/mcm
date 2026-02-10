@@ -277,9 +277,8 @@ sql;
     {
         $qry = <<<SQL
             SELECT
-                (
-                    COD_SUC || COUNT(NOMBRE) || COMP_BARRA || CAST(SUM(MONTO) AS INTEGER)
-                ) AS BARRAS,
+                COALESCE(MAX(FOLIO_ENTREGA), (COD_SUC || COUNT(NOMBRE) || COMP_BARRA || CAST(SUM(MONTO) AS INTEGER))) AS BARRAS,
+                MAX(FOLIO_ENTREGA) AS FOLIO_REAL,
                 COD_SUC,
                 SUCURSAL,
                 COUNT(NOMBRE) AS NUM_PAGOS,
@@ -324,7 +323,18 @@ sql;
                             WHEN CORTECAJA_PAGOSDIA.TIPO = 'G' THEN MONTO
                         END GARANTIA,
                         CORTECAJA_PAGOSDIA.MONTO,
-                        CORTECAJA_PAGOSDIA.CDGOCPE
+                        CORTECAJA_PAGOSDIA.CDGOCPE,
+                        (
+                            SELECT MAX(PA2.FOLIO_ENTREGA)
+                            FROM PAGOSDIA PA2
+                            INNER JOIN PRN P2 ON P2.CDGNS = PA2.CDGNS AND P2.CICLO = PA2.CICLO
+                            WHERE PA2.FOLIO_ENTREGA IS NOT NULL
+                                AND NVL(PA2.ESTATUS_CAJA, 0) = 2
+                                AND PA2.ESTATUS = 'A'
+                                AND P2.CDGCO = CO.CODIGO
+                                AND PA2.CDGOCPE = CORTECAJA_PAGOSDIA.CDGOCPE
+                                AND TRUNC(PA2.FECHA) = TRUNC(CORTECAJA_PAGOSDIA.FECHA)
+                        ) AS FOLIO_ENTREGA
                     FROM
                         CORTECAJA_PAGOSDIA
                         INNER JOIN PRN ON PRN.CDGNS = CORTECAJA_PAGOSDIA.CDGNS
@@ -333,7 +343,7 @@ sql;
                         PROCESA_PAGOSDIA = '1'
                         AND PRN.CICLO = CORTECAJA_PAGOSDIA.CICLO
                         AND PRN.CDGCO = CO.CODIGO
-                        AND TO_CHAR(CORTECAJA_PAGOSDIA.FECHA, 'YYYY-MM-DD') BETWEEN '$fi' AND '$ff'
+                        AND TRUNC(CORTECAJA_PAGOSDIA.FECHA) BETWEEN TO_DATE('$fi', 'YYYY-MM-DD') AND TO_DATE('$ff', 'YYYY-MM-DD')
                 )
             GROUP BY
                 NOMBRE,
@@ -344,6 +354,347 @@ sql;
                 COD_SUC,
                 SUCURSAL,
                 COMP_BARRA
+        SQL;
+
+        $mysqli = new Database();
+        return $mysqli->queryAll($qry);
+    }
+
+    /**
+     * Fallback: obtener histórico agrupado por FOLIO_ENTREGA directamente desde PAGOSDIA.
+     * Útil cuando la vista CORTECAJA_PAGOSDIA no devuelve folios procesados.
+     */
+    public static function ConsultarPagosAppHistoricoPorFolio($fi, $ff)
+    {
+        $qry = <<<SQL
+            SELECT
+                PA.FOLIO_ENTREGA AS BARRAS,
+                PA.FOLIO_ENTREGA AS FOLIO_REAL,
+                MAX(PA.CDGOCPE) AS CDGOCPE,
+                P2.CDGCO AS COD_SUC,
+                CO.NOMBRE AS SUCURSAL,
+                COUNT(*) AS NUM_PAGOS,
+                PA.EJECUTIVO AS NOMBRE,
+                (TO_CHAR(PA.FECHA, 'DAY', 'NLS_DATE_LANGUAGE=SPANISH') || '- ' || TO_CHAR(PA.FECHA, 'DD-MON-YYYY')) AS FECHA_D,
+                TO_CHAR(PA.FECHA, 'DD-MM-YYYY') AS FECHA,
+                TO_CHAR(TRUNC(PA.FPROCESAPAGO), 'DD/MM/YYYY') AS FECHA_REGISTRO,
+                SUM(CASE WHEN PA.TIPO = 'P' THEN PA.MONTO ELSE 0 END) AS TOTAL_PAGOS,
+                SUM(CASE WHEN PA.TIPO = 'M' THEN PA.MONTO ELSE 0 END) AS TOTAL_MULTA,
+                SUM(CASE WHEN PA.TIPO = 'R' THEN PA.MONTO ELSE 0 END) AS TOTAL_REFINANCIAMIENTO,
+                SUM(CASE WHEN PA.TIPO = 'D' THEN PA.MONTO ELSE 0 END) AS TOTAL_DESCUENTO,
+                SUM(CASE WHEN PA.TIPO = 'G' THEN PA.MONTO ELSE 0 END) AS GARANTIA,
+                SUM(PA.MONTO) AS MONTO_TOTAL
+            FROM PAGOSDIA PA
+            INNER JOIN PRN P2 ON P2.CDGNS = PA.CDGNS AND P2.CICLO = PA.CICLO
+            INNER JOIN CO ON CO.CODIGO = P2.CDGCO
+            WHERE
+                NVL(PA.ESTATUS_CAJA, 0) IN (1, 2)
+                AND PA.ESTATUS = 'A'
+                AND PA.FOLIO_ENTREGA IS NOT NULL
+                AND TRUNC(NVL(PA.FPROCESAPAGO, PA.FECHA)) BETWEEN TO_DATE('$fi', 'YYYY-MM-DD') AND TO_DATE('$ff', 'YYYY-MM-DD')
+            GROUP BY
+                PA.FOLIO_ENTREGA,
+                P2.CDGCO,
+                CO.NOMBRE,
+                PA.EJECUTIVO,
+                PA.FECHA,
+                TRUNC(PA.FPROCESAPAGO)
+            ORDER BY PA.FECHA DESC
+        SQL;
+
+        $mysqli = new Database();
+        return $mysqli->queryAll($qry);
+    }
+
+    /**
+     * Intento alternativo: incluir registros de CORTECAJA_PAGOSDIA con PROCESA_PAGOSDIA IN ('0','1')
+     * y obtener folio asociado desde PAGOSDIA cuando exista.
+     */
+    public static function ConsultarPagosAppHistoricoAllStatus($fi, $ff)
+    {
+        $qry = <<<SQL
+            SELECT
+                COALESCE(MAX(FOLIO_ENTREGA), (COD_SUC || COUNT(NOMBRE) || COMP_BARRA || CAST(SUM(MONTO) AS INTEGER))) AS BARRAS,
+                MAX(FOLIO_ENTREGA) AS FOLIO_REAL,
+                COD_SUC,
+                SUCURSAL,
+                COUNT(NOMBRE) AS NUM_PAGOS,
+                NOMBRE,
+                FECHA_D,
+                FECHA,
+                FECHA_REGISTRO,
+                CDGOCPE,
+                SUM(PAGOS) AS TOTAL_PAGOS,
+                SUM(MULTA) AS TOTAL_MULTA,
+                SUM(REFINANCIAMIENTO) AS TOTAL_REFINANCIAMIENTO,
+                SUM(DESCUENTO) AS TOTAL_DESCUENTO,
+                SUM(GARANTIA) AS GARANTIA,
+                SUM(MONTO) AS MONTO_TOTAL
+            FROM
+                (
+                    SELECT
+                        TO_CHAR(FECHA, 'DDMMYYYY') AS COMP_BARRA,
+                        CO.CODIGO AS COD_SUC,
+                        CO.NOMBRE AS SUCURSAL,
+                        CORTECAJA_PAGOSDIA.EJECUTIVO AS NOMBRE,
+                        TO_CHAR(
+                            CORTECAJA_PAGOSDIA.FECHA,
+                            'DAY',
+                            'NLS_DATE_LANGUAGE=SPANISH'
+                        ) || '- ' || TO_CHAR(CORTECAJA_PAGOSDIA.FECHA, 'DD-MON-YYYY') AS FECHA_D,
+                        TO_CHAR(CORTECAJA_PAGOSDIA.FECHA, 'DD-MM-YYYY') AS FECHA,
+                        TO_CHAR(CORTECAJA_PAGOSDIA.FREGISTRO) AS FECHA_REGISTRO,
+                        CASE
+                            WHEN CORTECAJA_PAGOSDIA.TIPO = 'P' THEN MONTO
+                        END PAGOS,
+                        CASE
+                            WHEN CORTECAJA_PAGOSDIA.TIPO = 'M' THEN MONTO
+                        END MULTA,
+                        CASE
+                            WHEN CORTECAJA_PAGOSDIA.TIPO = 'R' THEN MONTO
+                        END REFINANCIAMIENTO,
+                        CASE
+                            WHEN CORTECAJA_PAGOSDIA.TIPO = 'D' THEN MONTO
+                        END DESCUENTO,
+                        CASE
+                            WHEN CORTECAJA_PAGOSDIA.TIPO = 'G' THEN MONTO
+                        END GARANTIA,
+                        CORTECAJA_PAGOSDIA.MONTO,
+                        CORTECAJA_PAGOSDIA.CDGOCPE,
+                        (
+                            SELECT MAX(PA2.FOLIO_ENTREGA)
+                            FROM PAGOSDIA PA2
+                            INNER JOIN PRN P2 ON P2.CDGNS = PA2.CDGNS AND P2.CICLO = PA2.CICLO
+                            WHERE PA2.FOLIO_ENTREGA IS NOT NULL
+                                AND NVL(PA2.ESTATUS_CAJA, 0) = 2
+                                AND PA2.ESTATUS = 'A'
+                                AND P2.CDGCO = CO.CODIGO
+                                AND PA2.CDGOCPE = CORTECAJA_PAGOSDIA.CDGOCPE
+                                AND TRUNC(PA2.FECHA) = TRUNC(CORTECAJA_PAGOSDIA.FECHA)
+                        ) AS FOLIO_ENTREGA
+                    FROM
+                        CORTECAJA_PAGOSDIA
+                        INNER JOIN PRN ON PRN.CDGNS = CORTECAJA_PAGOSDIA.CDGNS
+                        INNER JOIN CO ON CO.CODIGO = PRN.CDGCO
+                    WHERE
+                        PROCESA_PAGOSDIA IN ('0','1')
+                        AND PRN.CICLO = CORTECAJA_PAGOSDIA.CICLO
+                        AND PRN.CDGCO = CO.CODIGO
+                        AND TRUNC(CORTECAJA_PAGOSDIA.FECHA) BETWEEN TO_DATE('$fi', 'YYYY-MM-DD') AND TO_DATE('$ff', 'YYYY-MM-DD')
+                )
+            GROUP BY
+                NOMBRE,
+                FECHA_D,
+                FECHA,
+                CDGOCPE,
+                FECHA_REGISTRO,
+                COD_SUC,
+                SUCURSAL,
+                COMP_BARRA
+        SQL;
+
+        $mysqli = new Database();
+        return $mysqli->queryAll($qry);
+    }
+
+    /**
+     * Devuelve el detalle por fila (sin agrupar) de pagos en el rango indicado.
+     * Muestra un registro por cada movimiento en PAGOSDIA dentro del rango.
+     */
+    public static function ConsultarPagosAppHistoricoDetalle($fi, $ff)
+    {
+        $qry = <<<SQL
+            SELECT
+                NVL(PA.FOLIO_ENTREGA, (P2.CDGCO || PA.CDGOCPE || TO_CHAR(TRUNC(PA.FECHA), 'DDMMYYYY') || PA.SECUENCIA)) AS BARRAS,
+                PA.FOLIO_ENTREGA AS FOLIO_REAL,
+                P2.CDGCO AS COD_SUC,
+                CO.NOMBRE AS SUCURSAL,
+                1 AS NUM_PAGOS,
+                PA.CDGOCPE AS CDGOCPE,
+                PA.EJECUTIVO AS NOMBRE,
+                (TO_CHAR(PA.FECHA, 'DAY', 'NLS_DATE_LANGUAGE=SPANISH') || '- ' || TO_CHAR(PA.FECHA, 'DD-MON-YYYY')) AS FECHA_D,
+                TO_CHAR(PA.FECHA, 'DD-MM-YYYY') AS FECHA,
+                TO_CHAR(TRUNC(NVL(PA.FPROCESAPAGO, PA.FECHA)), 'DD/MM/YYYY') AS FECHA_REGISTRO,
+                CASE WHEN PA.TIPO = 'P' THEN PA.MONTO ELSE 0 END AS TOTAL_PAGOS,
+                CASE WHEN PA.TIPO = 'M' THEN PA.MONTO ELSE 0 END AS TOTAL_MULTA,
+                CASE WHEN PA.TIPO = 'R' THEN PA.MONTO ELSE 0 END AS TOTAL_REFINANCIAMIENTO,
+                CASE WHEN PA.TIPO = 'D' THEN PA.MONTO ELSE 0 END AS TOTAL_DESCUENTO,
+                CASE WHEN PA.TIPO = 'G' THEN PA.MONTO ELSE 0 END AS GARANTIA,
+                PA.MONTO AS MONTO_TOTAL
+            FROM PAGOSDIA PA
+            INNER JOIN PRN P2 ON P2.CDGNS = PA.CDGNS AND P2.CICLO = PA.CICLO
+            INNER JOIN CO ON CO.CODIGO = P2.CDGCO
+            WHERE
+                PA.ESTATUS = 'A'
+                AND TRUNC(NVL(PA.FPROCESAPAGO, PA.FECHA)) BETWEEN TO_DATE(:fi, 'YYYY-MM-DD') AND TO_DATE(:ff, 'YYYY-MM-DD')
+            ORDER BY PA.FECHA DESC, PA.SECUENCIA
+        SQL;
+
+        $params = [
+            'fi' => $fi,
+            'ff' => $ff
+        ];
+
+        $mysqli = new Database();
+        return $mysqli->queryAll($qry, $params);
+    }
+
+    /**
+     * Busca un folio asociado a un corte por cdgocpe, fecha y sucursal.
+     * Retorna el folio (string) o null si no se encuentra.
+     */
+    public static function BuscarFolioPorCorte($cdgocpe, $fecha, $sucursal)
+    {
+        try {
+            $db = new Database();
+
+            $qry1 = <<<SQL
+                SELECT FA.FOLIO AS FOLIO
+                FROM FOLIO_APP FA
+                INNER JOIN CORTECAJA_PAGOSDIA CP ON CP.CORTECAJA_PAGOSDIA_PK = FA.CORTECAJA_PAGOSDIA_PK
+                INNER JOIN PRN P ON P.CDGNS = CP.CDGNS AND P.CICLO = CP.CICLO
+                WHERE P.CDGCO = :sucursal
+                  AND CP.CDGOCPE = :cdgocpe
+                  AND TRUNC(CP.FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY')
+                FETCH FIRST 1 ROWS ONLY
+            SQL;
+
+            $res1 = $db->queryOne($qry1, ['sucursal' => $sucursal, 'cdgocpe' => $cdgocpe, 'fecha' => $fecha]);
+            if ($res1 && isset($res1['FOLIO']) && $res1['FOLIO']) {
+                return $res1['FOLIO'];
+            }
+
+            $qry2 = <<<SQL
+                SELECT MAX(PA.FOLIO_ENTREGA) AS FOLIO
+                FROM PAGOSDIA PA
+                INNER JOIN PRN P ON P.CDGNS = PA.CDGNS AND P.CICLO = PA.CICLO
+                WHERE P.CDGCO = :sucursal
+                  AND PA.CDGOCPE = :cdgocpe
+                  AND TRUNC(PA.FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY')
+                  AND PA.FOLIO_ENTREGA IS NOT NULL
+            SQL;
+
+            $res2 = $db->queryOne($qry2, ['sucursal' => $sucursal, 'cdgocpe' => $cdgocpe, 'fecha' => $fecha]);
+            if ($res2 && isset($res2['FOLIO']) && $res2['FOLIO']) {
+                return $res2['FOLIO'];
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Buscar folios para múltiples cortes en una sola consulta.
+     * $items: array de arrays ['cdgocpe'=>..., 'fecha'=> 'DD-MM-YYYY', 'sucursal'=>...]
+     * Retorna mapa ['cdgocpe|fecha|sucursal' => folio]
+     */
+    public static function BuscarFoliosPorCortes($items)
+    {
+        if (!is_array($items) || count($items) === 0) return [];
+
+        try {
+            $db = new Database();
+            $conds1 = [];
+            $params1 = [];
+            $i = 0;
+            foreach ($items as $it) {
+                $cdg = $it['cdgocpe'] ?? '';
+                $fe = $it['fecha'] ?? '';
+                $su = $it['sucursal'] ?? '';
+                if (!$cdg || !$fe || !$su) continue;
+                $conds1[] = "(P.CDGCO = :s{$i} AND CP.CDGOCPE = :e{$i} AND TRUNC(CP.FECHA) = TO_DATE(:f{$i}, 'DD-MM-YYYY'))";
+                $params1["s{$i}"] = $su;
+                $params1["e{$i}"] = $cdg;
+                $params1["f{$i}"] = $fe;
+                $i++;
+            }
+
+            $result = [];
+            if (count($conds1) > 0) {
+                $qry1 = "SELECT P.CDGCO AS SUCURSAL, CP.CDGOCPE AS CDGOCPE, TO_CHAR(TRUNC(CP.FECHA),'DD-MM-YYYY') AS FECHA, FA.FOLIO AS FOLIO
+                         FROM FOLIO_APP FA
+                         INNER JOIN CORTECAJA_PAGOSDIA CP ON CP.CORTECAJA_PAGOSDIA_PK = FA.CORTECAJA_PAGOSDIA_PK
+                         INNER JOIN PRN P ON P.CDGNS = CP.CDGNS AND P.CICLO = CP.CICLO
+                         WHERE " . implode(' OR ', $conds1);
+                $rows1 = $db->queryAll($qry1, $params1);
+                foreach ($rows1 as $r) {
+                    $k = ($r['CDGOCPE'] ?? '') . '|' . ($r['FECHA'] ?? '') . '|' . ($r['SUCURSAL'] ?? '');
+                    $result[$k] = $r['FOLIO'];
+                }
+            }
+
+            // Ahora buscar en PAGOSDIA para los items no resueltos
+            $conds2 = [];
+            $params2 = [];
+            $j = 0;
+            foreach ($items as $it) {
+                $cdg = $it['cdgocpe'] ?? '';
+                $fe = $it['fecha'] ?? '';
+                $su = $it['sucursal'] ?? '';
+                if (!$cdg || !$fe || !$su) continue;
+                $k = $cdg . '|' . $fe . '|' . $su;
+                if (isset($result[$k]) && trim((string)$result[$k]) !== '') continue; // ya resuelto en FOLIO_APP
+                $conds2[] = "(P2.CDGCO = :s2_{$j} AND PA.CDGOCPE = :e2_{$j} AND TRUNC(PA.FECHA) = TO_DATE(:f2_{$j}, 'DD-MM-YYYY'))";
+                $params2["s2_{$j}"] = $su;
+                $params2["e2_{$j}"] = $cdg;
+                $params2["f2_{$j}"] = $fe;
+                $j++;
+            }
+
+            if (count($conds2) > 0) {
+                $qry2 = "SELECT P2.CDGCO AS SUCURSAL, PA.CDGOCPE AS CDGOCPE, TO_CHAR(TRUNC(PA.FECHA),'DD-MM-YYYY') AS FECHA, MAX(PA.FOLIO_ENTREGA) AS FOLIO
+                         FROM PAGOSDIA PA
+                         INNER JOIN PRN P2 ON P2.CDGNS = PA.CDGNS AND P2.CICLO = PA.CICLO
+                         WHERE " . implode(' OR ', $conds2) . " AND PA.FOLIO_ENTREGA IS NOT NULL
+                         GROUP BY P2.CDGCO, PA.CDGOCPE, TRUNC(PA.FECHA)";
+                $rows2 = $db->queryAll($qry2, $params2);
+                foreach ($rows2 as $r) {
+                    $k = ($r['CDGOCPE'] ?? '') . '|' . ($r['FECHA'] ?? '') . '|' . ($r['SUCURSAL'] ?? '');
+                    if (!isset($result[$k]) || trim((string)$result[$k]) === '') $result[$k] = $r['FOLIO'];
+                }
+            }
+
+            return $result;
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
+    public static function ConsultarPagosAppHistoricoPagosDia($fi, $ff)
+    {
+        $qry = <<<SQL
+            SELECT
+                NVL(MAX(PA.FOLIO_ENTREGA), (P2.CDGCO || PA.CDGOCPE || TO_CHAR(TRUNC(PA.FECHA), 'DDMMYYYY') || CAST(SUM(PA.MONTO) AS INT))) AS BARRAS,
+                MAX(PA.FOLIO_ENTREGA) AS FOLIO_REAL,
+                PA.CDGOCPE AS CDGOCPE,
+                P2.CDGCO AS COD_SUC,
+                CO.NOMBRE AS SUCURSAL,
+                COUNT(*) AS NUM_PAGOS,
+                MAX(PA.EJECUTIVO) AS NOMBRE,
+                (TO_CHAR(MAX(PA.FECHA), 'DAY', 'NLS_DATE_LANGUAGE=SPANISH') || '- ' || TO_CHAR(MAX(PA.FECHA), 'DD-MON-YYYY')) AS FECHA_D,
+                TO_CHAR(MAX(PA.FECHA), 'DD-MM-YYYY') AS FECHA,
+                TO_CHAR(TRUNC(MAX(NVL(PA.FPROCESAPAGO, PA.FECHA))), 'DD/MM/YYYY') AS FECHA_REGISTRO,
+                SUM(CASE WHEN PA.TIPO = 'P' THEN PA.MONTO ELSE 0 END) AS TOTAL_PAGOS,
+                SUM(CASE WHEN PA.TIPO = 'M' THEN PA.MONTO ELSE 0 END) AS TOTAL_MULTA,
+                SUM(CASE WHEN PA.TIPO = 'R' THEN PA.MONTO ELSE 0 END) AS TOTAL_REFINANCIAMIENTO,
+                SUM(CASE WHEN PA.TIPO = 'D' THEN PA.MONTO ELSE 0 END) AS TOTAL_DESCUENTO,
+                SUM(CASE WHEN PA.TIPO = 'G' THEN PA.MONTO ELSE 0 END) AS GARANTIA,
+                SUM(PA.MONTO) AS MONTO_TOTAL
+            FROM PAGOSDIA PA
+            INNER JOIN PRN P2 ON P2.CDGNS = PA.CDGNS AND P2.CICLO = PA.CICLO
+            INNER JOIN CO ON CO.CODIGO = P2.CDGCO
+            WHERE
+                PA.ESTATUS = 'A'
+                AND TRUNC(NVL(PA.FPROCESAPAGO, PA.FECHA)) BETWEEN TO_DATE('$fi', 'YYYY-MM-DD') AND TO_DATE('$ff', 'YYYY-MM-DD')
+            GROUP BY
+                P2.CDGCO,
+                CO.NOMBRE,
+                PA.CDGOCPE,
+                TRUNC(PA.FECHA),
+                PA.FOLIO_ENTREGA
+            ORDER BY MAX(PA.FECHA) DESC
         SQL;
 
         $mysqli = new Database();
@@ -1652,74 +2003,141 @@ sql;
 
     public static function ReciboPagosApp($datos)
     {
-        $qry_monto = <<<SQL
-            SELECT
-                TO_CHAR(TRUNC(FPROCESAPAGO), 'DD/MM/YYYY') AS FECHA_ENTREGA
-                ,SUM(PA.MONTO) AS MONTO
-                ,PA.FOLIO_ENTREGA AS FOLIO
-            FROM
-                PAGOSDIA PA
-                INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS
-            WHERE
-                PA.FOLIO_ENTREGA = :folio_entrega
+        $barcode = isset($datos['barcode']) ? trim((string)$datos['barcode']) : null;
+        $cdgocpe = isset($datos['cdgocpe']) ? trim((string)$datos['cdgocpe']) : null;
+        $fecha = isset($datos['fecha']) ? trim((string)$datos['fecha']) : null;
+        $sucursal = isset($datos['sucursal']) ? trim((string)$datos['sucursal']) : null;
+        $buscarPorCorte = !empty($cdgocpe) && !empty($fecha) && !empty($sucursal);
+
+        if (empty($barcode) && !$buscarPorCorte) {
+            return self::Responde(false, "Proporcione el folio del recibo (barcode) o el corte (cdgocpe, fecha, sucursal).", null);
+        }
+
+        $db = new Database();
+        $resultado = null;
+
+        // 1) Intentar por folio/barcode si se proporcionó
+        if (!empty($barcode)) {
+            $params = ['folio_entrega' => $barcode];
+            $tieneSucursal = !empty($datos['sucursal']);
+            $tieneEjecutivo = !empty($datos['cdgpe']);
+
+            if ($tieneSucursal && $tieneEjecutivo) {
+                $qry_monto = <<<SQL
+                    SELECT
+                        TO_CHAR(TRUNC(FPROCESAPAGO), 'DD/MM/YYYY') AS FECHA_ENTREGA
+                        ,SUM(PA.MONTO) AS MONTO
+                        ,PA.FOLIO_ENTREGA AS FOLIO
+                    FROM
+                        PAGOSDIA PA
+                        INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS
+                    WHERE
+                        PA.FOLIO_ENTREGA = :folio_entrega
+                        AND PA.ESTATUS = 'A'
+                        AND PA.TIPO IN ('P', 'Y', 'M', 'Z', 'S', 'B')
+                        AND PRN.CICLO = PA.CICLO
+                        AND NVL(PA.ESTATUS_CAJA, 0) = 2
+                    GROUP BY
+                        TO_CHAR(TRUNC(FPROCESAPAGO), 'DD/MM/YYYY')
+                        ,PA.FOLIO_ENTREGA
+                SQL;
+                $qry_sucursal = "SELECT CO.CODIGO AS SUCURSAL, CO.NOMBRE AS SUCURSAL_NOMBRE FROM CO WHERE CO.CODIGO = :sucursal";
+                $qry_ejecutivo = "SELECT CODIGO AS EJECUTIVO, CONCATENA_NOMBRE(PE.NOMBRE1, PE.NOMBRE2, PE.PRIMAPE, PE.SEGAPE) AS EJECUTIVO_NOMBRE FROM PE WHERE PE.CODIGO = :ejecutivo";
+            } else {
+                $qry_monto = <<<SQL
+                    SELECT
+                        TO_CHAR(TRUNC(PA.FPROCESAPAGO), 'DD/MM/YYYY') AS FECHA_ENTREGA
+                        ,SUM(PA.MONTO) AS MONTO
+                        ,PA.FOLIO_ENTREGA AS FOLIO
+                        ,MAX(CO.CODIGO) AS SUCURSAL
+                        ,MAX(CO.NOMBRE) AS SUCURSAL_NOMBRE
+                        ,MAX(PA.CDGPE) AS EJECUTIVO
+                    FROM
+                        PAGOSDIA PA
+                        INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS AND PRN.CICLO = PA.CICLO
+                        INNER JOIN CO ON CO.CODIGO = PRN.CDGCO
+                    WHERE
+                        PA.FOLIO_ENTREGA = :folio_entrega
+                        AND PA.ESTATUS = 'A'
+                        AND PA.TIPO IN ('P', 'Y', 'M', 'Z', 'S', 'B')
+                        AND NVL(PA.ESTATUS_CAJA, 0) = 2
+                    GROUP BY
+                        TO_CHAR(TRUNC(PA.FPROCESAPAGO), 'DD/MM/YYYY')
+                        ,PA.FOLIO_ENTREGA
+                SQL;
+                $qry_sucursal = null;
+                $qry_ejecutivo = <<<SQL
+                    SELECT
+                        PE.CODIGO AS EJECUTIVO
+                        , CONCATENA_NOMBRE(PE.NOMBRE1, PE.NOMBRE2, PE.PRIMAPE, PE.SEGAPE) AS EJECUTIVO_NOMBRE
+                    FROM PE
+                    WHERE PE.CODIGO = (SELECT MAX(PA.CDGPE) FROM PAGOSDIA PA WHERE PA.FOLIO_ENTREGA = :folio_entrega AND NVL(PA.ESTATUS_CAJA, 0) = 2)
+                SQL;
+            }
+
+            try {
+                $monto = $db->queryOne($qry_monto, $params);
+                if ($monto) {
+                    if ($tieneSucursal && $tieneEjecutivo) {
+                        $params_suc = ['sucursal' => $datos['sucursal']];
+                        $params_eje = ['ejecutivo' => $datos['cdgpe']];
+                        $suc = $db->queryOne($qry_sucursal, $params_suc);
+                        $eje = $db->queryOne($qry_ejecutivo, $params_eje);
+                        if ($suc && $eje) {
+                            $resultado = array_merge($monto, $suc, $eje);
+                        }
+                    } else {
+                        $eje = $db->queryOne($qry_ejecutivo, $params);
+                        $resultado = array_merge($monto, $eje ?: []);
+                    }
+                }
+            } catch (\Exception $e) {
+                // Si falla por folio y tenemos corte, se intentará por corte más abajo
+            }
+        }
+
+        // 2) Si no se encontró por barcode, intentar por corte (cdgocpe + fecha + sucursal)
+        if ($resultado === null && $buscarPorCorte) {
+            $qry_corte = <<<SQL
+                SELECT
+                    TO_CHAR(TRUNC(MAX(NVL(PA.FPROCESAPAGO, PA.FECHA))), 'DD/MM/YYYY') AS FECHA_ENTREGA,
+                    SUM(PA.MONTO) AS MONTO,
+                    NVL(MAX(PA.FOLIO_ENTREGA), (MAX(PRN.CDGCO) || MAX(PA.CDGOCPE) || TO_CHAR(TRUNC(MAX(PA.FECHA)), 'DDMMYYYY') || CAST(SUM(PA.MONTO) AS INT))) AS FOLIO,
+                    MAX(CO.CODIGO) AS SUCURSAL,
+                    MAX(CO.NOMBRE) AS SUCURSAL_NOMBRE,
+                    MAX(PA.CDGPE) AS EJECUTIVO
+                FROM PAGOSDIA PA
+                INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS AND PRN.CICLO = PA.CICLO
+                INNER JOIN CO ON CO.CODIGO = PRN.CDGCO
+                WHERE PA.CDGOCPE = :cdgocpe
+                AND TO_CHAR(PA.FECHA, 'DD-MM-YYYY') = :fecha
+                AND PRN.CDGCO = :sucursal
                 AND PA.ESTATUS = 'A'
                 AND PA.TIPO IN ('P', 'Y', 'M', 'Z', 'S', 'B')
-                AND PRN.CICLO = PA.CICLO
-                AND NVL(PA.ESTATUS_CAJA, 0) = 2
-            GROUP BY
-                TO_CHAR(TRUNC(FPROCESAPAGO), 'DD/MM/YYYY')
-                ,PA.FOLIO_ENTREGA
-        SQL;
-
-        $params_monto = [
-            'folio_entrega' => $datos['barcode'] ?? null,
-        ];
-
-        $qry_sucursal = <<<SQL
-            SELECT
-                CO.CODIGO AS SUCURSAL
-                , CO.NOMBRE AS SUCURSAL_NOMBRE
-            FROM
-                CO
-            WHERE
-                CO.CODIGO = :sucursal
-        SQL;
-
-        $params_sucursal = [
-            'sucursal' => $datos['sucursal'] ?? null,
-        ];
-
-        $qry_ejecutivo = <<<SQL
-            SELECT
-                CODIGO AS EJECUTIVO
-                , CONCATENA_NOMBRE(PE.NOMBRE1, PE.NOMBRE2, PE.PRIMAPE, PE.SEGAPE) AS EJECUTIVO_NOMBRE
-                , CASE WHEN PE.SEXO = 'M' THEN 'del ejecutivo' ELSE 'de la ejecutiva' END AS EJECUTIVO_GENERO
-            FROM
-                PE
-            WHERE
-                PE.CODIGO = :ejecutivo
-        SQL;
-
-        $params_ejecutivo = [
-            'ejecutivo' => $datos['cdgpe'] ?? null,
-        ];
-
-        try {
-            $db = new Database();
-            $monto = $db->queryOne($qry_monto, $params_monto);
-            if (!$monto) return self::Responde(false, "No se encontraron pagos para el recibo solicitado", null);
-
-            $sucursal = $db->queryOne($qry_sucursal, $params_sucursal);
-            if (!$sucursal) return self::Responde(false, "No se encontró la sucursal para el recibo solicitado", null);
-
-            $ejecutivo = $db->queryOne($qry_ejecutivo, $params_ejecutivo);
-            if (!$ejecutivo) return self::Responde(false, "No se encontró el ejecutivo para el recibo solicitado", null);
-
-            $resultado = array_merge($monto, $sucursal, $ejecutivo);
-
-            return self::Responde(true, "Datos para recibo obtenidos", $resultado);
-        } catch (\Exception $e) {
-            return self::Responde(false, "Error al obtener los datos para recibo solicitado", null, $e->getMessage());
+                GROUP BY PA.CDGOCPE, TRUNC(PA.FECHA), PRN.CDGCO
+            SQL;
+            $params_corte = ['cdgocpe' => $cdgocpe, 'fecha' => $fecha, 'sucursal' => $sucursal];
+            try {
+                $monto_corte = $db->queryOne($qry_corte, $params_corte);
+                if ($monto_corte && isset($monto_corte['MONTO']) && (float)$monto_corte['MONTO'] > 0) {
+                    $cod_ejecutivo = $monto_corte['EJECUTIVO'] ?? null;
+                    if ($cod_ejecutivo) {
+                        $qry_eje = "SELECT CODIGO AS EJECUTIVO, CONCATENA_NOMBRE(PE.NOMBRE1, PE.NOMBRE2, PE.PRIMAPE, PE.SEGAPE) AS EJECUTIVO_NOMBRE FROM PE WHERE PE.CODIGO = :ejecutivo";
+                        $eje = $db->queryOne($qry_eje, ['ejecutivo' => $cod_ejecutivo]);
+                        $resultado = array_merge($monto_corte, $eje ?: []);
+                    } else {
+                        $resultado = $monto_corte;
+                    }
+                }
+            } catch (\Exception $e) {
+                return self::Responde(false, "Error al obtener el recibo por corte: " . $e->getMessage(), null);
+            }
         }
+
+        if ($resultado === null || empty($resultado)) {
+            return self::Responde(false, "No se encontraron pagos para el recibo solicitado. Verifique el folio o que el corte exista.", null);
+        }
+
+        return self::Responde(true, "Datos para recibo obtenidos", $resultado);
     }
 }
