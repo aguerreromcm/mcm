@@ -2776,13 +2776,14 @@ html;
         $tabla = '';
         foreach ($folios as $row) {
             $folio_esc = $row['FOLIO'] ?? '';
-            $sucursal = $row['SUCURSAL'] ?? '';
-            $usuario = $row['USUARIO'] ?? '';
+            $sucursal = $row['SUCURSAL_NOMBRE'] ?? '';
+            $usuario = $row['USUARIO_NOMBRE'] ?? '';
             $fecha = $row['FECHA'] ?? '';
             $ejecutivo = $row['EJECUTIVO'] ?? '';
             $monto = isset($row['MONTO']) ? number_format((float)$row['MONTO'], 2) : '0.00';
             $registros = (int)($row['REGISTROS'] ?? 0);
-            $url_ticket = '/Pagos/Ticket/' . rawurlencode($row['FOLIO'] ?? '');
+
+            $url_ticket = "/Pagos/Ticket/?barcode={$row['FOLIO']}&sucursal={$row['SUCURSAL']}&cdgpe={$row['USUARIO']}";
             $tabla .= <<<HTML
                 <tr>
                     <td>{$folio_esc}</td>
