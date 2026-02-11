@@ -349,13 +349,7 @@ class Pagos extends Controller
         $Administracion = PagosDao::ConsultarPagosAdministracion($credito, $hora_cierre);
 
         foreach ($Administracion as $key => $value) {
-            if ($value['FIDENTIFICAPP'] ==  NULL) {
-                $medio = '<span class="count_top" style="font-size: 25px"><i class="fa fa-female"></i></span>';
-                $mensaje = 'InfoAdmin();';
-            } else {
-                $medio = '<span class="count_top" style="font-size: 30px"><i class="fa fa-phone"></i></span>';
-                $mensaje = 'InfoPhone();';
-            }
+            $icono = $value['MEDIO'] == 'APP' ? 'mobile' : 'female';
 
             if ($value['DESIGNATION_ADMIN'] == 'SI') {
                 if ($value['TIP'] == 'B' || $value['TIP'] == 'F') {
@@ -398,7 +392,7 @@ class Pagos extends Controller
             $monto = number_format($value['MONTO'], 2);
             $tabla .= <<<HTML
                 <tr style="padding: 0px !important;">
-                    <td style="padding: 0px !important;" width="45" nowrap onclick="{$mensaje}">{$medio}</td>
+                    <td style="padding: 0px !important;" width="45"><span class="count_top" style="font-size: 25px"><i class="fa fa-{$icono}"></i></span></td>
                     <td style="padding: 0px !important;" width="45" nowrap>{$value['SECUENCIA']}</td>
                     <td style="padding: 0px !important;">{$value['CDGNS']}</td>
                     <td style="padding: 0px !important;">{$value['FECHA_TABLA']}</td>
@@ -1451,7 +1445,7 @@ html;
 
             $tabla = '';
             foreach ($Consulta as $key => $value) {
-                $icono = ($value['MEDIO'] == 'APP') ? 'mobile' : 'female';
+                $icono = $value['MEDIO'] == 'APP' ? 'mobile' : 'female';
 
                 $monto = number_format($value['MONTO'], 2);
                 $tabla .= <<<HTML
@@ -2042,7 +2036,7 @@ html;
                     $date_past = date('Y-m-d', $date_past);
                 }
             }
-            
+
             $inicio_f = $date_past;
         }
 
