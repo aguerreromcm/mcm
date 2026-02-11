@@ -2791,7 +2791,6 @@ html;
                     <td>{$fecha}</td>
                     <td>$ {$monto}</td>
                     <td>{$ejecutivo}</td>
-                    <td>{$usuario}</td>
                     <td>{$registros}</td>
                     <td>
                         <a href="{$url_ticket}" target="_blank" class="btn btn-success btn-circle" title="Reimprimir recibo">
