@@ -177,7 +177,7 @@ class Contenedor extends Controller
             $menu .= '<li><a href="/AhorroSimple/Contrato/">Alta Contrato</a></li>';
         }
 
-        $permisos = ['ADMIN', 'AMOCA', 'CPAGO', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'LGFR', 'MGJC', 'MAPH'];
+        $permisos = ['ADMIN', 'AMOCA', 'CPAGO', 'CAJA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'LGFR', 'MGJC', 'MAPH'];
         if ($this->ValidaPermiso($permisos)) {
             $menu .= '<li><a href="/AhorroSimple/EstadoCuenta/">Estado de Cuenta Ahorro</a></li>';
         }
@@ -188,7 +188,7 @@ class Contenedor extends Controller
             $menu .= '<li><a href="/AhorroSimple/ExepcionesMXT/">Agregar Exepciones MXT</a></li>';
         }
 
-        $permisos = ['ADMIN', 'AMOCA', 'CPAGO', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'MGJC', 'MAPH'];
+        $permisos = ['ADMIN', 'AMOCA', 'CPAGO', 'CAJA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'MGJC', 'MAPH'];
         if ($this->ValidaPermiso($permisos)) {
             $menu .= '<li><a href="/AhorroConsulta/">Solicitudes Retiro</a></li>';
         }
