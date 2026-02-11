@@ -889,7 +889,7 @@ html;
             $barcode = $_GET['barcode'];
             $cierreCaja = PagosDao::CierreCaja(['usuario' => $_SESSION['usuario']]);
             $festivos = self::GetFestivos(PagosDao::DiasFestivos()['datos'] ?? []);
-            $horaCierre ='11:00:00'; //$cierreCaja['success'] ? $cierreCaja['datos']['HORA_CIERRE'] : '10:00:00';
+            $horaCierre = '11:00:00'; //$cierreCaja['success'] ? $cierreCaja['datos']['HORA_CIERRE'] : '10:00:00';
             $f_actual = date("Y-m-d");
             $f_anterior = date("H:i:s") <= $horaCierre ? self::DiaHabilAnterior($f_actual, $festivos) : $f_actual;
 
@@ -2775,10 +2775,11 @@ html;
         $folios = PagosDao::FoliosReimprimirReciboEfectivo();
         $tabla = '';
         foreach ($folios as $row) {
-            $folio_esc = htmlspecialchars($row['FOLIO'] ?? '', ENT_QUOTES, 'UTF-8');
-            $sucursal = htmlspecialchars($row['SUCURSAL'] ?? '', ENT_QUOTES, 'UTF-8');
-            $usuario = htmlspecialchars($row['USUARIO'] ?? '', ENT_QUOTES, 'UTF-8');
-            $fecha = htmlspecialchars($row['FECHA'] ?? '', ENT_QUOTES, 'UTF-8');
+            $folio_esc = $row['FOLIO'] ?? '';
+            $sucursal = $row['SUCURSAL'] ?? '';
+            $usuario = $row['USUARIO'] ?? '';
+            $fecha = $row['FECHA'] ?? '';
+            $ejecutivo = $row['EJECUTIVO'] ?? '';
             $monto = isset($row['MONTO']) ? number_format((float)$row['MONTO'], 2) : '0.00';
             $registros = (int)($row['REGISTROS'] ?? 0);
             $url_ticket = '/Pagos/Ticket/' . rawurlencode($row['FOLIO'] ?? '');
@@ -2788,7 +2789,9 @@ html;
                     <td>{$sucursal}</td>
                     <td>{$usuario}</td>
                     <td>{$fecha}</td>
-                    <td>\$ {$monto}</td>
+                    <td>$ {$monto}</td>
+                    <td>{$ejecutivo}</td>
+                    <td>{$usuario}</td>
                     <td>{$registros}</td>
                     <td>
                         <a href="{$url_ticket}" target="_blank" class="btn btn-success btn-circle" title="Reimprimir recibo">

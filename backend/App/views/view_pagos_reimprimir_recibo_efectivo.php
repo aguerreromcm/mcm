@@ -8,7 +8,7 @@
                 <div class="clearfix"></div>
             </div>
             <div class="card col-md-12">
-                <p class="text-muted">Seleccione el recibo a reimprimir. Solo se muestran recibos de efectivo del día anterior o del mismo día.</p>
+                <p class="text-muted">Solo se muestran recibos de efectivo del día anterior y el mismo día.</p>
                 <hr style="border-top: 1px solid #787878; margin-top: 5px;">
                 <div class="dataTable_wrapper">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -34,6 +34,7 @@
                                 <th>Usuario</th>
                                 <th>Fecha</th>
                                 <th>Monto</th>
+                                <th>Ejecutivo</th>
                                 <th>Registros</th>
                                 <th>Acciones</th>
                             </tr>
@@ -44,7 +45,7 @@
                     </table>
                 </div>
                 <script>
-                    (function(){
+                    (function() {
                         const input = document.getElementById('search-folios');
                         const tabla = document.getElementById('tabla-reimprimir');
                         const select = document.getElementById('mostrar-registros');
@@ -61,7 +62,7 @@
                         input.addEventListener('input', filtrar);
 
                         // Opcional: limitar número de filas visibles (simple paginado client-side)
-                        select.addEventListener('change', function(){
+                        select.addEventListener('change', function() {
                             const perPage = parseInt(this.value, 10);
                             const rows = Array.from(tabla.querySelectorAll('tbody tr'));
                             rows.forEach((tr, idx) => {
@@ -73,11 +74,11 @@
                         select.dispatchEvent(new Event('change'));
                     })();
                 </script>
-                
-                </div>
+
             </div>
         </div>
     </div>
+</div>
 </div>
 
 <?= $footer; ?>
