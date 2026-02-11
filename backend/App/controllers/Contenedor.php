@@ -186,6 +186,10 @@ class Contenedor extends Controller
         if ($this->ValidaPermiso($permisos)) {
             $menu .= '<li><a href="/AhorroSimple/ValidaAdicional/">Valida Crédito Adicional </a></li>';
             $menu .= '<li><a href="/AhorroSimple/ExepcionesMXT/">Agregar Exepciones MXT</a></li>';
+        }
+
+        $permisos = ['ADMIN', 'AMOCA', 'CPAGO', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'MGJC', 'MAPH'];
+        if ($this->ValidaPermiso($permisos)) {
             $menu .= '<li><a href="/AhorroConsulta/">Solicitudes Retiro</a></li>';
         }
 
