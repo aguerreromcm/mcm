@@ -2779,11 +2779,11 @@ html;
             $sucursal = $row['SUCURSAL_NOMBRE'] ?? '';
             $usuario = $row['USUARIO_NOMBRE'] ?? '';
             $fecha = $row['FECHA'] ?? '';
-            $ejecutivo = $row['EJECUTIVO'] ?? '';
+            $ejecutivo = $row['EJECUTIVO_NOMBRE'] ?? '';
             $monto = isset($row['MONTO']) ? number_format((float)$row['MONTO'], 2) : '0.00';
             $registros = (int)($row['REGISTROS'] ?? 0);
 
-            $url_ticket = "/Pagos/Ticket/?barcode={$row['FOLIO']}&sucursal={$row['SUCURSAL']}&cdgpe={$row['USUARIO']}";
+            $url_ticket = "/Pagos/Ticket/?barcode={$row['FOLIO']}&sucursal={$row['SUCURSAL']}&cdgpe={$row['EJECUTIVO']}";
             $tabla .= <<<HTML
                 <tr>
                     <td>{$folio_esc}</td>

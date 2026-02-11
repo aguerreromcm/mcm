@@ -2024,11 +2024,12 @@ sql;
                 WHERE PA.FOLIO_ENTREGA IS NOT NULL
             )
             SELECT F.FOLIO
-                ,F.SUCURSAL AS SUCURSAL
+                ,F.SUCURSAL
                 ,GET_NOMBRE_SUCURSAL(F.SUCURSAL) AS SUCURSAL_NOMBRE
-                ,F.USUARIO AS USUARIO
+                ,F.USUARIO
                 ,GET_NOMBRE_EMPLEADO(F.USUARIO) AS USUARIO_NOMBRE
-                ,GET_NOMBRE_EMPLEADO(F.EJECUTIVO) AS EJECUTIVO
+                ,F.EJECUTIVO
+                ,GET_NOMBRE_EMPLEADO(F.EJECUTIVO) AS EJECUTIVO_NOMBRE
                 ,TO_CHAR(F.FECHA, 'DD/MM/YYYY HH24:MI') AS FECHA
                 ,SUM(F.MONTO) AS MONTO
                 ,COUNT(*) AS REGISTROS
