@@ -157,9 +157,9 @@ class Contenedor extends Controller
             $menu .= '<li><a href="/Pagos/PagosConsulta/">Consultar Pagos</a></li>';
         }
 
-        $permisos = ['ADMIN', 'CAJA', 'LGFR', 'PLMV', 'PMAB', 'MGJC', 'AVGA', 'FLCR', 'COCS', 'GOIY', 'DAGC', 'COVG', 'TESP'];
+        $permisos = ['ADMIN', 'CAJA', 'GTOCA', 'AMOCA', 'OCOF', 'CPAGO', 'ACALL'];
         if ($this->ValidaPermiso($permisos)) {
-            $menu .= '<li><a href="/Pagos/CorteEjecutivoReimprimir/">Reimprimir Recibo de Efectivo</a></li>';
+            $menu .= '<li><a href="/Pagos/ReimprimirReciboEfectivo/">Reimprimir Recibo de Efectivo</a></li>';
         }
 
         $menu .= '</ul></li>';

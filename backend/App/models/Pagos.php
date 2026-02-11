@@ -2001,6 +2001,47 @@ sql;
         }
     }
 
+    /**
+     * Folios de recibos de efectivo que pueden reimprimirse (día anterior o mismo día).
+     * Usado por Reimprimir Recibo de Efectivo.
+     *
+     * @return array Lista de filas: FOLIO, SUCURSAL, USUARIO, FECHA, MONTO, REGISTROS
+     */
+    public static function FoliosReimprimirReciboEfectivo()
+    {
+        $qry = <<<SQL
+WITH FOLIOS
+AS (
+    SELECT PA.FOLIO_ENTREGA AS FOLIO
+        ,SUBSTR(PA.FOLIO_ENTREGA, 1, 3) AS SUCURSAL
+        ,SUBSTR(PA.FOLIO_ENTREGA, 4, 4) AS USUARIO
+        ,TO_DATE(SUBSTR(PA.FOLIO_ENTREGA, 8, 14), 'DDMMYYYYHH24MISS') AS FECHA
+        ,PA.MONTO
+        ,PA.TIPO
+    FROM PAGOSDIA PA
+    WHERE PA.FOLIO_ENTREGA IS NOT NULL
+)
+SELECT F.FOLIO
+    ,GET_NOMBRE_SUCURSAL(F.SUCURSAL) AS SUCURSAL
+    ,GET_NOMBRE_EMPLEADO(F.USUARIO) AS USUARIO
+    ,TO_CHAR(F.FECHA, 'DD/MM/YYYY HH24:MI') AS FECHA
+    ,SUM(F.MONTO) AS MONTO
+    ,COUNT(*) AS REGISTROS
+FROM FOLIOS F
+WHERE F.TIPO IN ('P','Y','M','Z','S','B')
+    AND TRUNC(F.FECHA) BETWEEN TRUNC(SYSDATE) - 1 AND TRUNC(SYSDATE)
+GROUP BY F.FOLIO, F.SUCURSAL, F.USUARIO, F.FECHA
+ORDER BY F.FECHA DESC
+SQL;
+        try {
+            $db = new Database();
+            $rows = $db->queryAll($qry);
+            return is_array($rows) ? $rows : [];
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
     public static function ReciboPagosApp($datos)
     {
         $barcode = isset($datos['barcode']) ? trim((string)$datos['barcode']) : null;

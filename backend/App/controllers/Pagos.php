@@ -2765,100 +2765,44 @@ html;
         \PHPSpreadsheet::DescargaExcel('Consulta Pagos Global', 'Reporte', 'Pagos', $columnas, $filas);
     }
 
-    public function CorteEjecutivoReimprimir()
+    // Método CorteEjecutivoReimprimir eliminado.
+
+    /**
+     * Lista de folios de recibos de efectivo (día anterior o mismo día) para que las cajeras reimpriman.
+     */
+    public function ReimprimirReciboEfectivo()
     {
-        $extraFooter = <<<HTML
-        <script>
-            $(document).ready(() => {
-                configuraTabla("tbl-historico")
-            })
+        $folios = PagosDao::FoliosReimprimirReciboEfectivo();
+        $tabla = '';
+        foreach ($folios as $row) {
+            $folio_esc = htmlspecialchars($row['FOLIO'] ?? '', ENT_QUOTES, 'UTF-8');
+            $sucursal = htmlspecialchars($row['SUCURSAL'] ?? '', ENT_QUOTES, 'UTF-8');
+            $usuario = htmlspecialchars($row['USUARIO'] ?? '', ENT_QUOTES, 'UTF-8');
+            $fecha = htmlspecialchars($row['FECHA'] ?? '', ENT_QUOTES, 'UTF-8');
+            $monto = isset($row['MONTO']) ? number_format((float)$row['MONTO'], 2) : '0.00';
+            $registros = (int)($row['REGISTROS'] ?? 0);
+            $url_ticket = '/Pagos/Ticket/' . rawurlencode($row['FOLIO'] ?? '');
+            $tabla .= <<<HTML
+                <tr>
+                    <td>{$folio_esc}</td>
+                    <td>{$sucursal}</td>
+                    <td>{$usuario}</td>
+                    <td>{$fecha}</td>
+                    <td>\$ {$monto}</td>
+                    <td>{$registros}</td>
+                    <td>
+                        <a href="{$url_ticket}" target="_blank" class="btn btn-success btn-circle" title="Reimprimir recibo">
+                            <i class="fa fa-print"></i> Reimprimir
+                        </a>
+                    </td>
+                </tr>
+            HTML;
+        }
 
-            const configuraTabla = (id) => {
-                $("#" + id).tablesorter()
-                $("#" + id).DataTable({
-                    lengthMenu: [
-                        [10, 40, -1],
-                        [10, 40, "Todos"]
-                    ],
-                    columnDefs: [
-                        {
-                            orderable: false,
-                            targets: 0
-                        }
-                    ],
-                    order: false,
-                    language: {
-                        emptyTable: "No hay datos disponibles",
-                        paginate: {
-                            previous: "Anterior",
-                            next: "Siguiente",
-                        },
-                        info: "Mostrando _START_ a _END_ de _TOTAL_ registros",
-                        infoEmpty: "Sin registros disponibles",
-                    }
-                })
-
-                $("#" + id + "_wrapper input[type=search]").off("keyup").on("keyup", function() {
-                    $("#" + id).DataTable().search(jQuery.fn.DataTable.ext.type.search.html(this.value)).draw()
-                })
-            }
-
-            const reimprime = (idComprobante) => {
-                if (!idComprobante) return
-                const folioEnc = encodeURIComponent(idComprobante)
-                const titulo = 'Comprobante ' + idComprobante
-                const ruta = window.location.origin + "/Pagos/Ticket/" + folioEnc
-                muestraPDF(titulo, ruta)
-            }
-
-            function handleReimprimir(btn) {
-                var folio = btn.getAttribute('data-folio') || ''
-                var barras = btn.getAttribute('data-barras') || ''
-                var cdgocpe = btn.getAttribute('data-cdgocpe') || ''
-                var fecha = btn.getAttribute('data-fecha') || ''
-                var sucursal = btn.getAttribute('data-sucursal') || ''
-                var tieneFolio = btn.getAttribute('data-tiene-folio') === '1'
-                var titulo = 'Recibo de Efectivo'
-                var ruta
-                if (tieneFolio && folio) {
-                    ruta = window.location.origin + '/Pagos/Ticket/' + encodeURIComponent(folio)
-                } else if (cdgocpe && fecha && sucursal) {
-                    var q = 'cdgocpe=' + encodeURIComponent(cdgocpe) + '&fecha=' + encodeURIComponent(fecha) + '&sucursal=' + encodeURIComponent(sucursal)
-                    ruta = window.location.origin + '/Pagos/Ticket/?' + q
-                } else if (barras) {
-                    ruta = window.location.origin + '/Pagos/Ticket/' + encodeURIComponent(barras)
-                } else {
-                    alert('No hay datos suficientes para reimprimir el recibo.')
-                    return
-                }
-                muestraPDF(titulo, ruta)
-            }
-
-            const muestraPDF = (titulo, ruta) => {
-                let plantilla = '<!DOCTYPE html>'
-                plantilla += '<html lang="es">'
-                plantilla += '<head>'
-                plantilla += '<meta charset="UTF-8">'
-                plantilla += '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
-                plantilla += '<link rel="shortcut icon" href="' + window.location.origin + '/img/logo_ico.png">'
-                plantilla += '<title>' + titulo + '</title>'
-                plantilla += '</head>'
-                plantilla += '<body style="margin: 0; padding: 0; background-color: #333333;">'
-                plantilla += '<iframe src="' + ruta + '" style="width: 100%; height: 99vh; border: none; margin: 0; padding: 0;"></iframe>'
-                plantilla += '</body>'
-                plantilla += '</html>'
-            
-                const blob = new Blob([plantilla], { type: 'text/html' })
-                const url = URL.createObjectURL(blob)
-                window.open(url, '_blank')
-            }
-        </script>
-        HTML;
-
-        View::set('header', $this->_contenedor->header(self::GetExtraHeader("Reimprimir Recibo de Efectivo")));
-        View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::set('tabla', $this->GetPagosAppHistorico());
-        View::render("view_pagos_app_historico");
+        View::set('header', $this->_contenedor->header(self::GetExtraHeader('Reimprimir Recibo de Efectivo')));
+        View::set('footer', $this->_contenedor->footer());
+        View::set('tabla', $tabla);
+        View::render('view_pagos_reimprimir_recibo_efectivo');
     }
 
     public function GetPagosAppHistorico()

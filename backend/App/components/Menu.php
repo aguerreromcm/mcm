@@ -122,10 +122,10 @@ class Menu
                             [
                                 'titulo' => 'Reimprimir Recibo de Efectivo',
                                 'url' => [
-                                    'directorio' => '/Pagos/CorteEjecutivoReimprimir/',
-                                    'permisos' => ['ADMIN', 'CAJA', 'LGFR', 'PLMV', 'PMAB', 'MGJC', 'AVGA', 'FLCR', 'COCS', 'GOIY', 'DAGC', 'COVG', 'TESP']
+                                    'directorio' => '/Pagos/ReimprimirReciboEfectivo/',
+                                    'permisos' => ['ADMIN', 'CAJA', 'GTOCA', 'AMOCA', 'OCOF', 'CPAGO', 'ACALL']
                                 ]
-                            ],
+                            ]
                         ]
                     ],
                     [
