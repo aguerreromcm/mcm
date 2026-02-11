@@ -1724,7 +1724,7 @@ sql;
             $qry = str_replace('IMPRIMIR', 'AND PA.FOLIO_ENTREGA = :folio_entrega', $qry);
             $params['folio_entrega'] = $datos['barcode'] ?? null;
         } else {
-            $qry = str_replace('IMPRIMIR', "AND TRUNC(PA.FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY') AND PA.ESTATUS <> 'E' AND PA.FOLIO_ENTREGA IS NULL", $qry);
+            $qry = str_replace('IMPRIMIR', "AND TRUNC(PA.FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY') AND PA.ESTATUS <> 'E' AND NOT FREGISTRO_APP IS NULL AND PA.FOLIO_ENTREGA IS NULL", $qry);
             $params['fecha'] = $datos['fecha'] ?? null;
         }
 

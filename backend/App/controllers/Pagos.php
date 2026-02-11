@@ -895,7 +895,7 @@ html;
             $barcode = $_GET['barcode'];
             $cierreCaja = PagosDao::CierreCaja(['usuario' => $_SESSION['usuario']]);
             $festivos = self::GetFestivos(PagosDao::DiasFestivos()['datos'] ?? []);
-            $horaCierre = $cierreCaja['success'] ? $cierreCaja['datos']['HORA_CIERRE'] : '10:00:00';
+            $horaCierre ='11:00:00'; //$cierreCaja['success'] ? $cierreCaja['datos']['HORA_CIERRE'] : '10:00:00';
             $f_actual = date("Y-m-d");
             $f_anterior = date("H:i:s") <= $horaCierre ? self::DiaHabilAnterior($f_actual, $festivos) : $f_actual;
 
