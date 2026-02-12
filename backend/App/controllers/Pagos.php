@@ -847,6 +847,25 @@ html;
                         if (dia === 0 || dia === 6)
                             showWarning("La fecha seleccionada cae en fin de semana. Por favor, seleccione un día hábil.")
                     })
+
+                    $(document).on("click", ".btn-ver-comprobante-pago", function() {
+                        const cdgns = $(this).data("cdgns"), ciclo = $(this).data("ciclo"), secuencia = $(this).data("secuencia"), fecha = $(this).data("fecha");
+                        const url = "/Pagos/VerComprobantePagoApp?cdgns=" + encodeURIComponent(cdgns) + "&ciclo=" + encodeURIComponent(ciclo) + "&secuencia=" + encodeURIComponent(secuencia) + "&fecha=" + encodeURIComponent(fecha) + "&t=" + Date.now();
+                        $("#loadingComprobantePago").show();
+                        $("#comprobantePagoImg").attr("src", "").hide();
+                        $("#comprobantePagoError").hide();
+                        $("#comprobantePagoImg").attr("src", url);
+                        $("#modalComprobantePago").modal("show");
+                    });
+                    $("#comprobantePagoImg").on("load", function() {
+                        $("#loadingComprobantePago").hide();
+                        $("#comprobantePagoError").hide();
+                        $(this).show();
+                    }).on("error", function() {
+                        $("#loadingComprobantePago").hide();
+                        $(this).hide();
+                        $("#comprobantePagoError").show();
+                    });
                 })
             </script>
         HTML;
@@ -954,8 +973,7 @@ html;
                     $json = json_encode($value);
                     $show_validado = $pendientes ? 'none' : 'block';
                     $fecha_param = str_replace('/', '-', $value['FECHA']);
-                    $url_comprobante = '/Pagos/VerComprobantePagoApp?cdgns=' . urlencode($value['CDGNS']) . '&ciclo=' . urlencode($value['CICLO']) . '&secuencia=' . urlencode($value['SECUENCIA']) . '&fecha=' . urlencode($fecha_param);
-                    $btn_comprobante = '<a href="' . $url_comprobante . '" target="_blank" class="btn btn-info btn-circle" title="Visualizar comprobante capturado en campo" aria-label="Ver comprobante"><i class="fa fa-eye"></i></a>';
+                    $btn_comprobante = '<button type="button" class="btn btn-info btn-circle btn-ver-comprobante-pago" title="Visualizar comprobante capturado en campo" aria-label="Ver comprobante" data-cdgns="' . htmlspecialchars($value['CDGNS']) . '" data-ciclo="' . htmlspecialchars($value['CICLO']) . '" data-secuencia="' . htmlspecialchars($value['SECUENCIA']) . '" data-fecha="' . htmlspecialchars($fecha_param) . '"><i class="fa fa-eye"></i></button>';
                     $acciones = $btn_comprobante . " <button type='button' class='btn btn-success btn-circle' onclick='editar_pago($json);'><i class='fa fa-edit'></i> Editar Pago</button>";
                     if ($value['ESTATUS_CAJA'] == 1) {
                         // Mostrar solo el botón de ver comprobante cuando ya está validado

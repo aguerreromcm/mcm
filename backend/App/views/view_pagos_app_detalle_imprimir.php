@@ -56,4 +56,34 @@
     </div>
 </div>
 
+<!-- Modal para ver comprobante de pago -->
+<div class="modal fade" id="modalComprobantePago" tabindex="-1" role="dialog" aria-labelledby="modalComprobantePagoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+                <center>
+                    <h4 class="modal-title" id="modalComprobantePagoLabel">Comprobante de pago</h4>
+                </center>
+            </div>
+            <div class="modal-body" style="max-height: 80vh; overflow-y: auto;">
+                <div class="container-fluid">
+                    <div id="comprobantePagoContainer" class="text-center">
+                        <img src="/img/wait.gif" alt="Cargando..." id="loadingComprobantePago">
+                        <img src="" alt="Comprobante" class="img-fluid" id="comprobantePagoImg" style="display:none; max-width: 100%; height: auto;" />
+                        <p id="comprobantePagoError" class="text-danger" style="display:none;">No se encontró el comprobante para este pago.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">
+                    <span class="glyphicon glyphicon-remove"></span> Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?= $footer; ?>
