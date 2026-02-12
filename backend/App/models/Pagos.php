@@ -1800,6 +1800,39 @@ sql;
         }
     }
 
+    /**
+     * Obtiene el comprobante (imagen) de un pago capturado en campo desde PAGOSDIA.
+     * La columna donde se guarda la imagen en PAGOSDIA debe llamarse COMPROBANTE (BLOB).
+     * Si en tu BD tiene otro nombre (ej. IMAGEN, EVIDENCIA), cámbialo en el SELECT.
+     */
+    public static function GetComprobantePagoApp($datos)
+    {
+        $qry = <<<SQL
+            SELECT COMPROBANTE
+            FROM PAGOSDIA
+            WHERE CDGNS = :cdgns
+              AND CICLO = :ciclo
+              AND SECUENCIA = :secuencia
+              AND TRUNC(FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY')
+              AND CDGEM = 'EMPFIN'
+        SQL;
+
+        $params = [
+            'cdgns' => $datos['cdgns'] ?? null,
+            'ciclo' => $datos['ciclo'] ?? null,
+            'secuencia' => $datos['secuencia'] ?? null,
+            'fecha' => $datos['fecha'] ?? null,
+        ];
+
+        try {
+            $db = new Database();
+            $row = $db->queryOne($qry, $params);
+            return $row ?: [];
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
     public static function GetPagosAppEjecutivo($datos)
     {
         $qry = <<<SQL

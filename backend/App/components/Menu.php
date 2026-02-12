@@ -97,8 +97,9 @@ class Menu
     private function opcionesPagos()
     {
         return [
-            $this->enlace('Administración Pagos', '/Pagos/', ['ADMIN', 'LGFR', 'MGJC', 'MCDP']),
-            $this->enlace('Recepción Pagos App', '/Pagos/CorteEjecutivo/', ['ADMIN']),
+            $this->enlace('Administración Pagos', '/Pagos/', ['ADMIN', 'MCDP', 'LVGA', 'QARO', 'FLHR']),
+            $this->enlace('Pagos App (DEMO)', '/Pagos_temporal/CorteEjecutivo/', ['ADMIN', 'FLHR']),
+            $this->enlace('Pagos App', '/Pagos/CorteEjecutivo/', ['ADMIN', 'CAJA', 'FLHR', 'HEDC', 'JULM', 'CRCV', 'LUMM', 'EMGL', 'PEAE', 'MCDP', 'LVGA']),
             $this->enlace('Layout Contable', '/Pagos/Layout/', ['ADMIN', 'ACALL', 'LAYOU']),
             $this->enlace('Registro de Pagos Caja', '/Pagos/PagosRegistro/', ['ADMIN', 'CAJA', 'LGFR', 'PLMV', 'PMAB', 'MGJC', 'AVGA', 'FLCR', 'COCS', 'GOIY', 'DAGC', 'COVG', 'TESP']),
             $this->enlace('Consulta de Pagos Cliente', '/Pagos/PagosConsultaUsuarios/', ['ACALL']),

@@ -953,13 +953,16 @@ html;
 
                     $json = json_encode($value);
                     $show_validado = $pendientes ? 'none' : 'block';
-                    $acciones = "<button type='button' class='btn btn-success btn-circle' onclick='editar_pago($json);'><i class='fa fa-edit'></i> Editar Pago</button>";
+                    $fecha_param = str_replace('/', '-', $value['FECHA']);
+                    $url_comprobante = '/Pagos/VerComprobantePagoApp?cdgns=' . urlencode($value['CDGNS']) . '&ciclo=' . urlencode($value['CICLO']) . '&secuencia=' . urlencode($value['SECUENCIA']) . '&fecha=' . urlencode($fecha_param);
+                    $btn_comprobante = '<a href="' . $url_comprobante . '" target="_blank" class="btn btn-info btn-circle" title="Visualizar comprobante capturado en campo"><i class="fa fa-image"></i> Ver comprobante</a>';
+                    $acciones = $btn_comprobante . " <button type='button' class='btn btn-success btn-circle' onclick='editar_pago($json);'><i class='fa fa-edit'></i> Editar Pago</button>";
                     if ($value['ESTATUS_CAJA'] == 1) {
-                        $acciones = '<b>Pago Validado</b>';
+                        $acciones = $btn_comprobante . ' <b>Pago Validado</b>';
                         $check_visible = 'display:none;';
                     }
                     if ($value['ESTATUS_CAJA'] == 2) {
-                        $acciones = '<b>Pago Procesado</b>';
+                        $acciones = $btn_comprobante . ' <b>Pago Procesado</b>';
                         $check_visible = 'display:none;';
                     }
 
@@ -2900,5 +2903,51 @@ html;
 
         echo $contenido;
         exit; // Asegurar que el script se detiene después de enviar el archivo
+    }
+
+    /**
+     * Muestra el comprobante (imagen) del pago capturado en campo por el ejecutivo.
+     * Parámetros GET: cdgns, ciclo, secuencia, fecha (formato DD-MM-YYYY).
+     */
+    public function VerComprobantePagoApp()
+    {
+        $archivo = PagosDao::GetComprobantePagoApp($_GET);
+
+        if (empty($archivo) || empty($archivo['COMPROBANTE'])) {
+            header('HTTP/1.0 404 Not Found');
+            echo 'No se encontró el comprobante para este pago.';
+            return;
+        }
+
+        $contenido = is_resource($archivo['COMPROBANTE'])
+            ? stream_get_contents($archivo['COMPROBANTE'])
+            : $archivo['COMPROBANTE'];
+
+        if (strlen($contenido) === 0) {
+            header('HTTP/1.0 404 Not Found');
+            echo 'Este pago no tiene comprobante registrado.';
+            return;
+        }
+
+        // Detección básica del tipo de imagen por magic bytes
+        $mime = 'image/jpeg';
+        if (substr($contenido, 0, 4) === "\x89PNG") {
+            $mime = 'image/png';
+        } elseif (substr($contenido, 0, 2) === "\xFF\xD8") {
+            $mime = 'image/jpeg';
+        } elseif (substr($contenido, 0, 6) === 'GIF87a' || substr($contenido, 0, 6) === 'GIF89a') {
+            $mime = 'image/gif';
+        } elseif (substr($contenido, 0, 4) === "RIFF" && substr($contenido, 8, 4) === 'WEBP') {
+            $mime = 'image/webp';
+        }
+
+        header('Content-Type: ' . $mime);
+        header('Content-Length: ' . strlen($contenido));
+        if (function_exists('ob_get_length') && ob_get_length()) {
+            ob_clean();
+        }
+        flush();
+        echo $contenido;
+        exit;
     }
 }
