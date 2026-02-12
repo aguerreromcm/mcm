@@ -1,0 +1,17 @@
+/* Archivo: custom_menu.css
+   Correcciones de scroll para el menú lateral (sidebar) */
+
+/* Hacemos que la sección del menú tenga altura limitada y permita scroll */
+.main_menu_side .menu_section {
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Pequeño ajuste: asegurar que los submenús no oculten el scroll */
+.main_menu_side .nav.side-menu,
+.main_menu_side .nav.child_menu {
+  margin: 0;
+  padding: 0;
+}
+
