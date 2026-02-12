@@ -194,6 +194,7 @@ sql;
                 INNER JOIN PE ON PE.CODIGO = SN.CDGOCPE
             WHERE 
                 RA.FECHA_ENTREGA BETWEEN TO_DATE(:fechaI, 'YYYY-MM-DD') AND TO_DATE(:fechaF, 'YYYY-MM-DD')
+                FILTRO_USUARIO
             ORDER BY 
                 RA.FECHA_ENTREGA ASC
         SQL;
@@ -202,6 +203,13 @@ sql;
             'fechaI' => $datos['fechaI'],
             'fechaF' => $datos['fechaF']
         ];
+
+        if ($_SESSION['perfil'] != 'ADMIN') {
+            $qry = str_replace('FILTRO_USUARIO', 'AND RA.CDGPE_ADMINISTRADORA = :usuario', $qry);
+            $prms['usuario'] = $_SESSION['usuario'];
+        } else {
+            $qry = str_replace('FILTRO_USUARIO', '', $qry);
+        }
 
         try {
             $db = new Database();

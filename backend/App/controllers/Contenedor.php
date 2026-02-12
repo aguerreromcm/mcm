@@ -194,7 +194,7 @@ class Contenedor extends Controller
         }
 
         // Permisos temporales para pruebas de retiro de ahorro a 'LVGA', 'MCDP' y 'FLHR'
-        $permisos = ['ADMIN', 'CPAGO', 'CAJA', 'LVGA', 'MCDP', 'FLHR'];
+        $permisos = ['ADMIN', 'LVGA', 'MCDP', 'FLHR'];
         if ($this->ValidaPermiso($permisos)) {
             $menu .= '<li><a href="/Ahorro/SolicitudesRetiroAdmin/">Gestión de Retiros</a></li>';
         }
