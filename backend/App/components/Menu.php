@@ -4,398 +4,264 @@ namespace App\components;
 
 /**
  * Clase Menu
- * 
- * Representa el componente para el menu del sistema.
+ *
+ * Componente del menú del sistema. La definición de accesos se organiza por
+ * secciones y opciones; cada opción puede ser un enlace o un submenú con items.
+ * Estructura de opción enlace: titulo, url['directorio','permisos'], icono (opcional).
+ * Estructura de opción submenú: titulo, icono, items[] (cada item como enlace).
  */
 class Menu
 {
-    /**
-     * Perfil del usuario.
-     * 
-     * @var string
-     */
+    /** @var string Perfil del usuario */
     private $perfil;
 
-    /**
-     * Usuario.
-     * 
-     * @var string
-     */
+    /** @var string Usuario */
     private $usuario;
 
-    /**
-     * Permisos para modulo de Ahorro.
-     * 
-     * @var string
-     */
+    /** @var string Permisos para módulo de Ahorro */
     private $ahorro;
 
-    /**
-     * Constructor de la clase BuscarCliente.
-     * 
-     * @param string $recordatorio Recordatorio o indicaciones para la cajera.
-     */
-    public function __construct($_perfil, $_usuario, $_ahorro)
+    /** @var bool Mostrar menú Herramientas (según config) */
+    private $mostrarHerramientas;
+
+    public function __construct($_perfil, $_usuario, $_ahorro, $mostrarHerramientas = false)
     {
         $this->perfil = $_perfil;
         $this->usuario = $_usuario;
         $this->ahorro = $_ahorro;
+        $this->mostrarHerramientas = (bool) $mostrarHerramientas;
     }
 
-    private function Menu()
+    /**
+     * Devuelve la estructura completa del menú (secciones con opciones).
+     */
+    private function obtenerEstructuraMenu()
     {
-        $mis = $this->ValidaPermisos(['CALLC', 'ACALL']) ? 'Mis ' : '';
-        $analistas = $this->ValidaPermisos(['ADMIN', 'HSEJ']) ? ' (Analistas)' : '';
-        $tituloAdmin = $this->ValidaPermisos(['ADMIN', 'LGFR']) ? 'Administración' : 'Usuarios SICAFIN';
-
         return [
-            [
-                'seccion' => 'General WEB AHORRO',
-                'opciones' => [
-                    [
-                        'titulo' => 'Mi espacio',
-                        'icono' => 'glyphicon glyphicon-usd',
-                        'url' => [
-                            'directorio' => '/Ahorro/CuentaCorriente/',
-                            'permisos' => ['AMGM'],
-                        ]
-                    ],
-                    [
-                        'titulo' => 'Admin Sucursales',
-                        'icono' => 'glyphicon glyphicon-paste',
-                        'url' => [
-                            '/AdminSucursales/SaldosDiarios/',
-                            'permisos' => ['AMGM', 'LGFR', 'PAES', 'PMAB', 'DCRI', 'GUGJ', 'JUSA', 'HEDC', 'PHEE'],
-                        ]
-                    ]
-                ]
-            ],
-            [
-                'seccion' => 'GENERAL',
-                'opciones' => [
-                    [
-                        'titulo' => 'Pagos',
-                        'icono' => 'glyphicon glyphicon-usd',
-                        'items' => [
-                            [
-                                'titulo' => 'Administración Pagos',
-                                'url' => [
-                                    'directorio' => '/Pagos/',
-                                    'permisos' => ['ADMIN', 'LGFR', 'MGJC', 'MCDP']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Recepción Pagos App',
-                                'url' => [
-                                    'directorio' => '/Pagos/CorteEjecutivo/',
-                                    'permisos' => ['ADMIN']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Layout Contable',
-                                'url' => [
-                                    'directorio' => '/Pagos/Layout/',
-                                    'permisos' => ['ADMIN', 'ACALL', 'LAYOU']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Registro de Pagos Caja',
-                                'url' => [
-                                    'directorio' => '/Pagos/PagosRegistro/',
-                                    'permisos' => ['ADMIN', 'CAJA', 'LGFR', 'PLMV', 'PMAB', 'MGJC', 'AVGA', 'FLCR', 'COCS', 'GOIY', 'DAGC', 'COVG', 'TESP']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Consulta de Pagos Cliente',
-                                'url' => [
-                                    'directorio' => '/Pagos/PagosConsultaUsuarios/',
-                                    'permisos' => ['ACALL']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Consultar Pagos',
-                                'url' => [
-                                    'directorio' => '/Pagos/PagosConsulta/',
-                                    'permisos' => ['ADMIN', 'CAJA', 'GTOCA', 'AMOCA', 'OCOF', 'CPAGO', 'ACALL']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Reimprimir Recibo de Efectivo',
-                                'url' => [
-                                    'directorio' => '/Pagos/ReimprimirReciboEfectivo/',
-                                    'permisos' => ['ADMIN', 'CAJA', 'GTOCA', 'AMOCA', 'OCOF', 'CPAGO', 'ACALL']
-                                ]
-                            ]
-                        ]
-                    ],
-                    [
-                        'titulo' => 'Créditos',
-                        'icono' => 'fa fa-users',
-                        'items' => [
-                            [
-                                'titulo' => 'Control de Garantías',
-                                'url' => [
-                                    'directorio' => '/Creditos/ControlGarantias/',
-                                    'permisos' => ['ADMIN', 'GARAN', 'ORHM', 'MAPH', 'AMOCA']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Calculo Descuento Telaraña',
-                                'url' => [
-                                    'directorio' => '/Promociones/Telarana/',
-                                    'permisos' => ['ADMIN', 'ORHM', 'MAPH']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Registro Telaraña',
-                                'url' => [
-                                    'directorio' => '/Validaciones/RegistroTelarana/',
-                                    'permisos' => ['ADMIN', 'ORHM', 'MAPH']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Actualización de Créditos',
-                                'url' => [
-                                    'directorio' => '/Creditos/ActualizaCredito/',
-                                    'permisos' => ['ADMIN', 'ORHM', 'MAPH']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Cambio de Sucursal',
-                                'url' => [
-                                    'directorio' => '/Creditos/CambioSucursal/',
-                                    'permisos' => ['ADMIN', 'CAMAG', 'ORHM', 'MAPH']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Cancelación de Ref',
-                                'url' => [
-                                    'directorio' => '/CancelaRef/',
-                                    'permisos' => ['ADMIN', 'CAMAG', 'ORHM', 'MAPH']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Corrección Mov Ajustes',
-                                'url' => [
-                                    'directorio' => '/CorreccionAjustes/',
-                                    'permisos' => ['ADMIN', 'CAMAG', 'ORHM', 'MAPH']
-                                ]
-                            ]
-                        ]
-                    ],
-                    [
-                        'titulo' => 'Call Center',
-                        'icono' => 'glyphicon glyphicon-phone-alt',
-                        'items' => [
-                            [
-                                'titulo' => 'Asignar Sucursales',
-                                'url' => [
-                                    'directorio' => '/CallCenter/Administracion/',
-                                    'permisos' => ['ADMIN', 'ACALL', 'ESMM', 'HSEJ']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Solicitudes de Prorroga',
-                                'url' => [
-                                    'directorio' => '/CallCenter/Prorroga/',
-                                    'permisos' => ['ADMIN', 'ACALL', 'ESMM', 'HSEJ']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Reactivar Solicitudes',
-                                'url' => [
-                                    'directorio' => '/CallCenter/Reactivar/',
-                                    'permisos' => ['ADMIN', 'ACALL', 'ESMM', 'HSEJ']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Búsqueda Rápida',
-                                'url' => [
-                                    'directorio' => '/CallCenter/Busqueda/',
-                                    'permisos' => ['ADMIN', 'ACALL', 'ESMM', 'HSEJ']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Histórico Analistas',
-                                'url' => [
-                                    'directorio' => '/CallCenter/HistoricoAnalistas/',
-                                    'permisos' => ['ESMM', 'MAPH']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Todos los Pendientes',
-                                'url' => [
-                                    'directorio' => '/CallCenter/Global/',
-                                    'permisos' => ['CALLC', 'ACALL']
-                                ]
-                            ],
-                            [
-                                'titulo' => $mis . 'Pendientes' . $analistas,
-                                'url' => [
-                                    'directorio' => '/CallCenter/Pendientes/',
-                                    'permisos' => ['ADMIN', 'CALLC', 'ACALL', 'HSEJ']
-                                ]
-                            ],
-                            [
-                                'titulo' => $mis . 'Históricos' . $analistas,
-                                'url' => [
-                                    'directorio' => '/CallCenter/Historico/',
-                                    'permisos' => ['ADMIN', 'CALLC', 'ACALL', 'HSEJ']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Postventa',
-                                'url' => [
-                                    'directorio' => '/CallCenter/EncuestaPostventa/',
-                                    'permisos' => ['ADMIN', 'CALLC', 'ACALL', 'HSEJ']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Reporte Postventa',
-                                'url' => [
-                                    'directorio' => '/CallCenter/ReporteEncuestaPostventa/',
-                                    'permisos' => ['ADMIN', 'CALLC', 'ACALL', 'HSEJ']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Supervisión Postventa',
-                                'url' => [
-                                    'directorio' => '/CallCenter/SupervisionEncuestaPostventa/',
-                                    'permisos' => ['ADMIN', 'CALLC', 'ACALL', 'HSEJ']
-                                ]
-                            ]
-                        ]
-                    ],
-                    [
-                        'titulo' => 'Cultiva',
-                        'icono' => 'glyphicon glyphicon-globe',
-                        'items' => [
-                            [
-                                'titulo' => 'Consulta Clientes Solicitudes',
-                                'url' => [
-                                    'directorio' => '/Cultiva/',
-                                    'permisos' => ['ADMIN', 'PLMV', 'MCDP']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Reingresar Clientes a Grupo',
-                                'url' => [
-                                    'directorio' => '/Cultiva/ReingresarClientesCredito/',
-                                    'permisos' => ['ADMIN', 'MCDP']
-                                ]
-                            ]
-                        ]
-                    ],
-                    [
-                        'titulo' => 'Incidencias MCM',
-                        'icono' => 'glyphicon glyphicon-cog',
-                        'items' => [
-                            [
-                                'titulo' => 'Error Autorizar y/o Rechazar Solicitud',
-                                'url' => [
-                                    'directorio' => '/Incidencias/AutorizaRechazaSolicitud/',
-                                    'permisos' => ['ADMIN', 'PLMV', 'PHEE']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Calculo de Devengos',
-                                'url' => [
-                                    'directorio' => '/Incidencias/CalculoDevengo/',
-                                    'permisos' => ['ADMIN', 'PLMV', 'PHEE']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Cancelar Refinanciamiento',
-                                'url' => [
-                                    'directorio' => '/Incidencias/CancelarRefinanciamiento/',
-                                    'permisos' => ['ADMIN', 'PLMV', 'PHEE']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Cambio de Fecha para Pagos No conciliados del día',
-                                'url' => [
-                                    'directorio' => '/Incidencias/ActualizarFechaPagosNoConciliados/',
-                                    'permisos' => ['ADMIN', 'PLMV', 'PHEE']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Telaraña agregar referencias',
-                                'url' => [
-                                    'directorio' => '/Incidencias/ActualizarFechaPagosNoConciliados/',
-                                    'permisos' => ['ADMIN', 'PLMV', 'PHEE']
-                                ]
-                            ]
-                        ]
-                    ],
-                    [
-                        'titulo' => $tituloAdmin,
-                        'icono' => 'glyphicon glyphicon-cog',
-                        'items' => [
-                            [
-                                'titulo' => 'Ajustar Hora de Cierre',
-                                'url' => [
-                                    'directorio' => '/Pagos/AjusteHoraCierre/',
-                                    'permisos' => ['ADMIN', 'LGFR']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Asignación Días Festivos',
-                                'url' => [
-                                    'directorio' => '/Pagos/DiasFestivos/',
-                                    'permisos' => ['ADMIN', 'LGFR']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Reporte Usuarios SICAFIN MCM',
-                                'url' => [
-                                    'directorio' => '/Reportes/UsuariosMCM/',
-                                    'permisos' => ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Reporte Usuarios SICAFIN Cultiva',
-                                'url' => [
-                                    'directorio' => '/Reportes/UsuariosCultiva/',
-                                    'permisos' => ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Situación Cartera',
-                                'url' => [
-                                    'directorio' => '/Creditos/cierreDiario',
-                                    'permisos' => ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM']
-                                ]
-                            ],
-                            [
-                                'titulo' => 'Administración de Correos',
-                                'url' => [
-                                    'directorio' => '/Creditos/AdminCorreos',
-                                    'permisos' => ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM']
-                                ]
-                            ]
-                        ]
-                    ],
-                    [
-                        'titulo' => 'Indicadores',
-                        'icono' => 'glyphicon glyphicon-cog',
-                        'items' => [
-                            [
-                                'titulo' => 'Productividad Operaciones',
-                                'url' => [
-                                    'directorio' => '/Indicadores/ProductividadOP/',
-                                    'permisos' => ['ADMIN']
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-            ]
+            $this->seccionGeneralWebAhorro(),
+            $this->seccionGeneral(),
         ];
     }
 
-    function mostrar()
+    /**
+     * Helper: define un ítem de menú que es un enlace.
+     *
+     * @param string $titulo
+     * @param string $ruta   URL (ej. /Pagos/PagosConsulta/)
+     * @param array  $permisos
+     * @param string|null $icono Clase CSS del icono (opcional, ej. glyphicon glyphicon-usd)
+     * @return array
+     */
+    private function enlace($titulo, $ruta, array $permisos, $icono = null)
     {
-        $menu = $this->Menu();
+        $item = [
+            'titulo' => $titulo,
+            'url'    => ['directorio' => $ruta, 'permisos' => $permisos],
+        ];
+        if ($icono !== null) {
+            $item['icono'] = $icono;
+        }
+        return $item;
+    }
+
+    /**
+     * Helper: define un ítem de menú que es un submenú (desplegable).
+     *
+     * @param string $titulo
+     * @param string $icono  Clase CSS del icono
+     * @param array  $items  Lista de ítems (enlaces o anidados)
+     * @return array
+     */
+    private function submenu($titulo, $icono, array $items)
+    {
+        return [
+            'titulo' => $titulo,
+            'icono'  => $icono,
+            'items'  => $items,
+        ];
+    }
+
+    /** Sección: General WEB AHORRO */
+    private function seccionGeneralWebAhorro()
+    {
+        return [
+            'seccion'  => 'General WEB AHORRO',
+            'opciones' => [
+                $this->enlace('Mi espacio', '/Ahorro/CuentaCorriente/', ['AMGM', 'AMGMM'], 'glyphicon glyphicon-usd'),
+                $this->enlace('Admin Sucursales', '/AdminSucursales/SaldosDiarios/', ['AMGM', 'LGFR', 'PAES', 'PMAB', 'DCRI', 'GUGJ', 'JUSA', 'HEDC', 'PHEE'], 'glyphicon glyphicon-paste'),
+            ],
+        ];
+    }
+
+    /** Opciones del submenú Pagos */
+    private function opcionesPagos()
+    {
+        return [
+            $this->enlace('Administración Pagos', '/Pagos/', ['ADMIN', 'LGFR', 'MGJC', 'MCDP']),
+            $this->enlace('Recepción Pagos App', '/Pagos/CorteEjecutivo/', ['ADMIN']),
+            $this->enlace('Layout Contable', '/Pagos/Layout/', ['ADMIN', 'ACALL', 'LAYOU']),
+            $this->enlace('Registro de Pagos Caja', '/Pagos/PagosRegistro/', ['ADMIN', 'CAJA', 'LGFR', 'PLMV', 'PMAB', 'MGJC', 'AVGA', 'FLCR', 'COCS', 'GOIY', 'DAGC', 'COVG', 'TESP']),
+            $this->enlace('Consulta de Pagos Cliente', '/Pagos/PagosConsultaUsuarios/', ['ACALL']),
+            $this->enlace('Consultar Pagos', '/Pagos/PagosConsulta/', ['ADMIN', 'CAJA', 'GTOCA', 'AMOCA', 'OCOF', 'CPAGO', 'ACALL']),
+            $this->enlace('Reimprimir Recibo de Efectivo', '/Pagos/ReimprimirReciboEfectivo/', ['ADMIN', 'CAJA', 'GTOCA', 'AMOCA', 'OCOF', 'CPAGO', 'ACALL']),
+        ];
+    }
+
+    /** Opciones del submenú Créditos */
+    private function opcionesCreditos()
+    {
+        return [
+            $this->enlace('Control de Garantías', '/Creditos/ControlGarantias/', ['ADMIN', 'GARAN', 'ORHM', 'MAPH', 'AMOCA']),
+            $this->enlace('Calculo Descuento Telaraña', '/Promociones/Telarana/', ['ADMIN', 'ORHM', 'MAPH']),
+            $this->enlace('Registro Telaraña', '/Validaciones/RegistroTelarana/', ['ADMIN', 'ORHM', 'MAPH']),
+            $this->enlace('Actualización de Créditos', '/Creditos/ActualizaCredito/', ['ADMIN', 'ORHM', 'MAPH']),
+            $this->enlace('Cambio de Sucursal', '/Creditos/CambioSucursal/', ['ADMIN', 'CAMAG', 'ORHM', 'MAPH']),
+            $this->enlace('Cancelación de Ref', '/CancelaRef/', ['ADMIN', 'CAMAG', 'ORHM', 'MAPH']),
+            $this->enlace('Corrección Mov Ajustes', '/CorreccionAjustes/', ['ADMIN', 'CAMAG', 'ORHM', 'MAPH']),
+        ];
+    }
+
+    /** Opciones del submenú Call Center (títulos dinámicos por perfil) */
+    private function opcionesCallCenter()
+    {
+        $mis = $this->ValidaPermisos(['CALLC', 'ACALL']) ? 'Mis ' : '';
+        $analistas = $this->ValidaPermisos(['ADMIN', 'HSEJ']) ? ' (Analistas)' : '';
+
+        return [
+            $this->enlace('Asignar Sucursales', '/CallCenter/Administracion/', ['ADMIN', 'ACALL', 'ESMM', 'HSEJ']),
+            $this->enlace('Solicitudes de Prorroga', '/CallCenter/Prorroga/', ['ADMIN', 'ACALL', 'ESMM', 'HSEJ']),
+            $this->enlace('Reactivar Solicitudes', '/CallCenter/Reactivar/', ['ADMIN', 'ACALL', 'ESMM', 'HSEJ']),
+            $this->enlace('Búsqueda Rápida', '/CallCenter/Busqueda/', ['ADMIN', 'ACALL', 'ESMM', 'HSEJ']),
+            $this->enlace('Histórico Analistas', '/CallCenter/HistoricoAnalistas/', ['ESMM', 'MAPH']),
+            $this->enlace('Todos los Pendientes', '/CallCenter/Global/', ['CALLC', 'ACALL']),
+            $this->enlace($mis . 'Pendientes' . $analistas, '/CallCenter/Pendientes/', ['ADMIN', 'CALLC', 'ACALL', 'HSEJ']),
+            $this->enlace($mis . 'Históricos' . $analistas, '/CallCenter/Historico/', ['ADMIN', 'CALLC', 'ACALL', 'HSEJ']),
+            $this->enlace('Postventa', '/CallCenter/EncuestaPostventa/', ['ADMIN', 'CALLC', 'ACALL', 'HSEJ']),
+            $this->enlace('Reporte Postventa', '/CallCenter/ReporteEncuestaPostventa/', ['ADMIN', 'CALLC', 'ACALL', 'HSEJ']),
+            $this->enlace('Supervisión Postventa', '/CallCenter/SupervisionEncuestaPostventa/', ['ADMIN', 'CALLC', 'ACALL', 'HSEJ']),
+        ];
+    }
+
+    /** Opciones del submenú Cultiva */
+    private function opcionesCultiva()
+    {
+        return [
+            $this->enlace('Consulta Clientes Solicitudes', '/Cultiva/', ['ADMIN', 'PLMV', 'MCDP']),
+            $this->enlace('Reingresar Clientes a Grupo', '/Cultiva/ReingresarClientesCredito/', ['ADMIN', 'MCDP']),
+        ];
+    }
+
+    /** Opciones del submenú Incidencias MCM */
+    private function opcionesIncidencias()
+    {
+        return [
+            $this->enlace('Error Autorizar y/o Rechazar Solicitud', '/Incidencias/AutorizaRechazaSolicitud/', ['ADMIN', 'PLMV', 'PHEE']),
+            $this->enlace('Calculo de Devengos', '/Incidencias/CalculoDevengo/', ['ADMIN', 'PLMV', 'PHEE']),
+            $this->enlace('Cancelar Refinanciamiento', '/Incidencias/CancelarRefinanciamiento/', ['ADMIN', 'PLMV', 'PHEE']),
+            $this->enlace('Cambio de Fecha para Pagos No conciliados del día', '/Incidencias/ActualizarFechaPagosNoConciliados/', ['ADMIN', 'PLMV', 'PHEE']),
+            $this->enlace('Telaraña agregar referencias', '/Incidencias/ActualizarFechaPagosNoConciliados/', ['ADMIN', 'PLMV', 'PHEE']),
+        ];
+    }
+
+    /** Opciones del submenú Administración / Usuarios SICAFIN (título dinámico) */
+    private function opcionesAdministracion()
+    {
+        return [
+            $this->enlace('Ajustar Hora de Cierre', '/Pagos/AjusteHoraCierre/', ['ADMIN', 'LGFR']),
+            $this->enlace('Asignación Días Festivos', '/Pagos/DiasFestivos/', ['ADMIN', 'LGFR']),
+            $this->enlace('Reporte Usuarios SICAFIN MCM', '/Reportes/UsuariosMCM/', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM']),
+            $this->enlace('Reporte Usuarios SICAFIN Cultiva', '/Reportes/UsuariosCultiva/', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM']),
+            $this->enlace('Situación Cartera', '/Creditos/cierreDiario', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM']),
+            $this->enlace('Administración de Correos', '/Creditos/AdminCorreos', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM']),
+        ];
+    }
+
+    /** Opciones del submenú Indicadores */
+    private function opcionesIndicadores()
+    {
+        return [
+            $this->enlace('Productividad Operaciones', '/Indicadores/ProductividadOP/', ['ADMIN']),
+        ];
+    }
+
+    /** Opciones del submenú Resumen Ahorro */
+    private function opcionesResumenAhorro()
+    {
+        return [
+            $this->enlace('Alta Contrato', '/AhorroSimple/Contrato/', ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'QARO', 'MAPH']),
+            $this->enlace('Estado de Cuenta Ahorro', '/AhorroSimple/EstadoCuenta/', ['ADMIN', 'AMOCA', 'CPAGO', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'LGFR', 'MGJC', 'MAPH']),
+            $this->enlace('Valida Crédito Adicional', '/AhorroSimple/ValidaAdicional/', ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'MGJC', 'MAPH']),
+            $this->enlace('Agregar Exepciones MXT', '/AhorroSimple/ExepcionesMXT/', ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'MGJC', 'MAPH']),
+            $this->enlace('Solicitudes Retiro', '/AhorroConsulta/', ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'MGJC', 'MAPH']),
+            $this->enlace('Gestión de Retiros', '/Ahorro/SolicitudesRetiroAdmin/', ['ADMIN', 'LVGA', 'MCDP', 'FLHR']),
+        ];
+    }
+
+    /** Opciones del submenú Operaciones */
+    private function opcionesOperaciones()
+    {
+        return [
+            $this->enlace('Reporte Cliente y Aval Consolidado', '/Operaciones/ReportePC', ['ADMIN', 'PHEE', 'MCDP', 'FECR', 'ORHM']),
+        ];
+    }
+
+    /** Opciones del submenú Tesorería */
+    private function opcionesTesoreria()
+    {
+        return [
+            $this->enlace('Reporte Productora Cultiva', '/Tesoreria/ReportePC', ['ADMIN', 'PLMV', 'MCDP', 'LGFR', 'MACI', 'MGJC', 'JACJ', 'LVGA', 'FLHR']),
+            $this->enlace('Solicitudes de Retiro', '/Ahorro/Retiros/', ['ADMIN', 'PLMV', 'MCDP', 'LGFR', 'MACI', 'MGJC', 'JACJ', 'LVGA', 'FLHR']),
+        ];
+    }
+
+    /** Opciones del submenú Radar de Cobranza */
+    private function opcionesRadarCobranza()
+    {
+        return [
+            $this->enlace('Dashboard Día', '/RadarCobranza/DashboardDia', ['AMGM', 'ADMIN']),
+        ];
+    }
+
+    /** Opciones del submenú Herramientas (visibilidad según config) */
+    private function opcionesHerramientas()
+    {
+        return [
+            $this->enlace('Rep Dia de Atraso', '/Herramientas/RepDiaAtraso/', ['ADMIN']),
+        ];
+    }
+
+    /** Sección: GENERAL (todas las opciones principales) */
+    private function seccionGeneral()
+    {
+        $tituloAdmin = $this->ValidaPermisos(['ADMIN', 'LGFR']) ? 'Administración' : 'Usuarios SICAFIN';
+
+        $opciones = [
+            $this->submenu('Pagos', 'glyphicon glyphicon-usd', $this->opcionesPagos()),
+            $this->submenu('Resumen Ahorro', 'fa fa-money', $this->opcionesResumenAhorro()),
+            $this->submenu('Créditos', 'fa fa-users', $this->opcionesCreditos()),
+            $this->submenu('Call Center', 'glyphicon glyphicon-phone-alt', $this->opcionesCallCenter()),
+            $this->submenu('Operaciones', 'glyphicon glyphicon-usd', $this->opcionesOperaciones()),
+            $this->submenu('Tesorería', 'glyphicon glyphicon-globe', $this->opcionesTesoreria()),
+            $this->submenu('Cultiva', 'glyphicon glyphicon-globe', $this->opcionesCultiva()),
+            $this->submenu('Incidencias MCM', 'glyphicon glyphicon-cog', $this->opcionesIncidencias()),
+            $this->submenu($tituloAdmin, 'glyphicon glyphicon-cog', $this->opcionesAdministracion()),
+            $this->submenu('Indicadores', 'glyphicon glyphicon-cog', $this->opcionesIndicadores()),
+            $this->submenu('Radar de Cobranza', 'glyphicon glyphicon-screenshot', $this->opcionesRadarCobranza()),
+        ];
+
+        if ($this->mostrarHerramientas) {
+            $opciones[] = $this->submenu('Herramientas', 'glyphicon glyphicon-wrench', $this->opcionesHerramientas());
+        }
+
+        return [
+            'seccion'  => 'GENERAL',
+            'opciones' => $opciones,
+        ];
+    }
+
+    public function mostrar()
+    {
+        $menu = $this->obtenerEstructuraMenu();
         $html = <<<HTML
             <div id="sidebar-menu" class="main_menu_side hidden-print main_menu">
                 <div class="menu_section" style="overflow: auto">
@@ -443,7 +309,7 @@ class Menu
                 return <<<HTML
                     <li>
                         <a>
-                            <span class="{$opcion['icono']}">&nbsp;</span>{$opcion['titulo']}<span class="fa fa-chevron-down"></span>
+                            <i class="{$opcion['icono']}"></i>&nbsp;{$opcion['titulo']}<span class="fa fa-chevron-down"></span>
                         </a>
                         <ul class="nav child_menu">
                             {$html}
@@ -453,10 +319,11 @@ class Menu
             }
         } else {
             if ($this->ValidaPermisos($opcion['url']['permisos'])) {
+                $icono = isset($opcion['icono']) ? '<i class="' . $opcion['icono'] . '"></i>&nbsp;' : '';
                 return <<<HTML
                     <li>
                         <a href="{$opcion['url']['directorio']}">
-                            <span class="{$opcion['icono']}">&nbsp;</span>{$opcion['titulo']}
+                            {$icono}{$opcion['titulo']}
                         </a>
                     </li>
                 HTML;
