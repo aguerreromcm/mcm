@@ -205,8 +205,8 @@ sql;
         ];
 
         if ($_SESSION['perfil'] != 'ADMIN') {
-            $qry = str_replace('FILTRO_USUARIO', 'AND RA.CDGPE_ADMINISTRADORA = :usuario', $qry);
-            $prms['usuario'] = $_SESSION['usuario'];
+            $qry = str_replace('FILTRO_USUARIO', 'AND CO.CODIGO = :sucursal', $qry);
+            $prms['sucursal'] = $_SESSION['cdgco'];
         } else {
             $qry = str_replace('FILTRO_USUARIO', '', $qry);
         }
