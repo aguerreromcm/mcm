@@ -959,13 +959,18 @@ html;
 
                     $json = json_encode($value);
                     $show_validado = $pendientes ? 'none' : 'block';
-                    $acciones = "<button type='button' class='btn btn-success btn-circle' onclick='editar_pago($json);'><i class='fa fa-edit'></i> Editar Pago</button>";
+                    $fecha_param = str_replace('/', '-', $value['FECHA']);
+                    $url_comprobante = '/Pagos/VerComprobantePagoApp?cdgns=' . urlencode($value['CDGNS']) . '&ciclo=' . urlencode($value['CICLO']) . '&secuencia=' . urlencode($value['SECUENCIA']) . '&fecha=' . urlencode($fecha_param);
+                    $btn_comprobante = '<a href="' . $url_comprobante . '" target="_blank" class="btn btn-info btn-circle" title="Visualizar comprobante capturado en campo" aria-label="Ver comprobante"><i class="fa fa-eye"></i></a>';
+                    $acciones = $btn_comprobante . " <button type='button' class='btn btn-success btn-circle' onclick='editar_pago($json);'><i class='fa fa-edit'></i> Editar Pago</button>";
                     if ($value['ESTATUS_CAJA'] == 1) {
-                        $acciones = '<b>Pago Validado</b>';
+                        // Mostrar solo el botón de ver comprobante cuando ya está validado
+                        $acciones = $btn_comprobante;
                         $check_visible = 'display:none;';
                     }
                     if ($value['ESTATUS_CAJA'] == 2) {
-                        $acciones = '<b>Pago Procesado</b>';
+                        // Mostrar solo el botón de ver comprobante cuando ya está procesado
+                        $acciones = $btn_comprobante;
                         $check_visible = 'display:none;';
                     }
 

@@ -1801,21 +1801,38 @@ sql;
     }
 
     /**
+     * Nombre de la columna de comprobante en PAGOSDIA. Por defecto FOTO; se puede sobreescribir con config.
+     */
+    private static function getColumnaComprobantePagosDia()
+    {
+        $config = \Core\App::getConfig();
+        $columna = isset($config['pagos_app']['COLUMNA_COMPROBANTE_PAGOSDIA'])
+            ? trim((string) $config['pagos_app']['COLUMNA_COMPROBANTE_PAGOSDIA'])
+            : (isset($config['COLUMNA_COMPROBANTE_PAGOSDIA']) ? trim((string) $config['COLUMNA_COMPROBANTE_PAGOSDIA']) : '');
+        if ($columna !== '' && preg_match('/^[A-Za-z0-9_]+$/', $columna)) {
+            return strtoupper($columna);
+        }
+        return 'FOTO';
+    }
+
+    /**
      * Obtiene el comprobante (imagen) de un pago capturado en campo desde PAGOSDIA.
-     * La columna donde se guarda la imagen en PAGOSDIA debe llamarse COMPROBANTE (BLOB).
-     * Si en tu BD tiene otro nombre (ej. IMAGEN, EVIDENCIA), cámbialo en el SELECT.
+     * Columna usada: FOTO (o la indicada en config). Solo se devuelven registros con FOTO no NULL.
+     * Si no hay registro o falla la consulta, devuelve [] sin lanzar excepción SQL (mensaje controlado en controlador).
+     * FOTO puede ser BLOB (bytes de la imagen) o VARCHAR2 (ruta al archivo).
      */
     public static function GetComprobantePagoApp($datos)
     {
-        $qry = <<<SQL
-            SELECT COMPROBANTE
+        $columna = self::getColumnaComprobantePagosDia();
+
+        $qry = "SELECT {$columna} AS COMPROBANTE
             FROM PAGOSDIA
             WHERE CDGNS = :cdgns
               AND CICLO = :ciclo
               AND SECUENCIA = :secuencia
               AND TRUNC(FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY')
               AND CDGEM = 'EMPFIN'
-        SQL;
+              AND {$columna} IS NOT NULL";
 
         $params = [
             'cdgns' => $datos['cdgns'] ?? null,
@@ -1826,9 +1843,16 @@ sql;
 
         try {
             $db = new Database();
-            $row = $db->queryOne($qry, $params);
+            if (!$db->db_activa) {
+                return [];
+            }
+            $stmt = $db->db_activa->prepare($qry);
+            if (!$stmt || !$stmt->execute($params)) {
+                return [];
+            }
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
             return $row ?: [];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [];
         }
     }

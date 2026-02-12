@@ -955,14 +955,16 @@ html;
                     $show_validado = $pendientes ? 'none' : 'block';
                     $fecha_param = str_replace('/', '-', $value['FECHA']);
                     $url_comprobante = '/Pagos/VerComprobantePagoApp?cdgns=' . urlencode($value['CDGNS']) . '&ciclo=' . urlencode($value['CICLO']) . '&secuencia=' . urlencode($value['SECUENCIA']) . '&fecha=' . urlencode($fecha_param);
-                    $btn_comprobante = '<a href="' . $url_comprobante . '" target="_blank" class="btn btn-info btn-circle" title="Visualizar comprobante capturado en campo"><i class="fa fa-image"></i> Ver comprobante</a>';
+                    $btn_comprobante = '<a href="' . $url_comprobante . '" target="_blank" class="btn btn-info btn-circle" title="Visualizar comprobante capturado en campo" aria-label="Ver comprobante"><i class="fa fa-eye"></i></a>';
                     $acciones = $btn_comprobante . " <button type='button' class='btn btn-success btn-circle' onclick='editar_pago($json);'><i class='fa fa-edit'></i> Editar Pago</button>";
                     if ($value['ESTATUS_CAJA'] == 1) {
-                        $acciones = $btn_comprobante . ' <b>Pago Validado</b>';
+                        // Mostrar solo el botón de ver comprobante cuando ya está validado
+                        $acciones = $btn_comprobante;
                         $check_visible = 'display:none;';
                     }
                     if ($value['ESTATUS_CAJA'] == 2) {
-                        $acciones = $btn_comprobante . ' <b>Pago Procesado</b>';
+                        // Mostrar solo el botón de ver comprobante cuando ya está procesado
+                        $acciones = $btn_comprobante;
                         $check_visible = 'display:none;';
                     }
 
@@ -2908,46 +2910,139 @@ html;
     /**
      * Muestra el comprobante (imagen) del pago capturado en campo por el ejecutivo.
      * Parámetros GET: cdgns, ciclo, secuencia, fecha (formato DD-MM-YYYY).
+     * FOTO en PAGOSDIA puede ser BLOB (imagen) o ruta (VARCHAR2); se devuelve con header correcto.
+     * Si no hay registro o FOTO es NULL, mensaje controlado (no error SQL).
      */
     public function VerComprobantePagoApp()
     {
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+
         $archivo = PagosDao::GetComprobantePagoApp($_GET);
 
-        if (empty($archivo) || empty($archivo['COMPROBANTE'])) {
-            header('HTTP/1.0 404 Not Found');
-            echo 'No se encontró el comprobante para este pago.';
+        if (empty($archivo) || !array_key_exists('COMPROBANTE', $archivo)) {
+            $this->mensajeComprobanteNoEncontrado();
             return;
         }
 
-        $contenido = is_resource($archivo['COMPROBANTE'])
-            ? stream_get_contents($archivo['COMPROBANTE'])
-            : $archivo['COMPROBANTE'];
+        $foto = $archivo['COMPROBANTE'];
 
+        // FOTO como BLOB (recurso u objeto LOB)
+        if (is_resource($foto)) {
+            $contenido = stream_get_contents($foto);
+        } elseif (is_object($foto) && method_exists($foto, 'read') && method_exists($foto, 'size')) {
+            $contenido = $foto->read($foto->size());
+        } elseif (is_string($foto)) {
+            $contenido = $foto;
+        } else {
+            $contenido = (string) $foto;
+        }
+
+        // FOTO como ruta: contenido es path al archivo
+        if (self::esRutaDeArchivo($contenido)) {
+            $pathReal = $this->resolverRutaComprobante(trim($contenido));
+            if ($pathReal === null || !is_file($pathReal)) {
+                $this->mensajeComprobanteNoEncontrado();
+                return;
+            }
+            $mime = $this->mimeDesdeExtension($pathReal);
+            header('Content-Type: ' . $mime);
+            header('Content-Disposition: inline; filename="' . basename($pathReal) . '"');
+            header('Cache-Control: private, max-age=3600');
+            header('Content-Length: ' . filesize($pathReal));
+            readfile($pathReal);
+            exit;
+        }
+
+        // FOTO como BLOB (bytes de imagen)
         if (strlen($contenido) === 0) {
-            header('HTTP/1.0 404 Not Found');
-            echo 'Este pago no tiene comprobante registrado.';
+            $this->mensajeComprobanteNoEncontrado();
             return;
         }
 
-        // Detección básica del tipo de imagen por magic bytes
-        $mime = 'image/jpeg';
-        if (substr($contenido, 0, 4) === "\x89PNG") {
-            $mime = 'image/png';
-        } elseif (substr($contenido, 0, 2) === "\xFF\xD8") {
-            $mime = 'image/jpeg';
-        } elseif (substr($contenido, 0, 6) === 'GIF87a' || substr($contenido, 0, 6) === 'GIF89a') {
-            $mime = 'image/gif';
-        } elseif (substr($contenido, 0, 4) === "RIFF" && substr($contenido, 8, 4) === 'WEBP') {
-            $mime = 'image/webp';
-        }
-
+        $mime = $this->mimeDesdeContenido($contenido);
         header('Content-Type: ' . $mime);
         header('Content-Length: ' . strlen($contenido));
-        if (function_exists('ob_get_length') && ob_get_length()) {
-            ob_clean();
-        }
-        flush();
+        header('Content-Disposition: inline; filename="comprobante.jpg"');
+        header('Cache-Control: private, max-age=3600');
         echo $contenido;
         exit;
+    }
+
+    private function mensajeComprobanteNoEncontrado()
+    {
+        header('HTTP/1.0 404 Not Found');
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'No se encontró el comprobante para este pago.';
+        exit;
+    }
+
+    /** Indica si el valor de FOTO parece una ruta y no datos binarios de imagen. */
+    private static function esRutaDeArchivo($contenido)
+    {
+        if (!is_string($contenido) || strlen($contenido) === 0 || strlen($contenido) > 2048) {
+            return false;
+        }
+        if (strpos($contenido, "\0") !== false) {
+            return false;
+        }
+        $trimmed = trim($contenido);
+        if ($trimmed === '') {
+            return false;
+        }
+        $bytes = substr($contenido, 0, 12);
+        if (substr($bytes, 0, 2) === "\xFF\xD8" || substr($bytes, 0, 4) === "\x89PNG" ||
+            substr($bytes, 0, 6) === 'GIF87a' || substr($bytes, 0, 6) === 'GIF89a' ||
+            (substr($bytes, 0, 4) === 'RIFF' && substr($bytes, 8, 4) === 'WEBP')) {
+            return false;
+        }
+        return preg_match('#^[a-zA-Z0-9_./\\\\:-]+$#', $trimmed) === 1;
+    }
+
+    /** Resuelve ruta del comprobante dentro del proyecto (evita path traversal). */
+    private function resolverRutaComprobante($ruta)
+    {
+        $ruta = str_replace('\\', '/', trim($ruta));
+        if ($ruta === '' || strpos($ruta, '..') !== false) {
+            return null;
+        }
+        $base = defined('PROJECTPATH') ? PROJECTPATH : dirname(__DIR__, 2);
+        $baseReal = realpath($base);
+        if ($baseReal === false) {
+            return null;
+        }
+        $baseReal = str_replace('\\', '/', $baseReal);
+        $candidato = $baseReal . '/' . ltrim($ruta, '/');
+        $real = realpath($candidato);
+        if ($real === false || !is_file($real)) {
+            return null;
+        }
+        $real = str_replace('\\', '/', $real);
+        return (strpos($real, $baseReal) === 0) ? $real : null;
+    }
+
+    private function mimeDesdeExtension($path)
+    {
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $map = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'gif' => 'image/gif', 'webp' => 'image/webp'];
+        return $map[$ext] ?? 'application/octet-stream';
+    }
+
+    private function mimeDesdeContenido($contenido)
+    {
+        if (strlen($contenido) >= 4 && substr($contenido, 0, 4) === "\x89PNG") {
+            return 'image/png';
+        }
+        if (strlen($contenido) >= 2 && substr($contenido, 0, 2) === "\xFF\xD8") {
+            return 'image/jpeg';
+        }
+        if (strlen($contenido) >= 6 && (substr($contenido, 0, 6) === 'GIF87a' || substr($contenido, 0, 6) === 'GIF89a')) {
+            return 'image/gif';
+        }
+        if (strlen($contenido) >= 12 && substr($contenido, 0, 4) === 'RIFF' && substr($contenido, 8, 4) === 'WEBP') {
+            return 'image/webp';
+        }
+        return 'image/jpeg';
     }
 }

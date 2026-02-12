@@ -38,7 +38,6 @@ class Menu
     private function obtenerEstructuraMenu()
     {
         return [
-            $this->seccionGeneralWebAhorro(),
             $this->seccionGeneral(),
         ];
     }
@@ -81,17 +80,7 @@ class Menu
         ];
     }
 
-    /** Sección: General WEB AHORRO */
-    private function seccionGeneralWebAhorro()
-    {
-        return [
-            'seccion'  => 'General WEB AHORRO',
-            'opciones' => [
-                $this->enlace('Mi espacio', '/Ahorro/CuentaCorriente/', ['AMGM', 'AMGMM'], 'glyphicon glyphicon-usd'),
-                $this->enlace('Admin Sucursales', '/AdminSucursales/SaldosDiarios/', ['AMGM', 'LGFR', 'PAES', 'PMAB', 'DCRI', 'GUGJ', 'JUSA', 'HEDC', 'PHEE'], 'glyphicon glyphicon-paste'),
-            ],
-        ];
-    }
+    /** Sección: General WEB AHORRO (eliminada: ahora el menú no incluye esta sección) */
 
     /** Opciones del submenú Pagos */
     private function opcionesPagos()
