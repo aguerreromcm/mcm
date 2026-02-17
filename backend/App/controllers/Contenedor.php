@@ -103,7 +103,6 @@ class Contenedor extends Controller
                             </div>
                         </div>
                     </div>
-                </div>
         HTML;
 
         return $header . $menu;
@@ -112,6 +111,7 @@ class Contenedor extends Controller
     public function footer($extra = '')
     {
         $footer = <<<HTML
+                </div>
                 <script src="/js/moment/moment.min.js"></script>
                 <script src="/js/sweetalert.min.js"></script>
                 <script src="/js/jquery.min.js"></script>
