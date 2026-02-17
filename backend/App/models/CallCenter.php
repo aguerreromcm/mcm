@@ -14,17 +14,14 @@ class CallCenter extends Model
         $date = str_replace('/', '-', $fec);
         $newDate = date("Y-m-d H:i:s", strtotime($date));
 
-        $mysqli = new Database();
-
-        // Primero intentar con el filtro estricto (créditos no cancelados)
         $query = <<<SQL
-            SELECT
+            SELECT 
                 SC.CDGNS NO_CREDITO,
                 SC.CDGCL ID_CLIENTE,
                 GET_NOMBRE_CLIENTE(SC.CDGCL) CLIENTE,
-                CASE
-                    WHEN SN.CICLOR IS NOT NULL THEN  SN.CICLOR || '(RECHAZADO)'
-                    ELSE SN.CICLO
+                CASE 
+                    WHEN SN.CICLOR IS NOT NULL THEN  SN.CICLOR || '(RECHAZADO)' 
+                    ELSE SN.CICLO 
                 END AS CICLO,
                 NVL(SC.CANTAUTOR,SC.CANTSOLIC) MONTO,
                 SC.SITUACION,
@@ -37,67 +34,22 @@ class CallCenter extends Model
                 GET_NOMBRE_SUCURSAL(SN.CDGCO) SUCURSAL,
                 SN.CDGOCPE ID_EJECUTIVO,
                 GET_NOMBRE_EMPLEADO(SN.CDGOCPE) EJECUTIVO,
-                SC.CDGPI ID_PROYECTO,
-                TO_CHAR(SN.SOLICITUD ,'YYYY-MM-DD HH24:MI:SS') AS FECHA_SOL,
+                SC.CDGPI ID_PROYECTO, 
+                TO_CHAR(SN.SOLICITUD ,'YYYY-MM-DD HH24:MI:SS') AS FECHA_SOL, 
                 SN.CICLOR,
                 SN.CREDITO_ADICIONAL
-            FROM
+            FROM 
                 SN, SC
             WHERE
                 SC.CDGNS = '$credito'
                 AND SC.CICLO = '$ciclo'
                 AND SC.CDGNS = SN.CDGNS
                 AND SC.CICLO = SN.CICLO
-                AND SC.CANTSOLIC <> '9999'
+                AND SC.CANTSOLIC <> '9999'  
         SQL;
 
+        $mysqli = new Database();
         $credito_ = $mysqli->queryOne($query);
-
-        // Si no se encontró con el filtro estricto, intentar sin filtro de cancelación
-        if (!$credito_ || empty($credito_)) {
-            $query_sin_filtro = <<<SQL
-                SELECT
-                    SC.CDGNS NO_CREDITO,
-                    SC.CDGCL ID_CLIENTE,
-                    GET_NOMBRE_CLIENTE(SC.CDGCL) CLIENTE,
-                    CASE
-                        WHEN SN.CICLOR IS NOT NULL THEN  SN.CICLOR || '(RECHAZADO)'
-                        ELSE SN.CICLO
-                    END AS CICLO,
-                    NVL(SC.CANTAUTOR,SC.CANTSOLIC) MONTO,
-                    SC.SITUACION,
-                    SN.PLAZOSOL PLAZO,
-                    SN.PERIODICIDAD,
-                    SN.TASA,
-                    DIA_PAGO(SN.NOACUERDO) DIA_PAGO,
-                    CALCULA_PARCIALIDAD(SN.PERIODICIDAD, SN.TASA, NVL(SC.CANTAUTOR,SC.CANTSOLIC), SN.PLAZOSOL) PARCIALIDAD,
-                    SN.CDGCO ID_SUCURSAL,
-                    GET_NOMBRE_SUCURSAL(SN.CDGCO) SUCURSAL,
-                    SN.CDGOCPE ID_EJECUTIVO,
-                    GET_NOMBRE_EMPLEADO(SN.CDGOCPE) EJECUTIVO,
-                    SC.CDGPI ID_PROYECTO,
-                    TO_CHAR(SN.SOLICITUD ,'YYYY-MM-DD HH24:MI:SS') AS FECHA_SOL,
-                    SN.CICLOR,
-                    SN.CREDITO_ADICIONAL
-                FROM
-                    SN, SC
-                WHERE
-                    SC.CDGNS = '$credito'
-                    AND SC.CICLO = '$ciclo'
-                    AND SC.CDGNS = SN.CDGNS
-                    AND SC.CICLO = SN.CICLO
-            SQL;
-
-            $credito_ = $mysqli->queryOne($query_sin_filtro);
-
-            // Si aún no se encontró, intentar con variantes del ciclo (ej: "05" vs "5")
-            if (!$credito_ || empty($credito_)) {
-                $credito_ = self::buscarCreditoSnSc($mysqli, $credito, $ciclo);
-            }
-            if (!$credito_ || empty($credito_)) {
-                return ['', '', '', '', '', ''];
-            }
-        }
 
         $id_cliente = $credito_['ID_CLIENTE'];
         $id_proyecto = $credito_['ID_PROYECTO'];
@@ -316,72 +268,6 @@ class CallCenter extends Model
         return [$credito_, $cliente, $aval, $llamada_cl, $llamada_av, $res_recomendado];
     }
 
-    /**
-     * Busca crédito en SN/SC probando variantes del ciclo (ej: "05" y "5").
-     * Devuelve la misma estructura que la consulta principal o null.
-     */
-    private static function buscarCreditoSnSc($mysqli, $credito, $ciclo)
-    {
-        $credito_esc = str_replace("'", "''", $credito);
-        $ciclos_probar = array_unique([
-            $ciclo,
-            ltrim($ciclo, '0'),
-            str_pad($ciclo, 2, '0', STR_PAD_LEFT)
-        ]);
-
-        // Incluir ciclos que devuelven las vistas del listado (misma fuente que el usuario ve)
-        $q_vistas = "SELECT CICLO FROM SOLICITUDES_PENDIENTES WHERE CDGNS = '$credito_esc'
-                     UNION
-                     SELECT CICLO FROM SOLICITUDES_PROCESADAS WHERE CDGNS = '$credito_esc'";
-        try {
-            $filas_vista = $mysqli->queryAll($q_vistas);
-            foreach ($filas_vista as $f) {
-                if (!empty($f['CICLO'])) {
-                    $ciclos_probar[] = $f['CICLO'];
-                }
-            }
-            $ciclos_probar = array_unique($ciclos_probar);
-        } catch (\Throwable $e) {
-            // Si las vistas fallan, seguir solo con variantes
-        }
-
-        $select = "
-            SELECT
-                SC.CDGNS NO_CREDITO,
-                SC.CDGCL ID_CLIENTE,
-                GET_NOMBRE_CLIENTE(SC.CDGCL) CLIENTE,
-                CASE WHEN SN.CICLOR IS NOT NULL THEN SN.CICLOR || '(RECHAZADO)' ELSE SN.CICLO END AS CICLO,
-                NVL(SC.CANTAUTOR,SC.CANTSOLIC) MONTO,
-                SC.SITUACION,
-                SN.PLAZOSOL PLAZO,
-                SN.PERIODICIDAD,
-                SN.TASA,
-                DIA_PAGO(SN.NOACUERDO) DIA_PAGO,
-                CALCULA_PARCIALIDAD(SN.PERIODICIDAD, SN.TASA, NVL(SC.CANTAUTOR,SC.CANTSOLIC), SN.PLAZOSOL) PARCIALIDAD,
-                SN.CDGCO ID_SUCURSAL,
-                GET_NOMBRE_SUCURSAL(SN.CDGCO) SUCURSAL,
-                SN.CDGOCPE ID_EJECUTIVO,
-                GET_NOMBRE_EMPLEADO(SN.CDGOCPE) EJECUTIVO,
-                SC.CDGPI ID_PROYECTO,
-                TO_CHAR(SN.SOLICITUD ,'YYYY-MM-DD HH24:MI:SS') AS FECHA_SOL,
-                SN.CICLOR,
-                SN.CREDITO_ADICIONAL
-            FROM SN, SC
-            WHERE SC.CDGNS = '%s' AND SC.CICLO = '%s' AND SC.CDGNS = SN.CDGNS AND SC.CICLO = SN.CICLO
-        ";
-        foreach ($ciclos_probar as $c) {
-            if ($c === '' || $c === null) continue;
-            $c_esc = str_replace("'", "''", (string) $c);
-            $q = sprintf($select . " AND SC.CANTSOLIC <> '9999'", $credito_esc, $c_esc);
-            $row = $mysqli->queryOne($q);
-            if ($row && !empty($row)) return $row;
-            $q2 = sprintf($select, $credito_esc, $c_esc);
-            $row = $mysqli->queryOne($q2);
-            if ($row && !empty($row)) return $row;
-        }
-        return null;
-    }
-
     public static function getComboSucursales($CDGPE)
     {
         $qry = <<<SQL
@@ -487,7 +373,7 @@ sql;
                                 WHERE SP.FECHA_SOL BETWEEN TIMESTAMP '$fecha_inicio 00:00:00.000000' AND TIMESTAMP '$fecha_fin 23:59:59.000000')
             ORDER BY FECHA_SOL DESC
             sql;
-            
+
             return $mysqli->queryAll($query);
         }
 

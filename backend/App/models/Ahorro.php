@@ -204,7 +204,7 @@ sql;
             'fechaF' => $datos['fechaF']
         ];
 
-        if ($_SESSION['perfil'] != 'ADMIN') {
+        if ($_SESSION['perfil'] != 'ADMIN' && $_SESSION['usuario'] !== 'LGFR') {
             $qry = str_replace('FILTRO_USUARIO', 'AND CO.CODIGO = :sucursal', $qry);
             $prms['sucursal'] = $_SESSION['cdgco'];
         } else {
