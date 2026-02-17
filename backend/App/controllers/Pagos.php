@@ -1437,24 +1437,8 @@ html;
         $sucursales = PagosDao::ListaSucursales($this->__usuario);
         $getSucursales = '';
         if (
-            $this->__perfil == 'ADMIN'
-            || $this->__perfil == 'ACALL'
-            || $this->__usuario == 'PMAB'
-            || $this->__usuario == 'PAES'
-            || $this->__usuario == 'COCS'
-            || $this->__usuario == 'LGFR'
-            || $this->__usuario == 'FECR'
-            || $this->__usuario == 'JACJ'
-            || $this->__usuario == 'CILA'
-            || $this->__usuario == 'VAMA'
-            || $this->__usuario == 'CRME'
-            || $this->__usuario == 'ZEPG'
-            || $this->__usuario == 'LRAF'
-            || $this->__usuario == 'MAAL'
-            || $this->__usuario == 'REHM'
-            || $this->__usuario == 'JUSA'
-            || $this->__usuario == 'MBAE'
-
+            in_array($this->__perfil, ['ADMIN', 'ACALL']) ||
+            in_array($this->__usuario, ['PMAB', 'PAES', 'COCS', 'LGFR', 'FECR', 'JACJ', 'CILA', 'VAMA', 'CRME', 'ZEPG', 'LRAF', 'MAAL', 'REHM', 'JUSA', 'MBAE', 'DDLI'])
         ) {
             $getSucursales .= '<option value="">TODAS</option>';
         }
@@ -3010,9 +2994,11 @@ html;
             return false;
         }
         $bytes = substr($contenido, 0, 12);
-        if (substr($bytes, 0, 2) === "\xFF\xD8" || substr($bytes, 0, 4) === "\x89PNG" ||
+        if (
+            substr($bytes, 0, 2) === "\xFF\xD8" || substr($bytes, 0, 4) === "\x89PNG" ||
             substr($bytes, 0, 6) === 'GIF87a' || substr($bytes, 0, 6) === 'GIF89a' ||
-            (substr($bytes, 0, 4) === 'RIFF' && substr($bytes, 8, 4) === 'WEBP')) {
+            (substr($bytes, 0, 4) === 'RIFF' && substr($bytes, 8, 4) === 'WEBP')
+        ) {
             return false;
         }
         return preg_match('#^[a-zA-Z0-9_./\\\\:-]+$#', $trimmed) === 1;
