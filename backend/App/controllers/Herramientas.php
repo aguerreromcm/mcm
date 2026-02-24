@@ -209,7 +209,6 @@ class Herramientas extends Controller
     public function AuditoriaDevengo()
     {
         $extraFooter = <<<HTML
-            <script src="/js/daterangepicker.js"></script>
             <script>
                 {$this->mensajes}
                 {$this->configuraTabla}
@@ -224,16 +223,59 @@ class Herramientas extends Controller
                     return m.isValid() ? m.format("YYYY-MM-DD") : "";
                 }
 
+                // Sistema de mensajes visuales
+                function mostrarMensaje(tipo, mensaje, duracion = 5000) {
+                    // Remover mensajes anteriores
+                    $('.mensaje-sistema').remove();
+
+                    var claseTipo = '';
+                    var iconoTipo = '';
+                    switch(tipo) {
+                        case 'success':
+                            claseTipo = 'alert-success';
+                            iconoTipo = '✅';
+                            break;
+                        case 'error':
+                            claseTipo = 'alert-danger';
+                            iconoTipo = '❌';
+                            break;
+                        case 'warning':
+                            claseTipo = 'alert-warning';
+                            iconoTipo = '⚠️';
+                            break;
+                        case 'info':
+                        default:
+                            claseTipo = 'alert-info';
+                            iconoTipo = 'ℹ️';
+                            break;
+                    }
+
+                    var mensajeDiv = $('<div class="alert ' + claseTipo + ' alert-dismissible mensaje-sistema" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>' +
+                        '<strong>' + iconoTipo + ' ' + mensaje + '</strong>' +
+                        '</div>');
+
+                    $('body').append(mensajeDiv);
+
+                    // Auto-ocultar después de la duración especificada
+                    if (duracion > 0) {
+                        setTimeout(function() {
+                            mensajeDiv.fadeOut(500, function() { $(this).remove(); });
+                        }, duracion);
+                    }
+
+                    // Permitir cerrar manualmente
+                    mensajeDiv.find('.close').click(function() {
+                        mensajeDiv.fadeOut(300, function() { $(this).remove(); });
+                    });
+                }
+
                 function consultarDevengosFaltantes() {
                     var credito = $("#filtro_credito").val() ? $("#filtro_credito").val().trim() : "";
                     var ciclo = $("#filtro_ciclo").val() ? $("#filtro_ciclo").val().trim() : "";
-                    var fechaDesde = toYMD($("#filtro_fecha_desde").val());
-                    var fechaHasta = toYMD($("#filtro_fecha_hasta").val());
                     var params = [];
                     if (credito) params.push("credito=" + encodeURIComponent(credito));
                     if (ciclo) params.push("ciclo=" + encodeURIComponent(ciclo));
-                    if (fechaDesde) params.push("fecha_desde=" + encodeURIComponent(fechaDesde));
-                    if (fechaHasta) params.push("fecha_hasta=" + encodeURIComponent(fechaHasta));
                     var url = "/Herramientas/GetDevengosFaltantes/" + (params.length ? "?" + params.join("&") : "");
 
                     swal({ text: "Procesando la solicitud, espere un momento...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
@@ -244,23 +286,23 @@ class Herramientas extends Controller
                         success: function(res) {
                             swal.close();
                             try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) {
-                                showError("Error al procesar la respuesta");
+                                mostrarMensaje('error', "Error al procesar la respuesta");
                                 actualizaDatosTabla(idTablaAuditoria, []);
                                 datosActuales = [];
                                 return;
                             }
                             if (!res.success) {
-                                showError(res.mensaje || "Error al cargar");
+                                mostrarMensaje('error', res.mensaje || "Error al cargar");
                                 actualizaDatosTabla(idTablaAuditoria, []);
                                 datosActuales = [];
                                 return;
                             }
                             datosActuales = Array.isArray(res.datos) ? res.datos : [];
-                            var rows = datosActuales.map(function(item) {
+                            var rows = datosActuales.map(function(item, idx) {
                                 var c = String(item.CREDITO || item.credito || "").trim();
                                 var ci = String(item.CICLO || item.ciclo || "").trim();
-                                var chk = '<input type="checkbox" class="chk-procesar" data-credito="' + c + '" data-ciclo="' + ci + '">';
-                                var btn = '<button type="button" class="btn btn-primary btn-sm btn-procesar" data-credito="' + c + '" data-ciclo="' + ci + '">Procesar</button>';
+                                var chk = '<input type="checkbox" class="chk-procesar" data-index="' + idx + '">';
+                                var btn = '<button type="button" class="btn btn-primary btn-sm btn-procesar" data-index="' + idx + '">Procesar</button>';
                                 return [chk, c, ci, item.FECHA_FALTANTE || "", item.FECHA_CALC || "", item.NOMBRE || "", btn];
                             });
                             var tabla = $("#" + idTablaAuditoria).DataTable();
@@ -269,21 +311,54 @@ class Herramientas extends Controller
                                 tabla.rows.add(rows).draw();
                             } else {
                                 tabla.draw();
-                                if (credito || ciclo || fechaDesde || fechaHasta) {
-                                    showInfo("No se encontraron devengos faltantes para los filtros aplicados.");
+                                if (credito || ciclo) {
+                                    mostrarMensaje('info', "No se encontraron devengos faltantes para los filtros aplicados.");
                                 }
                             }
                         },
                         error: function() {
                             swal.close();
-                            showError("La consulta tardó demasiado o hubo un error.");
+                            mostrarMensaje('error', "La consulta tardó demasiado o hubo un error.");
                             actualizaDatosTabla(idTablaAuditoria, []);
                             datosActuales = [];
                         }
                     });
                 }
 
-                function procesarIndividual(credito, ciclo, $btn) {
+                // Función para eliminar filas del grid por crédito y ciclo
+                function eliminarFilaPorCreditoCiclo(credito, ciclo) {
+                    var tabla = $("#" + idTablaAuditoria).DataTable();
+                    var filasVisibles = tabla.rows().nodes();
+
+                    // Buscar filas que coincidan con el crédito y ciclo
+                    $(filasVisibles).each(function(index, tr) {
+                        var celdas = $(tr).find('td');
+                        if (celdas.length >= 3) {
+                            var creditoFila = $(celdas[1]).text().trim();
+                            var cicloFila = $(celdas[2]).text().trim();
+
+                            if (creditoFila === credito && cicloFila === ciclo) {
+                                // Eliminar la fila de la tabla
+                                tabla.row(tr).remove().draw();
+
+                                // También actualizar el array de datosActuales
+                                if (Array.isArray(datosActuales)) {
+                                    datosActuales = datosActuales.filter(function(item) {
+                                        if (!item) return false;
+                                        var c = String(item.CREDITO || item.credito || "").trim();
+                                        var ci = String(item.CICLO || item.ciclo || "").trim();
+                                        return !(c === credito && ci === ciclo);
+                                    });
+                                }
+                                return false; // Salir del each
+                            }
+                        }
+                    });
+                }
+
+                function procesarIndividual(idx, $btn) {
+                    var fila = Array.isArray(datosActuales) && datosActuales[idx] ? datosActuales[idx] : null;
+                    if (!fila) { mostrarMensaje('error', "No se pudo obtener la fila a procesar."); return; }
                     swal({ title: "¿Deseas procesar este devengo?", icon: "warning", buttons: ["No", "Sí"], dangerMode: true }).then(function(ok) {
                         if (!ok) return;
                         $btn.prop("disabled", true);
@@ -292,22 +367,29 @@ class Herramientas extends Controller
                             type: "POST",
                             url: "/Herramientas/ProcesarIndividual/",
                             contentType: "application/json",
-                            data: JSON.stringify({ credito: credito, ciclo: ciclo, fecha_corte: null }),
+                            data: JSON.stringify({ fila: fila }),
                             success: function(res) {
                                 swal.close();
                                 $btn.prop("disabled", false);
-                                try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { showError("Error al procesar"); return; }
+                                try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { mostrarMensaje('error', 'Error al procesar la respuesta'); return; }
+
                                 if (res.success) {
-                                    showSuccess(res.mensaje);
-                                    consultarDevengosFaltantes();
+                                    // Determinar el tipo de mensaje basado en insertados
+                                    var tipoMensaje = res.insertados > 0 ? 'success' : 'warning';
+                                    mostrarMensaje(tipoMensaje, res.mensaje);
+
+                                    // Si se insertaron registros, eliminar la fila del grid
+                                    if (res.insertados > 0 && res.credito && res.ciclo) {
+                                        eliminarFilaPorCreditoCiclo(res.credito, res.ciclo);
+                                    }
                                 } else {
-                                    showError(res.mensaje || res.error || "Error al procesar");
+                                    mostrarMensaje('error', res.mensaje || "Error al procesar el crédito");
                                 }
                             },
                             error: function() {
                                 swal.close();
                                 $btn.prop("disabled", false);
-                                showError("Error de conexión o tiempo agotado.");
+                                mostrarMensaje('error', "Error de conexión o tiempo agotado.");
                             }
                         });
                     });
@@ -316,17 +398,19 @@ class Herramientas extends Controller
                 function procesarMasivo() {
                     var checked = $("#" + idTablaAuditoria).find(".chk-procesar:checked");
                     if (!checked.length) {
-                        showError("Selecciona al menos un registro.");
+                        mostrarMensaje("warning", "Selecciona al menos un registro.");
                         return;
                     }
-                    var seen = {};
                     var registros = [];
+                    var filasSeleccionadas = []; // Guardar las filas seleccionadas
                     checked.each(function() {
-                        var c = $(this).data("credito");
-                        var ci = $(this).data("ciclo");
-                        var key = c + "|" + ci;
-                        if (c && ci && !seen[key]) { seen[key] = true; registros.push({ credito: c, ciclo: ci, fecha_corte: null }); }
+                        var idx = $(this).data("index");
+                        if (typeof idx !== "undefined" && Array.isArray(datosActuales) && datosActuales[idx]) {
+                            registros.push(datosActuales[idx]);
+                            filasSeleccionadas.push($(this).closest('tr'));
+                        }
                     });
+                    if (!registros.length) { mostrarMensaje("error", "No se pudieron obtener los registros seleccionados."); return; }
                     swal({ title: "Se procesarán " + registros.length + " registros. ¿Continuar?", icon: "warning", buttons: ["No", "Sí"], dangerMode: true }).then(function(ok) {
                         if (!ok) return;
                         var $btnMasivo = $("#btn_masivo");
@@ -341,30 +425,51 @@ class Herramientas extends Controller
                             success: function(res) {
                                 swal.close();
                                 $btnMasivo.prop("disabled", false);
-                                try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { showError("Error al procesar"); return; }
+                                try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { mostrarMensaje('error', 'Error al procesar la respuesta'); return; }
+
                                 if (res.success) {
-                                    showSuccess(res.mensaje);
-                                    consultarDevengosFaltantes();
-                                    $("#" + idTablaAuditoria).find(".chk-procesar:checked").prop("checked", false);
+                                    // Determinar el tipo de mensaje basado en insertados
+                                    var tipoMensaje = res.insertados > 0 ? 'success' : 'warning';
+                                    mostrarMensaje(tipoMensaje, res.mensaje);
+
+                                    // Si se insertaron registros, eliminar las filas que estaban seleccionadas
+                                    if (res.insertados > 0 && filasSeleccionadas.length > 0) {
+                                        // Remover las filas que estaban seleccionadas (procesadas)
+                                        var tabla = $("#" + idTablaAuditoria).DataTable();
+                                        filasSeleccionadas.forEach(function(tr) {
+                                            tabla.row(tr).remove();
+                                        });
+                                        tabla.draw();
+
+                                        // Actualizar el array datosActuales removiendo los elementos procesados
+                                        if (Array.isArray(datosActuales)) {
+                                            var indicesAEliminar = [];
+                                            filasSeleccionadas.forEach(function(tr) {
+                                                var checkbox = $(tr).find('.chk-procesar');
+                                                var idx = checkbox.data('index');
+                                                if (idx !== undefined) {
+                                                    indicesAEliminar.push(idx);
+                                                }
+                                            });
+                                            datosActuales = datosActuales.filter(function(item, idx) {
+                                                return indicesAEliminar.indexOf(idx) === -1;
+                                            });
+                                        }
+                                    }
                                 } else {
-                                    showError(res.mensaje || res.error || "Error en procesamiento masivo");
+                                    mostrarMensaje('error', res.mensaje || "Error en procesamiento masivo");
                                 }
                             },
                             error: function() {
                                 swal.close();
                                 $btnMasivo.prop("disabled", false);
-                                showError("Error de conexión o tiempo agotado.");
+                                mostrarMensaje('error', "Error de conexión o tiempo agotado.");
                             }
                         });
                     });
                 }
 
                 $(document).ready(function(){
-                    var cfgDrp = { singleDatePicker: true, locale: { format: "DD/MM/YYYY" }, autoUpdateInput: false };
-                    $("#filtro_fecha_desde").daterangepicker(cfgDrp, function(start) { $("#filtro_fecha_desde").val(start.format("DD/MM/YYYY")); });
-                    $("#icon_fecha_desde").on("click", function() { $("#filtro_fecha_desde").focus(); });
-                    $("#filtro_fecha_hasta").daterangepicker(cfgDrp, function(start) { $("#filtro_fecha_hasta").val(start.format("DD/MM/YYYY")); });
-                    $("#icon_fecha_hasta").on("click", function() { $("#filtro_fecha_hasta").focus(); });
 
                     $("#" + idTablaAuditoria).DataTable({
                         lengthMenu: [[25, 50, 100, -1], [25, 50, 100, "Todos"]],
@@ -391,16 +496,15 @@ class Herramientas extends Controller
                     $(document).on("click", ".btn-procesar", function() {
                         var $btn = $(this);
                         if ($btn.prop("disabled")) return;
-                        var credito = $btn.data("credito");
-                        var ciclo = $btn.data("ciclo");
-                        if (!credito || !ciclo) { showError("No se pudo obtener crédito o ciclo."); return; }
-                        procesarIndividual(credito, ciclo, $btn);
+                        var idx = $btn.data("index");
+                        if (typeof idx === "undefined") { mostrarMensaje('error', "No se pudo obtener la fila."); return; }
+                        procesarIndividual(idx, $btn);
                     });
                 });
             </script>
         HTML;
 
-        View::set('header', $this->_contenedor->header($this->getExtraHeader("Auditoría Devengo", ['<link rel="stylesheet" href="/css/daterangepicker.css">'])));
+        View::set('header', $this->_contenedor->header($this->getExtraHeader("Auditoría Devengo")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('tabla', '');
         View::render('herramientas_auditoria_devengo');
@@ -414,20 +518,14 @@ class Herramientas extends Controller
         try {
             set_time_limit(120);
             header('Content-Type: application/json; charset=UTF-8');
-            $fechaDesde = isset($_GET['fecha_desde']) ? trim($_GET['fecha_desde']) : null;
-            $fechaHasta = isset($_GET['fecha_hasta']) ? trim($_GET['fecha_hasta']) : null;
             $fechaCorte = isset($_GET['fecha_corte']) ? trim($_GET['fecha_corte']) : null;
-            if ($fechaDesde) {
-                $d = \DateTime::createFromFormat('Y-m-d', $fechaDesde);
-                if (!$d) $fechaDesde = null;
-            }
-            if ($fechaHasta) {
-                $d = \DateTime::createFromFormat('Y-m-d', $fechaHasta);
-                if (!$d) $fechaHasta = null;
-            }
-            if ($fechaCorte) {
+            if ($fechaCorte !== null && $fechaCorte !== '') {
                 $d = \DateTime::createFromFormat('Y-m-d', $fechaCorte);
-                if (!$d) $fechaCorte = null;
+                if (!$d) {
+                    $d = \DateTime::createFromFormat('d/m/Y', $fechaCorte);
+                    if ($d) $fechaCorte = $d->format('Y-m-d');
+                    else $fechaCorte = null;
+                }
             }
             if (empty($fechaCorte)) {
                 $fechaCorte = date('Y-m-d');
@@ -436,16 +534,11 @@ class Herramientas extends Controller
             if ($fechaCorte > $hoy) {
                 $fechaCorte = $hoy;
             }
-            $datos = array_filter([
+            $datos = [
                 'credito'      => isset($_GET['credito']) ? trim($_GET['credito']) : null,
                 'ciclo'        => isset($_GET['ciclo']) ? trim($_GET['ciclo']) : null,
-                'fecha_desde'  => $fechaDesde,
-                'fecha_hasta'  => $fechaHasta,
                 'fecha_corte'  => $fechaCorte,
-            ], function ($v) { return $v !== null && $v !== ''; });
-            if (!isset($datos['fecha_corte'])) {
-                $datos['fecha_corte'] = $fechaCorte;
-            }
+            ];
 
             $resp = AuditoriaDevengoService::GetDevengosFaltantes($datos);
             echo json_encode($resp);

@@ -40,9 +40,9 @@ class AuditoriaDevengoService
     }
 
     /**
-     * Procesamiento individual de devengo.
+     * Procesamiento individual de devengo. Recibe la fila completa (con todos los datos para el INSERT).
      *
-     * @param array $datos ['credito', 'ciclo', 'fecha_corte' => opcional]
+     * @param array $datos Una fila con CREDITO, CICLO y todos los campos para INSERT (FECHA_CALC_ISO, DEV_DIARIO, etc.)
      * @param string $usuario
      * @param string $perfil
      * @param string $ip
@@ -51,11 +51,9 @@ class AuditoriaDevengoService
     public static function ProcesarIndividual(array $datos, string $usuario, string $perfil, string $ip): array
     {
         $log = defined('APPPATH') ? APPPATH . '/../logs/auditoria_devengo_proceso.log' : __DIR__ . '/../../logs/auditoria_devengo_proceso.log';
-        $credito = trim((string) ($datos['credito'] ?? ''));
-        $ciclo = trim((string) ($datos['ciclo'] ?? ''));
-        $fechaCorte = isset($datos['fecha_corte']) && $datos['fecha_corte'] !== ''
-            ? trim((string) $datos['fecha_corte'])
-            : null;
+        $fila = isset($datos['fila']) ? $datos['fila'] : $datos;
+        $credito = trim((string) ($fila['CREDITO'] ?? $fila['CDGCLNS'] ?? $fila['credito'] ?? ''));
+        $ciclo = trim((string) ($fila['CICLO'] ?? $fila['ciclo'] ?? ''));
 
         @file_put_contents($log, date('c') . " [SVC] ProcesarIndividual credito=$credito | ciclo=$ciclo | usuario=$usuario | perfil=$perfil\n", FILE_APPEND);
 
@@ -66,21 +64,12 @@ class AuditoriaDevengoService
 
         $validacionPerfil = self::validaPerfil($perfil);
         if (!$validacionPerfil) {
-            @file_put_contents($log, date('c') . " [SVC] BLOQUEO: perfil '$perfil' no autorizado (requiere ADMIN, PLMV o PHEE)\n", FILE_APPEND);
+            @file_put_contents($log, date('c') . " [SVC] BLOQUEO: perfil '$perfil' no autorizado\n", FILE_APPEND);
             return Model::Responde(false, 'Perfil no autorizado para esta operación.', null, 'Acceso denegado');
         }
 
-        @file_put_contents($log, date('c') . " [SVC] Llamando ProcesarDevengoIndividual...\n", FILE_APPEND);
         try {
-            return HerramientasDao::ProcesarDevengoIndividual(
-                $credito,
-                $ciclo,
-                $fechaCorte,
-                $usuario,
-                $perfil,
-                $ip,
-                'INDIVIDUAL'
-            );
+            return HerramientasDao::ProcesarDevengoIndividual($fila, $usuario, $perfil, $ip, 'INDIVIDUAL');
         } catch (\Throwable $e) {
             return Model::Responde(false, 'Error al procesar devengo.', null, $e->getMessage());
         }

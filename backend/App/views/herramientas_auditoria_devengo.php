@@ -13,16 +13,8 @@
                     <input type="text" id="credito" placeholder="Crédito" style="margin-right: 15px; padding: 5px; width: 120px;">
                     <label style="margin-right: 8px;">Ciclo:</label>
                     <input type="text" id="ciclo" placeholder="Ciclo" style="margin-right: 15px; padding: 5px; width: 80px;">
-                    <label style="margin-right: 8px;">Fecha desde:</label>
-                    <input type="text" id="fecha_desde" placeholder="dd/mm/aaaa" readonly style="margin-right: 5px; padding: 5px; width: 110px;">
-                    <i class="fa fa-calendar" style="margin-right: 15px; cursor: pointer;" id="icon_fecha_desde"></i>
-                    <label style="margin-right: 8px;">Fecha hasta:</label>
-                    <input type="text" id="fecha_hasta" placeholder="dd/mm/aaaa" readonly style="margin-right: 5px; padding: 5px; width: 110px;">
-                    <i class="fa fa-calendar" style="margin-right: 15px; cursor: pointer;" id="icon_fecha_hasta"></i>
                     <button id="btnConsultar" type="button" class="btn btn-primary btn-circle"><i class="fa fa-search"></i> Consultar</button>
-                </div>
-                <div style="margin-bottom: 15px;">
-                    <button id="btn_masivo" type="button" class="btn btn-warning btn-circle"><i class="fa fa-list"></i> Procesar seleccionados</button>
+                    <button id="btn_masivo" type="button" class="btn btn-warning btn-circle" style="margin-left: 10px;"><i class="fa fa-list"></i> Procesar seleccionados</button>
                 </div>
                 <hr style="border-top: 1px solid #787878; margin-top: 5px;">
 
@@ -30,7 +22,7 @@
                     <table class="table table-striped table-bordered table-hover" id="muestra-auditoria-devengo">
                         <thead>
                             <tr>
-                                <th style="width: 40px;"></th>
+                                <th style="width: 40px;"><input type="checkbox" id="checkAll"></th>
                                 <th>CREDITO</th>
                                 <th>CICLO</th>
                                 <th>FECHA FALTANTE</th>
@@ -49,10 +41,61 @@
     </div>
 </div>
 
+<!-- Contenedor global de toasts -->
+<div id="toast-container"></div>
+
+<style>
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+}
+
+.toast {
+    min-width: 250px;
+    margin-bottom: 10px;
+    padding: 12px 16px;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 14px;
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.3s ease;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.toast.success { background-color: #28a745; }
+.toast.warning { background-color: #ffc107; color: #000; }
+.toast.error   { background-color: #dc3545; }
+</style>
+
 <?php echo $footer; ?>
 <script>
 (function(){
     console.log('Auditoría Devengo: init helper script');
+
+    // Función para mostrar toast profesional
+    function showToast(message, type = "success") {
+        const container = document.getElementById("toast-container");
+
+        const toast = document.createElement("div");
+        toast.classList.add("toast", type);
+        toast.innerText = message;
+
+        container.appendChild(toast);
+
+        setTimeout(() => toast.classList.add("show"), 100);
+
+        setTimeout(() => {
+            toast.classList.remove("show");
+            setTimeout(() => container.removeChild(toast), 300);
+        }, 4000);
+    }
 
     $(document).on('click', '#btnConsultar', function (e) {
         e.preventDefault();
@@ -70,40 +113,131 @@
         }
     });
 
-    // inicializar datepickers para los nuevos campos (si moment y daterangepicker están disponibles)
-    $(function(){
-        try {
-            var cfgDrp = { singleDatePicker: true, locale: { format: "DD/MM/YYYY" }, autoUpdateInput: false };
-            if ($.fn.daterangepicker) {
-                $("#fecha_desde").daterangepicker(cfgDrp, function(start) { $("#fecha_desde").val(start.format("DD/MM/YYYY")); });
-                $("#icon_fecha_desde").on("click", function() { $("#fecha_desde").focus(); });
-                $("#fecha_hasta").daterangepicker(cfgDrp, function(start) { $("#fecha_hasta").val(start.format("DD/MM/YYYY")); });
-                $("#icon_fecha_hasta").on("click", function() { $("#fecha_hasta").focus(); });
+    // Checkbox maestro: seleccionar/deseleccionar todos (afecta solo filas visibles)
+    $(document).on('change', '#checkAll', function () {
+        var checked = $(this).is(':checked');
+        $('#muestra-auditoria-devengo tbody .checkFila').prop('checked', checked);
+    });
+
+    // Procesamiento masivo
+    $(document).on('click', '#btn_masivo', function(e) {
+        e.preventDefault();
+        var checked = $("#muestra-auditoria-devengo").find(".checkFila:checked");
+        if (!checked.length) {
+            showToast("Selecciona al menos un registro.", "warning");
+            return;
+        }
+        var registros = [];
+        checked.each(function() {
+            var idx = $(this).data("index");
+            if (typeof idx !== "undefined" && Array.isArray(window._devengosFaltantesDatos) && window._devengosFaltantesDatos[idx]) {
+                registros.push(window._devengosFaltantesDatos[idx]);
             }
+        });
+        if (!registros.length) {
+            showToast("No se pudieron obtener los registros seleccionados.", "error");
+            return;
+        }
+        swal({ title: "Se procesarán " + registros.length + " registros. ¿Continuar?", icon: "warning", buttons: ["No", "Sí"], dangerMode: true }).then(function(ok) {
+            if (!ok) return;
+            var $btnMasivo = $("#btn_masivo");
+            $btnMasivo.prop("disabled", true);
+            swal({ text: "Procesando " + registros.length + " registro(s)...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
+            $.ajax({
+                type: "POST",
+                url: "/Herramientas/ProcesarMasivo/",
+                contentType: "application/json",
+                data: JSON.stringify({ registros: registros }),
+                timeout: 300000,
+                success: function(res) {
+                    swal.close();
+                    $btnMasivo.prop("disabled", false);
+                    try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { showToast("Error al procesar la respuesta", "error"); return; }
+
+                    if (res.success) {
+                        if (res.insertados > 0) {
+                            showToast(res.mensaje, "success");
+
+                            // Eliminar filas procesadas
+                            if (res.creditosProcesados && Array.isArray(res.creditosProcesados)) {
+                                res.creditosProcesados.forEach(function(item) {
+                                    const fila = document.querySelector(
+                                        `tr[data-credito="${item.credito}"][data-ciclo="${item.ciclo}"]`
+                                    );
+                                    if (fila) fila.remove();
+                                });
+                            }
+                        } else {
+                            showToast(res.mensaje, "warning");
+                        }
+                    } else {
+                        showToast(res.mensaje, "error");
+                    }
+                },
+                error: function() {
+                    swal.close();
+                    $btnMasivo.prop("disabled", false);
+                    showToast("Error de conexión o tiempo agotado.", "error");
+                }
+            });
+        });
+    });
+
+    // Campos de fecha nativos del navegador (igual que Layout Contable)
+
+    // Inicializar DataTable (si ya existe, destruir y volver a inicializar con la configuración correcta)
+    var tabla;
+    if ($.fn.DataTable.isDataTable("#muestra-auditoria-devengo")) {
+        try {
+            $("#muestra-auditoria-devengo").DataTable().clear().destroy();
         } catch (e) {
-            console.log('Datepicker init error', e);
+            // ignore
+        }
+    }
+    tabla = $("#muestra-auditoria-devengo").DataTable({
+        lengthMenu: [[25,50,100,-1],[25,50,100,"Todos"]],
+        order: [[1, "asc"]],
+        columnDefs: [
+            {
+                targets: 0,
+                data: null,
+                orderable: false,
+                searchable: false,
+                render: function (data, type, row, meta) {
+                    return '<input type="checkbox" class="checkFila chk-procesar" data-index="' + meta.row + '">';
+                }
+            },
+            {
+                targets: [6], // Columna de acciones
+                orderable: false,
+                searchable: false
+            }
+        ],
+        createdRow: function(row, data, dataIndex) {
+            // Agregar atributos data-credito y data-ciclo a cada fila
+            var c = String(data[1] || "").trim(); // Crédito está en índice 1
+            var ci = String(data[2] || "").trim(); // Ciclo está en índice 2
+            $(row).attr('data-credito', c);
+            $(row).attr('data-ciclo', ci);
         }
     });
 
-    // obtener instancia única de DataTable (no re-inicializar)
-    var tabla;
-    try {
-        tabla = $("#muestra-auditoria-devengo").DataTable();
-    } catch (e) {
-        // si falla, intentar inicializar mínimamente
-        tabla = $("#muestra-auditoria-devengo").DataTable({
-            lengthMenu: [[25,50,100,-1],[25,50,100,"Todos"]],
-            order: [[1, "asc"]]
-        });
-    }
+    // Checkbox maestro: seleccionar/deseleccionar visibles
+    $(document).on('change', '#checkAll', function() {
+        var checked = $(this).is(':checked');
+        $('#muestra-auditoria-devengo').find('.checkFila').prop('checked', checked);
+    });
 
     $(document).on('click', '.btn-procesar', function(e) {
         e.preventDefault();
         e.stopPropagation();
-        var credito = $(this).data('credito');
-        var ciclo = $(this).data('ciclo');
-        console.log('Procesar click detectado:', credito, ciclo);
-        if (!credito || !ciclo) { showError("No se pudo obtener crédito o ciclo."); return; }
+        var $btn = $(this);
+        var idx = $btn.data('index');
+        var datos = window._devengosFaltantesDatos;
+        if (typeof idx === 'undefined' || !Array.isArray(datos) || !datos[idx]) {
+            showError("No se pudo obtener la fila a procesar."); return;
+        }
+        var fila = datos[idx];
         swal({ title: "¿Deseas procesar este devengo?", icon: "warning", buttons: ["No", "Sí"], dangerMode: true }).then(function(ok) {
             if (!ok) return;
             swal({ text: "Procesando...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
@@ -111,16 +245,27 @@
                 type: "POST",
                 url: "/Herramientas/ProcesarIndividual/",
                 contentType: "application/json",
-                data: JSON.stringify({ credito: credito, ciclo: ciclo, fecha_corte: null }),
+                data: JSON.stringify({ fila: fila }),
                 timeout: 120000,
                 success: function(res) {
                     swal.close();
-                    try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { showError("Error al procesar"); return; }
+                    try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { showToast("Error al procesar respuesta", "error"); return; }
+
                     if (res.success) {
-                        showSuccess(res.mensaje);
-                        if (typeof window.consultarDevengos === 'function') window.consultarDevengos();
+                        if (res.insertados > 0) {
+                            showToast(res.mensaje, "success");
+
+                            // Eliminar fila del grid usando data attributes
+                            const fila = document.querySelector(
+                                `tr[data-credito="${res.credito}"][data-ciclo="${res.ciclo}"]`
+                            );
+                            if (fila) fila.remove();
+
+                        } else {
+                            showToast(res.mensaje, "warning");
+                        }
                     } else {
-                        showError(res.mensaje || res.error || "Error al procesar");
+                        showToast(res.mensaje, "error");
                     }
                 },
                 error: function() {
@@ -135,14 +280,10 @@
         console.log('consultarDevengos called');
         var credito = $("#credito").val() ? $("#credito").val().trim() : "";
         var ciclo = $("#ciclo").val() ? $("#ciclo").val().trim() : "";
-        var fecha_desde = $("#fecha_desde").val() ? (window.moment ? moment($("#fecha_desde").val(), "DD/MM/YYYY").format("YYYY-MM-DD") : $("#fecha_desde").val()) : "";
-        var fecha_hasta = $("#fecha_hasta").val() ? (window.moment ? moment($("#fecha_hasta").val(), "DD/MM/YYYY").format("YYYY-MM-DD") : $("#fecha_hasta").val()) : "";
 
         var data = {};
         if (credito) data.credito = credito;
         if (ciclo) data.ciclo = ciclo;
-        if (fecha_desde) data.fecha_desde = fecha_desde;
-        if (fecha_hasta) data.fecha_hasta = fecha_hasta;
 
         console.log('consultarDevengos params', data);
         swal({ text: "Procesando la solicitud, espere un momento...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
@@ -165,12 +306,20 @@
                     return;
                 }
                 var datos = Array.isArray(res.datos) ? res.datos : [];
-                var rows = datos.map(function(item) {
+                window._devengosFaltantesDatos = datos;
+                var rows = datos.map(function(item, idx) {
                     var c = String(item.CREDITO || item.credito || item.CDGNS || "").trim();
                     var ci = String(item.CICLO || item.ciclo || "").trim();
-                    var chk = '<input type="checkbox" class="chk-procesar" data-credito="' + c + '" data-ciclo="' + ci + '">';
-                    var btn = '<button type="button" class="btn btn-primary btn-sm btn-procesar" data-credito="' + c + '" data-ciclo="' + ci + '">Procesar</button>';
-                    return [chk, c, ci, item.FECHA_FALTANTE || item.FECHA_FALT || "", item.FECHA_CALC || "", item.NOMBRE || "", btn];
+                    var btn = '<button type="button" class="btn btn-primary btn-sm btn-procesar" data-index="' + idx + '">Procesar</button>';
+                    return [
+                        null, // La primera columna se renderiza con la función render
+                        c,
+                        ci,
+                        item.FECHA_FALTANTE || item.FECHA_FALT || "",
+                        item.FECHA_CALC || "",
+                        item.NOMBRE || "",
+                        btn
+                    ];
                 });
 
                 if (tabla) {
@@ -179,7 +328,7 @@
                         tabla.rows.add(rows).draw();
                     } else {
                         tabla.draw();
-                        if (credito || ciclo || fecha_desde || fecha_hasta) {
+                        if (credito || ciclo) {
                             showInfo("No se encontraron devengos faltantes para los filtros aplicados.");
                         }
                     }
@@ -194,5 +343,34 @@
             }
         });
     };
+
+    // Reconstruye la tabla local a partir de window._devengosFaltantesDatos (elimina entradas null)
+    function actualizarTablaLocal() {
+        if (!Array.isArray(window._devengosFaltantesDatos)) return;
+        var datos = window._devengosFaltantesDatos.filter(function(x) { return x != null; });
+        window._devengosFaltantesDatos = datos;
+        var rows = datos.map(function(item, idx) {
+            var c = String(item.CREDITO || item.credito || item.CDGNS || "").trim();
+            var ci = String(item.CICLO || item.ciclo || "").trim();
+            var btn = '<button type="button" class="btn btn-primary btn-sm btn-procesar" data-index="' + idx + '">Procesar</button>';
+            return [
+                null, // La primera columna se renderiza con la función render
+                c,
+                ci,
+                item.FECHA_FALTANTE || item.FECHA_FALT || "",
+                item.FECHA_CALC || "",
+                item.NOMBRE || "",
+                btn
+            ];
+        });
+        if (tabla) {
+            tabla.clear();
+            if (rows.length) {
+                tabla.rows.add(rows).draw();
+            } else {
+                tabla.draw();
+            }
+        }
+    }
 })();
 </script>
