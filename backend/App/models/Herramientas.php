@@ -335,34 +335,105 @@ SQL;
     }
 
     /**
-     * Ejecuta ESIACOM.SP_AUDITA_DEVENGO con solo los 3 parámetros obligatorios.
-     * No envía fecha de corte; el SP usa su DEFAULT (SYSDATE).
-     * Tras el SP ejecuta una consulta simple de conteo; si TOTAL >= 0 se considera éxito.
+     * Ejecuta SP_AUDITA_DEVENGO del esquema ESIACOM.
+     * Cambia automáticamente al esquema ESIACOM, ejecuta el SP y valida el resultado.
+     * Maneja errores del SP y validaciones robustas post-ejecución.
+     *
+     * @return int Total de registros insertados hoy, o códigos especiales:
+     *              >0: Registros insertados hoy
+     *              -1: SP ejecutado pero procesó fechas pasadas (sin inserts de hoy)
+     *              -2: Error de validación pero SP ejecutado
+     *               0: No se encontraron registros (posible error)
      */
-    public static function EjecutarSPAuditaDevengo(
+    public static function InsertarDevengosFaltantes(
         \Core\Database $db,
         string $credito,
         string $ciclo,
-        string $usuario
-    ): void {
-        $plsql = "BEGIN ESIACOM.SP_AUDITA_DEVENGO(:p_credito, :p_ciclo, :p_usuario); END;";
-        $stmt = $db->db_activa->prepare($plsql);
-        $stmt->bindValue(':p_credito', $credito, \PDO::PARAM_STR);
-        $stmt->bindValue(':p_ciclo', $ciclo, \PDO::PARAM_STR);
-        $stmt->bindValue(':p_usuario', $usuario, \PDO::PARAM_STR);
-        $stmt->execute();
+        string $usuario,
+        string $fechaCorte
+    ): int {
+        $logPath = defined('APPPATH') ? APPPATH . '/../logs/auditoria_devengo_proceso.log' : __DIR__ . '/../../logs/auditoria_devengo_proceso.log';
 
-        $valStmt = $db->db_activa->prepare("
-            SELECT COUNT(*) AS TOTAL
-            FROM ESIACOM.DEVENGO_DIARIO
-            WHERE CDGCLNS = :credito AND CICLO = :ciclo
-        ");
-        $valStmt->bindValue(':credito', $credito, \PDO::PARAM_STR);
-        $valStmt->bindValue(':ciclo', $ciclo, \PDO::PARAM_STR);
-        $valStmt->execute();
-        $r = $valStmt->fetch(\PDO::FETCH_ASSOC);
-        $total = (int) ($r['TOTAL'] ?? 0);
-        // TOTAL >= 0: ejecución exitosa (no se valida inserciones ni FREGISTRO).
+        // FASE 1 — Preparación y log inicial
+        $currentSchema = null;
+        try {
+            $schemaStmt = $db->db_activa->prepare("SELECT SYS_CONTEXT('USERENV','CURRENT_SCHEMA') AS SCH FROM DUAL");
+            $schemaStmt->execute();
+            $row = $schemaStmt->fetch(\PDO::FETCH_ASSOC);
+            $currentSchema = $row['SCH'] ?? '?';
+        } catch (\Throwable $e) {
+            $currentSchema = 'error:' . $e->getMessage();
+        }
+        @file_put_contents($logPath, date('c') . " [SP] PRE credito=$credito | ciclo=$ciclo | usuario=$usuario | fecha_corte=$fechaCorte | current_schema=$currentSchema\n", FILE_APPEND);
+
+        // FASE 2 — Cambiar a esquema ESIACOM si es necesario
+        if ($currentSchema !== null && strtoupper((string) $currentSchema) !== 'ESIACOM') {
+            try {
+                $db->db_activa->exec("ALTER SESSION SET CURRENT_SCHEMA = ESIACOM");
+                @file_put_contents($logPath, date('c') . " [SP] ALTER SESSION SET CURRENT_SCHEMA = ESIACOM\n", FILE_APPEND);
+            } catch (\Throwable $e) {
+                @file_put_contents($logPath, date('c') . " [SP] ALTER SESSION error: " . $e->getMessage() . "\n", FILE_APPEND);
+                throw new \Exception("Error al cambiar esquema a ESIACOM: " . $e->getMessage());
+            }
+        }
+
+        // FASE 3 — Ejecutar SP
+        try {
+            $plsql = "BEGIN SP_AUDITA_DEVENGO(:p_credito, :p_ciclo, :p_usuario, TO_DATE(:p_corte, 'YYYY-MM-DD')); END;";
+            $stmt = $db->db_activa->prepare($plsql);
+            $stmt->bindValue(':p_credito', $credito, \PDO::PARAM_STR);
+            $stmt->bindValue(':p_ciclo', $ciclo, \PDO::PARAM_STR);
+            $stmt->bindValue(':p_usuario', $usuario, \PDO::PARAM_STR);
+            $stmt->bindValue(':p_corte', $fechaCorte, \PDO::PARAM_STR);
+            $stmt->execute();
+            @file_put_contents($logPath, date('c') . " [SP] SP_AUDITA_DEVENGO ejecutado exitosamente\n", FILE_APPEND);
+        } catch (\PDOException $e) {
+            $errorMsg = "Error al ejecutar SP_AUDITA_DEVENGO: " . $e->getMessage();
+            @file_put_contents($logPath, date('c') . " [SP] ERROR: $errorMsg\n", FILE_APPEND);
+            throw new \Exception($errorMsg);
+        }
+
+        // FASE 4 — Validación: contar registros insertados hoy O verificar que existan devengos
+        $total = 0;
+        try {
+            $valStmt = $db->db_activa->prepare("
+                SELECT COUNT(*) AS TOTAL
+                FROM ESIACOM.DEVENGO_DIARIO
+                WHERE CDGCLNS = :credito AND CICLO = :ciclo AND TRUNC(FREGISTRO) = TRUNC(SYSDATE)
+            ");
+            $valStmt->bindValue(':credito', $credito, \PDO::PARAM_STR);
+            $valStmt->bindValue(':ciclo', $ciclo, \PDO::PARAM_STR);
+            $valStmt->execute();
+            $r = $valStmt->fetch(\PDO::FETCH_ASSOC);
+            $total = (int) ($r['TOTAL'] ?? 0);
+
+            if ($total === 0) {
+                $existStmt = $db->db_activa->prepare("
+                    SELECT COUNT(*) AS TOTAL_EXISTENTES
+                    FROM ESIACOM.DEVENGO_DIARIO
+                    WHERE CDGCLNS = :credito AND CICLO = :ciclo
+                ");
+                $existStmt->bindValue(':credito', $credito, \PDO::PARAM_STR);
+                $existStmt->bindValue(':ciclo', $ciclo, \PDO::PARAM_STR);
+                $existStmt->execute();
+                $er = $existStmt->fetch(\PDO::FETCH_ASSOC);
+                $totalExistentes = (int) ($er['TOTAL_EXISTENTES'] ?? 0);
+
+                if ($totalExistentes > 0) {
+                    $total = -1;
+                    @file_put_contents($logPath, date('c') . " [SP] VALIDACION: $totalExistentes devengos existen, SP procesó fechas pasadas\n", FILE_APPEND);
+                } else {
+                    @file_put_contents($logPath, date('c') . " [SP] VALIDACION: No hay devengos para este crédito/ciclo\n", FILE_APPEND);
+                }
+            } else {
+                @file_put_contents($logPath, date('c') . " [SP] VALIDACION TOTAL=$total (insertados hoy)\n", FILE_APPEND);
+            }
+        } catch (\Throwable $e) {
+            @file_put_contents($logPath, date('c') . " [SP] VALIDACION error: " . $e->getMessage() . "\n", FILE_APPEND);
+            $total = -2;
+        }
+
+        return $total;
     }
 
     /**
