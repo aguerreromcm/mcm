@@ -416,6 +416,7 @@ class Herramientas extends Controller
             header('Content-Type: application/json; charset=UTF-8');
             $fechaDesde = isset($_GET['fecha_desde']) ? trim($_GET['fecha_desde']) : null;
             $fechaHasta = isset($_GET['fecha_hasta']) ? trim($_GET['fecha_hasta']) : null;
+            $fechaCorte = isset($_GET['fecha_corte']) ? trim($_GET['fecha_corte']) : null;
             if ($fechaDesde) {
                 $d = \DateTime::createFromFormat('Y-m-d', $fechaDesde);
                 if (!$d) $fechaDesde = null;
@@ -424,12 +425,27 @@ class Herramientas extends Controller
                 $d = \DateTime::createFromFormat('Y-m-d', $fechaHasta);
                 if (!$d) $fechaHasta = null;
             }
+            if ($fechaCorte) {
+                $d = \DateTime::createFromFormat('Y-m-d', $fechaCorte);
+                if (!$d) $fechaCorte = null;
+            }
+            if (empty($fechaCorte)) {
+                $fechaCorte = date('Y-m-d');
+            }
+            $hoy = date('Y-m-d');
+            if ($fechaCorte > $hoy) {
+                $fechaCorte = $hoy;
+            }
             $datos = array_filter([
                 'credito'      => isset($_GET['credito']) ? trim($_GET['credito']) : null,
                 'ciclo'        => isset($_GET['ciclo']) ? trim($_GET['ciclo']) : null,
                 'fecha_desde'  => $fechaDesde,
                 'fecha_hasta'  => $fechaHasta,
+                'fecha_corte'  => $fechaCorte,
             ], function ($v) { return $v !== null && $v !== ''; });
+            if (!isset($datos['fecha_corte'])) {
+                $datos['fecha_corte'] = $fechaCorte;
+            }
 
             $resp = AuditoriaDevengoService::GetDevengosFaltantes($datos);
             echo json_encode($resp);

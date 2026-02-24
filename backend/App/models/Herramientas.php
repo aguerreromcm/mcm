@@ -52,9 +52,11 @@ class Herramientas extends Model
 
     /**
      * Devengos faltantes (una fila por cada fecha faltante).
-     * Parámetros opcionales: credito, ciclo, fecha_desde (YYYY-MM-DD), fecha_hasta (YYYY-MM-DD).
+     * Excluye créditos liquidados (TBL_CIERRE_DIA.FECHA_LIQUIDA IS NOT NULL).
+     * Límite por fecha_corte (por defecto hoy; no se permiten fechas mayores a hoy).
+     * Parámetros opcionales: credito, ciclo, fecha_desde, fecha_hasta, fecha_corte.
      *
-     * @param array $datos ['credito','ciclo','fecha_desde','fecha_hasta']
+     * @param array $datos ['credito','ciclo','fecha_desde','fecha_hasta','fecha_corte']
      * @return array { success, mensaje, datos }
      */
     public static function GetDevengosFaltantes($datos = [])
@@ -63,9 +65,18 @@ class Herramientas extends Model
         $ciclo = !empty(trim((string) ($datos['ciclo'] ?? ''))) ? trim($datos['ciclo']) : null;
         $fechaDesde = !empty(trim((string) ($datos['fecha_desde'] ?? ''))) ? trim($datos['fecha_desde']) : null;
         $fechaHasta = !empty(trim((string) ($datos['fecha_hasta'] ?? ''))) ? trim($datos['fecha_hasta']) : null;
+        $fechaCorte = !empty(trim((string) ($datos['fecha_corte'] ?? ''))) ? trim($datos['fecha_corte']) : null;
+
+        if ($fechaCorte === null) {
+            $fechaCorte = date('Y-m-d');
+        }
+        $hoy = date('Y-m-d');
+        if ($fechaCorte > $hoy) {
+            $fechaCorte = $hoy;
+        }
 
         $filtroCte = '';
-        $prm = [];
+        $prm = ['fecha_corte' => $fechaCorte];
         if ($credito !== null) {
             $filtroCte .= ' AND CA.CDGNS = :credito';
             $prm['credito'] = $credito;
@@ -91,8 +102,12 @@ class Herramientas extends Model
                 FROM CREDITOS_ACTIVOS CA
                 CROSS JOIN CTE_Numero N
                 WHERE 1=1
-                AND (CA.INICIO + 1) + N.NUM <= LEAST(TRUNC(SYSDATE) - 1, CA.FIN)
+                AND (CA.INICIO + 1) + N.NUM <= LEAST(TO_DATE(:fecha_corte, 'YYYY-MM-DD'), CA.FIN)
                 AND (CA.INICIO + 1) + N.NUM >= CA.INICIO
+                AND NOT EXISTS (
+                    SELECT 1 FROM TBL_CIERRE_DIA TCD
+                    WHERE TCD.CDGCLNS = CA.CDGNS AND TCD.CICLO = CA.CICLO AND TCD.FECHA_LIQUIDA IS NOT NULL
+                )
                 AND NOT EXISTS (
                     SELECT 1 FROM ESIACOM.DEVENGO_DIARIO DD
                     WHERE DD.CDGCLNS = CA.CDGNS AND DD.CICLO = CA.CICLO
@@ -156,9 +171,11 @@ class Herramientas extends Model
 
             self::ObtenerBloqueo($db, $credito, $ciclo);
 
-            $fechaCorteOracle = $fechaCorte !== null && $fechaCorte !== ''
-                ? ($fechaCorte < date('Y-m-d') ? $fechaCorte : date('Y-m-d'))
-                : date('Y-m-d');
+            if (empty($fechaCorte)) {
+                $fechaCorte = date('Y-m-d');
+            }
+            $hoy = date('Y-m-d');
+            $fechaCorteOracle = $fechaCorte > $hoy ? $hoy : $fechaCorte;
 
             $insertados = self::InsertarDevengosFaltantes($db, $credito, $ciclo, $usuario, $fechaCorteOracle);
 
@@ -175,6 +192,8 @@ class Herramientas extends Model
 
             self::InsertarBitacora($db, $credito, $ciclo, $fechaCorteOracle, $tipoEjecucion, $usuario, $perfil, 'OK', null, $ip);
 
+            // FASE 4: El SP hace COMMIT interno; la inserción en BITACORA es posterior, por tanto
+            // ConfirmaTransaccion() sigue siendo necesario para confirmar la bitácora. No eliminar.
             $db->ConfirmaTransaccion();
             return self::Responde(true, $mensajeResultado);
         } catch (\Throwable $e) {
@@ -230,9 +249,11 @@ class Herramientas extends Model
 
                 self::ObtenerBloqueo($db, $credito, $ciclo);
 
-                $fechaCorteOracle = $fechaCorte !== null && $fechaCorte !== ''
-                    ? ($fechaCorte < date('Y-m-d') ? $fechaCorte : date('Y-m-d'))
-                    : date('Y-m-d');
+                if (empty($fechaCorte)) {
+                    $fechaCorte = date('Y-m-d');
+                }
+                $hoy = date('Y-m-d');
+                $fechaCorteOracle = $fechaCorte > $hoy ? $hoy : $fechaCorte;
 
                 self::InsertarDevengosFaltantes($db, $credito, $ciclo, $usuario, $fechaCorteOracle);
                 self::InsertarBitacora($db, $credito, $ciclo, $fechaCorteOracle, 'MASIVO', $usuario, $perfil, 'OK', null, $ip);
@@ -379,6 +400,7 @@ SQL;
 
         // FASE 3 — Ejecutar SP
         try {
+            error_log("Ejecutando SP_AUDITA_DEVENGO: $credito - $ciclo - $fechaCorte");
             $plsql = "BEGIN SP_AUDITA_DEVENGO(:p_credito, :p_ciclo, :p_usuario, TO_DATE(:p_corte, 'YYYY-MM-DD')); END;";
             $stmt = $db->db_activa->prepare($plsql);
             $stmt->bindValue(':p_credito', $credito, \PDO::PARAM_STR);
@@ -386,6 +408,7 @@ SQL;
             $stmt->bindValue(':p_usuario', $usuario, \PDO::PARAM_STR);
             $stmt->bindValue(':p_corte', $fechaCorte, \PDO::PARAM_STR);
             $stmt->execute();
+            error_log("SP ejecutado correctamente");
             @file_put_contents($logPath, date('c') . " [SP] SP_AUDITA_DEVENGO ejecutado exitosamente\n", FILE_APPEND);
         } catch (\PDOException $e) {
             $errorMsg = "Error al ejecutar SP_AUDITA_DEVENGO: " . $e->getMessage();
