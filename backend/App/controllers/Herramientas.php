@@ -8,6 +8,7 @@ use Core\View;
 use Core\Controller;
 use Core\App;
 use App\models\Herramientas as HerramientasDao;
+use App\services\AuditoriaDevengoService;
 
 class Herramientas extends Controller
 {
@@ -200,5 +201,292 @@ class Herramientas extends Controller
         }
         fclose($out);
         exit;
+    }
+
+    /**
+     * Vista Auditoría Devengo (buscar faltantes, procesar individual/masivo).
+     */
+    public function AuditoriaDevengo()
+    {
+        $extraFooter = <<<HTML
+            <script src="/js/daterangepicker.js"></script>
+            <script>
+                {$this->mensajes}
+                {$this->configuraTabla}
+                {$this->confirmarMovimiento}
+
+                const idTablaAuditoria = "muestra-auditoria-devengo";
+                var datosActuales = [];
+
+                function toYMD(dateStr) {
+                    if (!dateStr) return "";
+                    var m = moment(dateStr, ["DD/MM/YYYY", "YYYY-MM-DD"]);
+                    return m.isValid() ? m.format("YYYY-MM-DD") : "";
+                }
+
+                function consultarDevengosFaltantes() {
+                    var credito = $("#filtro_credito").val() ? $("#filtro_credito").val().trim() : "";
+                    var ciclo = $("#filtro_ciclo").val() ? $("#filtro_ciclo").val().trim() : "";
+                    var fechaDesde = toYMD($("#filtro_fecha_desde").val());
+                    var fechaHasta = toYMD($("#filtro_fecha_hasta").val());
+                    var params = [];
+                    if (credito) params.push("credito=" + encodeURIComponent(credito));
+                    if (ciclo) params.push("ciclo=" + encodeURIComponent(ciclo));
+                    if (fechaDesde) params.push("fecha_desde=" + encodeURIComponent(fechaDesde));
+                    if (fechaHasta) params.push("fecha_hasta=" + encodeURIComponent(fechaHasta));
+                    var url = "/Herramientas/GetDevengosFaltantes/" + (params.length ? "?" + params.join("&") : "");
+
+                    swal({ text: "Procesando la solicitud, espere un momento...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
+                    $.ajax({
+                        type: "GET",
+                        url: url,
+                        timeout: 120000,
+                        success: function(res) {
+                            swal.close();
+                            try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) {
+                                showError("Error al procesar la respuesta");
+                                actualizaDatosTabla(idTablaAuditoria, []);
+                                datosActuales = [];
+                                return;
+                            }
+                            if (!res.success) {
+                                showError(res.mensaje || "Error al cargar");
+                                actualizaDatosTabla(idTablaAuditoria, []);
+                                datosActuales = [];
+                                return;
+                            }
+                            datosActuales = Array.isArray(res.datos) ? res.datos : [];
+                            var rows = datosActuales.map(function(item) {
+                                var c = String(item.CREDITO || item.credito || "").trim();
+                                var ci = String(item.CICLO || item.ciclo || "").trim();
+                                var chk = '<input type="checkbox" class="chk-procesar" data-credito="' + c + '" data-ciclo="' + ci + '">';
+                                var btn = '<button type="button" class="btn btn-primary btn-sm btn-procesar" data-credito="' + c + '" data-ciclo="' + ci + '">Procesar</button>';
+                                return [chk, c, ci, item.FECHA_FALTANTE || "", item.FECHA_CALC || "", item.NOMBRE || "", btn];
+                            });
+                            var tabla = $("#" + idTablaAuditoria).DataTable();
+                            tabla.clear();
+                            if (rows.length) {
+                                tabla.rows.add(rows).draw();
+                            } else {
+                                tabla.draw();
+                                if (credito || ciclo || fechaDesde || fechaHasta) {
+                                    showInfo("No se encontraron devengos faltantes para los filtros aplicados.");
+                                }
+                            }
+                        },
+                        error: function() {
+                            swal.close();
+                            showError("La consulta tardó demasiado o hubo un error.");
+                            actualizaDatosTabla(idTablaAuditoria, []);
+                            datosActuales = [];
+                        }
+                    });
+                }
+
+                function procesarIndividual(credito, ciclo, $btn) {
+                    swal({ title: "¿Deseas procesar este devengo?", icon: "warning", buttons: ["No", "Sí"], dangerMode: true }).then(function(ok) {
+                        if (!ok) return;
+                        $btn.prop("disabled", true);
+                        swal({ text: "Procesando...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
+                        $.ajax({
+                            type: "POST",
+                            url: "/Herramientas/ProcesarIndividual/",
+                            contentType: "application/json",
+                            data: JSON.stringify({ credito: credito, ciclo: ciclo, fecha_corte: null }),
+                            success: function(res) {
+                                swal.close();
+                                $btn.prop("disabled", false);
+                                try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { showError("Error al procesar"); return; }
+                                if (res.success) {
+                                    showSuccess(res.mensaje);
+                                    consultarDevengosFaltantes();
+                                } else {
+                                    showError(res.mensaje || res.error || "Error al procesar");
+                                }
+                            },
+                            error: function() {
+                                swal.close();
+                                $btn.prop("disabled", false);
+                                showError("Error de conexión o tiempo agotado.");
+                            }
+                        });
+                    });
+                }
+
+                function procesarMasivo() {
+                    var checked = $("#" + idTablaAuditoria).find(".chk-procesar:checked");
+                    if (!checked.length) {
+                        showError("Selecciona al menos un registro.");
+                        return;
+                    }
+                    var seen = {};
+                    var registros = [];
+                    checked.each(function() {
+                        var c = $(this).data("credito");
+                        var ci = $(this).data("ciclo");
+                        var key = c + "|" + ci;
+                        if (c && ci && !seen[key]) { seen[key] = true; registros.push({ credito: c, ciclo: ci, fecha_corte: null }); }
+                    });
+                    swal({ title: "Se procesarán " + registros.length + " registros. ¿Continuar?", icon: "warning", buttons: ["No", "Sí"], dangerMode: true }).then(function(ok) {
+                        if (!ok) return;
+                        var $btnMasivo = $("#btn_masivo");
+                        $btnMasivo.prop("disabled", true);
+                        swal({ text: "Procesando " + registros.length + " registro(s)...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
+                        $.ajax({
+                            type: "POST",
+                            url: "/Herramientas/ProcesarMasivo/",
+                            contentType: "application/json",
+                            data: JSON.stringify({ registros: registros }),
+                            timeout: 300000,
+                            success: function(res) {
+                                swal.close();
+                                $btnMasivo.prop("disabled", false);
+                                try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { showError("Error al procesar"); return; }
+                                if (res.success) {
+                                    showSuccess(res.mensaje);
+                                    consultarDevengosFaltantes();
+                                    $("#" + idTablaAuditoria).find(".chk-procesar:checked").prop("checked", false);
+                                } else {
+                                    showError(res.mensaje || res.error || "Error en procesamiento masivo");
+                                }
+                            },
+                            error: function() {
+                                swal.close();
+                                $btnMasivo.prop("disabled", false);
+                                showError("Error de conexión o tiempo agotado.");
+                            }
+                        });
+                    });
+                }
+
+                $(document).ready(function(){
+                    var cfgDrp = { singleDatePicker: true, locale: { format: "DD/MM/YYYY" }, autoUpdateInput: false };
+                    $("#filtro_fecha_desde").daterangepicker(cfgDrp, function(start) { $("#filtro_fecha_desde").val(start.format("DD/MM/YYYY")); });
+                    $("#icon_fecha_desde").on("click", function() { $("#filtro_fecha_desde").focus(); });
+                    $("#filtro_fecha_hasta").daterangepicker(cfgDrp, function(start) { $("#filtro_fecha_hasta").val(start.format("DD/MM/YYYY")); });
+                    $("#icon_fecha_hasta").on("click", function() { $("#filtro_fecha_hasta").focus(); });
+
+                    $("#" + idTablaAuditoria).DataTable({
+                        lengthMenu: [[25, 50, 100, -1], [25, 50, 100, "Todos"]],
+                        order: [[1, "asc"]],
+                        columnDefs: [
+                            { orderable: false, targets: [0, 6] },
+                            { targets: 0, createdCell: function(td, cellData) { $(td).html(cellData || ''); } },
+                            { targets: 6, createdCell: function(td, cellData) { $(td).html(cellData || ''); } }
+                        ],
+                        language: {
+                            emptyTable: "Aplique filtros y pulse Consultar para buscar devengos faltantes.",
+                            paginate: { previous: "Anterior", next: "Siguiente" },
+                            info: "Mostrando de _START_ a _END_ de _TOTAL_ registros",
+                            infoEmpty: "Mostrando 0 a 0 de 0 registros",
+                            zeroRecords: "No se encontraron registros",
+                            lengthMenu: "Mostrar _MENU_ registros",
+                            search: "Buscar:"
+                        }
+                    });
+
+                    $("#btn_consultar").click(consultarDevengosFaltantes);
+                    $("#btn_masivo").click(procesarMasivo);
+
+                    $(document).on("click", ".btn-procesar", function() {
+                        var $btn = $(this);
+                        if ($btn.prop("disabled")) return;
+                        var credito = $btn.data("credito");
+                        var ciclo = $btn.data("ciclo");
+                        if (!credito || !ciclo) { showError("No se pudo obtener crédito o ciclo."); return; }
+                        procesarIndividual(credito, ciclo, $btn);
+                    });
+                });
+            </script>
+        HTML;
+
+        View::set('header', $this->_contenedor->header($this->getExtraHeader("Auditoría Devengo", ['<link rel="stylesheet" href="/css/daterangepicker.css">'])));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::set('tabla', '');
+        View::render('herramientas_auditoria_devengo');
+    }
+
+    /**
+     * JSON: devengos faltantes.
+     */
+    public function GetDevengosFaltantes()
+    {
+        try {
+            set_time_limit(120);
+            header('Content-Type: application/json; charset=UTF-8');
+            $fechaDesde = isset($_GET['fecha_desde']) ? trim($_GET['fecha_desde']) : null;
+            $fechaHasta = isset($_GET['fecha_hasta']) ? trim($_GET['fecha_hasta']) : null;
+            if ($fechaDesde) {
+                $d = \DateTime::createFromFormat('Y-m-d', $fechaDesde);
+                if (!$d) $fechaDesde = null;
+            }
+            if ($fechaHasta) {
+                $d = \DateTime::createFromFormat('Y-m-d', $fechaHasta);
+                if (!$d) $fechaHasta = null;
+            }
+            $datos = array_filter([
+                'credito'      => isset($_GET['credito']) ? trim($_GET['credito']) : null,
+                'ciclo'        => isset($_GET['ciclo']) ? trim($_GET['ciclo']) : null,
+                'fecha_desde'  => $fechaDesde,
+                'fecha_hasta'  => $fechaHasta,
+            ], function ($v) { return $v !== null && $v !== ''; });
+
+            $resp = AuditoriaDevengoService::GetDevengosFaltantes($datos);
+            echo json_encode($resp);
+        } catch (\Throwable $e) {
+            // Log the error for debugging
+            @file_put_contents(APPPATH . '/../logs/auditoria_devengo_error.log', date('c') . " GETDevengos Error: " . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n", FILE_APPEND);
+            echo json_encode(\Core\Model::Responde(false, 'Ocurrió un error al obtener los devengos faltantes.', null, $e->getMessage()));
+        }
+    }
+
+    /**
+     * JSON: procesamiento individual.
+     */
+    public function ProcesarIndividual()
+    {
+        $log = APPPATH . '/../logs/auditoria_devengo_proceso.log';
+        try {
+            header('Content-Type: application/json; charset=UTF-8');
+            $raw = file_get_contents('php://input');
+            $datos = json_decode($raw, true) ?: [];
+            $usuario = $this->__usuario ?? '';
+            $perfil = $this->__perfil ?? '';
+            $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+
+            @file_put_contents($log, date('c') . " [CTRL] ProcesarIndividual ENTRADA raw=" . substr($raw, 0, 200) . " | datos=" . json_encode($datos) . " | usuario=$usuario | perfil=$perfil\n", FILE_APPEND);
+
+            $resp = AuditoriaDevengoService::ProcesarIndividual($datos, $usuario, $perfil, $ip);
+
+            @file_put_contents($log, date('c') . " [CTRL] ProcesarIndividual SALIDA success=" . ($resp['success'] ? 'true' : 'false') . " | mensaje=" . ($resp['mensaje'] ?? '') . "\n", FILE_APPEND);
+            echo json_encode($resp);
+        } catch (\Throwable $e) {
+            @file_put_contents($log, date('c') . " [CTRL] ProcesarIndividual EXCEPCION: " . $e->getMessage() . "\n", FILE_APPEND);
+            @file_put_contents(APPPATH . '/../logs/auditoria_devengo_error.log', date('c') . " ProcesarIndividual Error: " . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n", FILE_APPEND);
+            echo json_encode(\Core\Model::Responde(false, 'Ocurrió un error al procesar el devengo individual.', null, $e->getMessage()));
+        }
+    }
+
+    /**
+     * JSON: procesamiento masivo.
+     */
+    public function ProcesarMasivo()
+    {
+        try {
+            set_time_limit(600);
+            header('Content-Type: application/json; charset=UTF-8');
+            $raw = file_get_contents('php://input');
+            $body = json_decode($raw, true) ?: [];
+            $registros = $body['registros'] ?? [];
+            $usuario = $this->__usuario ?? '';
+            $perfil = $this->__perfil ?? '';
+            $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+
+            $resp = AuditoriaDevengoService::ProcesarMasivo($registros, $usuario, $perfil, $ip);
+            echo json_encode($resp);
+        } catch (\Throwable $e) {
+            @file_put_contents(APPPATH . '/../logs/auditoria_devengo_error.log', date('c') . " ProcesarMasivo Error: " . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n", FILE_APPEND);
+            echo json_encode(\Core\Model::Responde(false, 'Ocurrió un error al procesar devengos masivos.', null, $e->getMessage()));
+        }
     }
 }

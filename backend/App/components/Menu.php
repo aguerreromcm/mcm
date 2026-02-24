@@ -218,6 +218,7 @@ class Menu
     {
         return [
             $this->enlace('Rep Dia de Atraso', '/Herramientas/RepDiaAtraso/', ['ADMIN']),
+            $this->enlace('Auditoría Devengo', '/Herramientas/AuditoriaDevengo/', ['ADMIN', 'PLMV', 'PHEE']),
         ];
     }
 
