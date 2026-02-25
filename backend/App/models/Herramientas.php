@@ -554,7 +554,11 @@ SQL;
                 } else {
                     $devDiario = $devengoDiarioFijo;
                 }
-                $acumulado += $devDiario;
+                // Asegurar que el devengo diario tenga 2 decimales como el SP
+                $devDiario = round($devDiario, 2);
+
+                // Acumulado igual que en el SP (suma anterior + diario actual)
+                $acumulado = round($acumulado + $devDiario, 2);
                 $devDiarioSinIva = round($devDiario / (1 + $iva), 2);
                 $ivaInt = round($devDiario - $devDiarioSinIva, 2);
 
@@ -674,28 +678,29 @@ SQL;
             } catch (\Throwable $e) {
                 continue;
             }
-            $inicio = trim((string) ($f['INICIO'] ?? ''));
-            if ($inicio === '') {
-                continue;
-            }
-            try {
-                $stmtInsert->execute([
-                    'fecha_calc' => $fechaCalc,
-                    'cdgem' => $f['CDGEM'] ?? 'EMPFIN',
-                    'cdgclns' => $credito,
-                    'ciclo' => $ciclo,
-                    'inicio' => $inicio,
-                    'dev_diario' => (float) ($f['DEV_DIARIO'] ?? 0),
-                    'dias_dev' => (int) ($f['DIAS_DEV'] ?? 0),
-                    'int_dev' => (float) ($f['INT_DEV'] ?? 0),
-                    'cdgpe' => $f['CDGPE'] ?? 'AMGM',
-                    'dev_diario_sin_iva' => (float) ($f['DEV_DIARIO_SIN_IVA'] ?? 0),
-                    'iva_int' => (float) ($f['IVA_INT'] ?? 0),
-                    'plazo' => (int) ($f['PLAZO'] ?? 0),
-                    'periodicidad' => $f['PERIODICIDAD'] ?? 'S',
-                    'plazo_dias' => (int) ($f['PLAZO_DIAS'] ?? 0),
-                    'fin_devengo' => trim((string) ($f['FIN_DEVENGO'] ?? '')),
-                ]);
+        $inicio = trim((string) ($f['INICIO'] ?? ''));
+        if ($inicio === '') {
+            continue;
+        }
+        $usuarioSesion = $_SESSION['usuario'] ?? 'SYSTEM';
+        try {
+            $stmtInsert->execute([
+                'fecha_calc' => $fechaCalc,
+                'cdgem' => $f['CDGEM'] ?? 'EMPFIN',
+                'cdgclns' => $credito,
+                'ciclo' => $ciclo,
+                'inicio' => $inicio,
+                'dev_diario' => (float) ($f['DEV_DIARIO'] ?? 0),
+                'dias_dev' => (int) ($f['DIAS_DEV'] ?? 0),
+                'int_dev' => (float) ($f['INT_DEV'] ?? 0),
+                'cdgpe' => $usuarioSesion,
+                'dev_diario_sin_iva' => (float) ($f['DEV_DIARIO_SIN_IVA'] ?? 0),
+                'iva_int' => (float) ($f['IVA_INT'] ?? 0),
+                'plazo' => (int) ($f['PLAZO'] ?? 0),
+                'periodicidad' => $f['PERIODICIDAD'] ?? 'S',
+                'plazo_dias' => (int) ($f['PLAZO_DIAS'] ?? 0),
+                'fin_devengo' => trim((string) ($f['FIN_DEVENGO'] ?? '')),
+            ]);
                 $insertados++;
             } catch (\Throwable $e) {
                 @file_put_contents($logPath, date('c') . " [InsertarFilasDevengo] Fila $credito/$ciclo/$fechaCalc: " . $e->getMessage() . "\n", FILE_APPEND);
@@ -831,7 +836,11 @@ SQL;
             } else {
                 $devDiario = $devengoDiarioFijo;
             }
-            $acumulado += $devDiario;
+            // Asegurar que el devengo diario tenga 2 decimales como el SP
+            $devDiario = round($devDiario, 2);
+
+            // Acumulado igual que en el SP (suma anterior + diario actual)
+            $acumulado = round($acumulado + $devDiario, 2);
             $devDiarioSinIva = round($devDiario / (1 + $iva), 2);
             $ivaInt = round($devDiario - $devDiarioSinIva, 2);
 
@@ -847,6 +856,7 @@ SQL;
                 continue;
             }
 
+            $usuarioSesion = $_SESSION['usuario'] ?? 'SYSTEM';
             try {
                 $stmtInsert->execute([
                     'fecha_calc' => $fechaCalc,
@@ -857,7 +867,7 @@ SQL;
                     'dev_diario' => $devDiario,
                     'dias_dev' => $diasDev,
                     'int_dev' => $acumulado,
-                    'cdgpe' => $cdgpe,
+                    'cdgpe' => $usuarioSesion,
                     'dev_diario_sin_iva' => $devDiarioSinIva,
                     'iva_int' => $ivaInt,
                     'plazo' => $plazo,
