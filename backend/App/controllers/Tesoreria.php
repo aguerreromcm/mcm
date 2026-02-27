@@ -91,7 +91,7 @@ class Tesoreria extends Controller
         View::set('header', $this->_contenedor->header($this->getExtraHeader("Reporte Productora Cultiva")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('sucursales', $sucursales);
-        View::render('tesoreria_reporte_pc');
+        View::render('Tesoreria/tesoreria_reporte_pc');
     }
 
     public function GetReportePC($datos = null)

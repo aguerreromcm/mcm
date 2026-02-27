@@ -363,7 +363,7 @@ class AhorroConsulta extends Controller
 
         View::set('header', $this->_contenedor->header(self::GetExtraHeader("Ahorro Consulta")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render("ahorro_consulta");
+        View::render("AhorroConsulta/ahorro_consulta");
     }
 
     public function GetRetirosAhorro()

@@ -128,7 +128,7 @@ html;
         View::set('header', $this->_contenedor->header($extraHeader));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('tabla', $tabla);
-        View::render("zz_cultiva_consulta_clientes");
+        View::render("Cultiva/zz_cultiva_consulta_clientes");
     }
 
     public function CancelarRefinanciamiento()

@@ -72,7 +72,7 @@ class App
                 //eliminamos el método de url, así sólo nos quedaran los parámetros del método
                 unset($url[1]);
             } else {
-                View::render("principal");
+                View::render("Principal/principal");
             }
         }
         //asociamos el resto de segmentos a $this->_params para pasarlos al método llamado, por defecto será un array vacío
@@ -100,11 +100,24 @@ class App
 
     /**
      * [getConfig Obtenemos la configuración de la app]
+     * Carga por entorno (APP_ENV): si existe App/config/env/{APP_ENV}.ini se usa; si no, configuracion.ini.
      * @return [Array] [Array con la config]
      */
     public static function getConfig()
     {
-        return parse_ini_file(dirname(__DIR__) . '/App/config/configuracion.ini');
+        $base = dirname(__DIR__) . '/App/config';
+        $env = (function () {
+            if (getenv('APP_ENV') !== false) return getenv('APP_ENV');
+            if (isset($_ENV['APP_ENV'])) return $_ENV['APP_ENV'];
+            return '';
+        })();
+        if ($env !== '' && $env !== '0') {
+            $envFile = $base . '/env/' . $env . '.ini';
+            if (is_file($envFile)) {
+                return parse_ini_file($envFile);
+            }
+        }
+        return parse_ini_file($base . '/configuracion.ini');
     }
 
     /**

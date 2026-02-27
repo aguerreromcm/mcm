@@ -141,7 +141,7 @@ class Login
 
         View::set('header', $extraHeader);
         View::set('footer', $extraFooter);
-        View::render("login");
+        View::render("Login/login");
     }
 
     public function isUserValidate()

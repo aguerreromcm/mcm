@@ -29,6 +29,6 @@ class Principal extends Controller
     public function index()
     {
         View::set('header', $this->_contenedor->header(self::GetExtraHeader('Principal MCM')));
-        View::render("principal");
+        View::render("Principal/principal");
     }
 }

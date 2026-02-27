@@ -745,7 +745,7 @@ class RadarCobranza extends Controller
 
         View::set('header', $this->_contenedor->header($this->getExtraHeader("Radar de Cobranza - Dashboard Día")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render('rc_dashboard_dia');
+        View::render('RadarCobranza/rc_dashboard_dia');
     }
 
     public function Login()

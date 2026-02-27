@@ -155,7 +155,7 @@ class CancelaRef extends Controller
 
         View::set('header', $this->_contenedor->header($this->GetExtraHeader('Cancelación de Refinanciamientos')));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render("cancela_refinanciamientos");
+        View::render("CancelaRef/cancela_refinanciamientos");
     }
 
     public function GetRefinanciamientos()

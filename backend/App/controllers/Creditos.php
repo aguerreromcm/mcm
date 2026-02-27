@@ -226,7 +226,7 @@ class Creditos extends Controller
 
         View::set('header', $this->_contenedor->header($this->getExtraHeader("Control de Garantías")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render('controlgarantias');
+        View::render('Creditos/controlgarantias');
     }
 
     public function ConsultaGarantias()
@@ -423,17 +423,17 @@ html;
                 View::set('credito', $credito);
                 View::set('combo', $ComboSucursal);
                 View::set('Administracion', $AdministracionOne);
-                View::render("actualizacredito_busqueda_all");
+                View::render("Creditos/actualizacredito_busqueda_all");
             } else {
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
                 View::set('credito', $credito);
-                View::render("actualizacredito_busqueda_message");
+                View::render("Creditos/actualizacredito_busqueda_message");
             }
         } else {
             View::set('header', $this->_contenedor->header($extraHeader));
             View::set('footer', $this->_contenedor->footer($extraFooter));
-            View::render("actualizacredito_all");
+            View::render("Creditos/actualizacredito_all");
         }
     }
 
@@ -512,19 +512,19 @@ html;
                 View::set('Administracion', $credito_cambio);
                 View::set('sucursal', $ComboSucursal);
                 View::set('credito', $credito);
-                View::render("cambio_sucursal_busqueda");
+                View::render("Creditos/cambio_sucursal_busqueda");
             } else {
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
                 View::set('Administracion', $credito_cambio);
                 View::set('credito', $credito);
-                View::render("cambio_sucursal_busqueda_message");
+                View::render("Creditos/cambio_sucursal_busqueda_message");
             }
         } else {
             View::set('header', $this->_contenedor->header($extraHeader));
             View::set('footer', $this->_contenedor->footer($extraFooter));
             View::set('credito', $credito);
-            View::render("cambio_sucursal_all");
+            View::render("Creditos/cambio_sucursal_all");
         }
     }
     public function UpdateSucursal()
@@ -648,7 +648,7 @@ html;
         View::set('header', $this->_contenedor->header(self::GetExtraHeader("Cierres Operativos")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('fecha', $ahora > $cierre ? date('Y-m-d') : date('Y-m-d', strtotime('-1 day')));
-        View::render('cierre_diario');
+        View::render('Creditos/cierre_diario');
     }
 
     public function GetCierreDiario($f = null)
@@ -1006,7 +1006,7 @@ html;
         View::set('opcSucursal', $prm['sucursal']);
         View::set('opcGrupo', $prm['grupo']);
         View::set('opcSucursales', $prm['sucursales']);
-        View::render('creditos_adminCorreos');
+        View::render('Creditos/creditos_adminCorreos');
     }
 
     public function GetParametros($ret = false)

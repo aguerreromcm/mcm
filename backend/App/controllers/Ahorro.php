@@ -1085,7 +1085,7 @@ class Ahorro extends Controller
         view::set('sucursales', $opcSucursales);
         view::set('ejecutivos', $opcEjecutivos);
         View::set('mensajeCaptura', $mensajeCaptura);
-        View::render("caja_menu_contrato_ahorro");
+        View::render("Ahorro/caja_menu_contrato_ahorro");
     }
 
     public function BuscaCliente()
@@ -1459,7 +1459,7 @@ class Ahorro extends Controller
         view::set('saldoMinimoApertura', $saldoMinimoApertura);
         view::set('montoMaximoRetiro', $montoMaximoRetiro);
         View::set('fecha', date('d/m/Y H:i:s'));
-        View::render("caja_menu_ahorro");
+        View::render("Ahorro/caja_menu_ahorro");
     }
 
     public function BuscaContratoAhorro()
@@ -1699,7 +1699,7 @@ class Ahorro extends Controller
         View::set('fecha', date('d/m/Y H:i:s'));
         View::set('fechaInput', date('Y-m-d', strtotime('+1 day')));
         View::set('fechaInputMax', date('Y-m-d', strtotime('+30 day')));
-        View::render("caja_menu_retiro_ahorro");
+        View::render("Ahorro/caja_menu_retiro_ahorro");
     }
 
     public function RegistraSolicitud()
@@ -1875,7 +1875,7 @@ class Ahorro extends Controller
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('tabla', $tabla);
         View::set('fecha', date('Y-m-d'));
-        View::render("caja_menu_solicitud_retiro_historial");
+        View::render("Ahorro/caja_menu_solicitud_retiro_historial");
     }
 
     public function ResumenEntregaRetiro()
@@ -2181,7 +2181,7 @@ class Ahorro extends Controller
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('fecha', date('d/m/Y H:i:s'));
         view::set('ejecutivos', $opcEjecutivos);
-        View::render("caja_menu_contrato_inversion");
+        View::render("Ahorro/caja_menu_contrato_inversion");
     }
 
     public function RegistraInversion()
@@ -2268,7 +2268,7 @@ class Ahorro extends Controller
 
         View::set('header', $this->_contenedor->header(self::GetExtraHeader("Consulta Inversiones", [$this->swal2, $this->huellas])));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render("caja_menu_estatus_inversion");
+        View::render("Ahorro/caja_menu_estatus_inversion");
     }
 
     public function GetInversiones()
@@ -2581,7 +2581,7 @@ class Ahorro extends Controller
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('fecha', date('Y-m-d'));
         View::set('opciones_ent', $opciones_ent);
-        View::render("caja_menu_contrato_peque");
+        View::render("Ahorro/caja_menu_contrato_peque");
     }
 
     public function BuscaClientePQ()
@@ -2943,7 +2943,7 @@ class Ahorro extends Controller
         View::set('header', $this->_contenedor->header(self::GetExtraHeader("Cuenta Peque", [$this->swal2, $this->huellas])));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('fecha', date('d/m/Y H:i:s'));
-        View::render("caja_menu_peque");
+        View::render("Ahorro/caja_menu_peque");
     }
 
     public function SolicitudRetiroCuentaPeque()
@@ -3252,7 +3252,7 @@ class Ahorro extends Controller
         View::set('fecha', date('d/m/Y H:i:s'));
         View::set('fechaInput', date('Y-m-d', strtotime('+1 day')));
         View::set('fechaInputMax', $fechaMax->format('Y-m-d'));
-        View::render("caja_menu_retiro_peque");
+        View::render("Ahorro/caja_menu_retiro_peque");
     }
 
     public function HistorialSolicitudRetiroCuentaPeque()
@@ -3428,7 +3428,7 @@ class Ahorro extends Controller
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('tabla', $tabla);
         View::set('fecha', date('Y-m-d'));
-        View::render("caja_menu_solicitud_retiro_peque_historial");
+        View::render("Ahorro/caja_menu_solicitud_retiro_peque_historial");
     }
 
     //******************REPORTE DE SALDO EN CAJA******************//
@@ -3694,7 +3694,7 @@ class Ahorro extends Controller
         View::set('tablaBilletes', self::generaTabla($billetes, "billete"));
         View::set('tablaMonedas', self::generaTabla($monedas, "moneda"));
         View::set('nomSucursal', CajaAhorroDao::getSucursal($_SESSION['cdgco_ahorro'])['NOMBRE']);
-        View::render("caja_menu_saldos_dia");
+        View::render("Ahorro/caja_menu_saldos_dia");
     }
 
     public function generaTabla($denominaciones, $tipo)
@@ -3911,7 +3911,7 @@ class Ahorro extends Controller
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('tabla', $tabla);
         View::set('fecha_actual', date("Y-m-d H:i:s"));
-        View::render("caja_menu_resumen_movimientos");
+        View::render("Ahorro/caja_menu_resumen_movimientos");
         // View::set('fecha', $fecha);
         // View::set('fechaInicio', date('Y-m-d', strtotime('-1 month')));
         // View::render("caja_menu_estado_cuenta");
@@ -5445,7 +5445,7 @@ html;
 
         View::set('header', $this->_contenedor->header($extraHeader));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render("caja_menu_solicitud_retiro_historial");
+        View::render("Ahorro/caja_menu_solicitud_retiro_historial");
     }
 
     //////////////////////////////////////////////////
@@ -5499,7 +5499,7 @@ html;
         View::set('tabla', $tabla);
         View::set('fecha', date("Y-m-d"));
         View::set('fecha_actual', date("Y-m-d H:i:s"));
-        View::render("caja_menu_reimprime_ticket_historial");
+        View::render("Ahorro/caja_menu_reimprime_ticket_historial");
     }
 
     public function GetSolicitudesTickets()
@@ -5693,7 +5693,7 @@ html;
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('tabla', $tabla);
         View::set('fecha_actual', $fecha_y_hora);
-        View::render("caja_menu_reimprime_ticket");
+        View::render("Ahorro/caja_menu_reimprime_ticket");
     }
 
     public function AddSolicitudReimpresion()
@@ -5727,12 +5727,12 @@ html;
 
         View::set('header', $this->_contenedor->header($extraHeader));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render("caja_menu_calculadora");
+        View::render("Ahorro/caja_menu_calculadora");
     }
 
     public function CalculadoraView()
     {
-        View::render("calculadora_view");
+        View::render("Ahorro/calculadora_view");
     }
 
     public function Retiros()
@@ -5816,7 +5816,7 @@ html;
 
         View::set('header', $this->_contenedor->header(self::GetExtraHeader("Retiros Ahorro")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render("ahorro_retiros");
+        View::render("Ahorro/ahorro_retiros");
     }
 
     public function reporteSolicitudesRetiro()
@@ -6134,7 +6134,7 @@ html;
 
         View::set('header', $this->_contenedor->header(self::GetExtraHeader("Cancelar Solicitudes de Retiro")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render("ahorro_consulta_admin");
+        View::render("Ahorro/ahorro_consulta_admin");
     }
 
     public function getRetirosAdmin()

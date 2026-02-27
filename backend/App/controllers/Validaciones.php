@@ -165,7 +165,7 @@ class Validaciones extends Controller
         View::set('fecha', $fecha);
         View::set('fechaMin', date('Y-m-d', strtotime("-30 day")));
         View::set('fechaMax', date('Y-m-d', strtotime("+7 day")));
-        View::render("registro_telarana");
+        View::render("Validaciones/registro_telarana");
     }
 
     public function VinculaInvitado()

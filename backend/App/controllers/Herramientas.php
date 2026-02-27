@@ -125,7 +125,7 @@ class Herramientas extends Controller
         View::set('tabla', '');
         View::set('options_mes', $options_mes);
         View::set('options_anio', $options_anio);
-        View::render('herramientas_rep_dia_atraso');
+        View::render('Herramientas/herramientas_rep_dia_atraso');
     }
 
     /**
@@ -507,7 +507,7 @@ class Herramientas extends Controller
         View::set('header', $this->_contenedor->header($this->getExtraHeader("Auditoría Devengo")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('tabla', '');
-        View::render('herramientas_auditoria_devengo');
+        View::render('Herramientas/herramientas_auditoria_devengo');
     }
 
     /**
@@ -544,7 +544,7 @@ class Herramientas extends Controller
             echo json_encode($resp);
         } catch (\Throwable $e) {
             // Log the error for debugging
-            @file_put_contents(APPPATH . '/../logs/auditoria_devengo_error.log', date('c') . " GETDevengos Error: " . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n", FILE_APPEND);
+            @file_put_contents(APPPATH . '/../storage/logs/auditoria_devengo_error.log', date('c') . " GETDevengos Error: " . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n", FILE_APPEND);
             echo json_encode(\Core\Model::Responde(false, 'Ocurrió un error al obtener los devengos faltantes.', null, $e->getMessage()));
         }
     }
@@ -554,7 +554,7 @@ class Herramientas extends Controller
      */
     public function ProcesarIndividual()
     {
-        $log = APPPATH . '/../logs/auditoria_devengo_proceso.log';
+        $log = APPPATH . '/../storage/logs/auditoria_devengo_proceso.log';
         try {
             header('Content-Type: application/json; charset=UTF-8');
             $raw = file_get_contents('php://input');
@@ -571,7 +571,7 @@ class Herramientas extends Controller
             echo json_encode($resp);
         } catch (\Throwable $e) {
             @file_put_contents($log, date('c') . " [CTRL] ProcesarIndividual EXCEPCION: " . $e->getMessage() . "\n", FILE_APPEND);
-            @file_put_contents(APPPATH . '/../logs/auditoria_devengo_error.log', date('c') . " ProcesarIndividual Error: " . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n", FILE_APPEND);
+            @file_put_contents(APPPATH . '/../storage/logs/auditoria_devengo_error.log', date('c') . " ProcesarIndividual Error: " . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n", FILE_APPEND);
             echo json_encode(\Core\Model::Responde(false, 'Ocurrió un error al procesar el devengo individual.', null, $e->getMessage()));
         }
     }
@@ -594,7 +594,7 @@ class Herramientas extends Controller
             $resp = AuditoriaDevengoService::ProcesarMasivo($registros, $usuario, $perfil, $ip);
             echo json_encode($resp);
         } catch (\Throwable $e) {
-            @file_put_contents(APPPATH . '/../logs/auditoria_devengo_error.log', date('c') . " ProcesarMasivo Error: " . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n", FILE_APPEND);
+            @file_put_contents(APPPATH . '/../storage/logs/auditoria_devengo_error.log', date('c') . " ProcesarMasivo Error: " . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n", FILE_APPEND);
             echo json_encode(\Core\Model::Responde(false, 'Ocurrió un error al procesar devengos masivos.', null, $e->getMessage()));
         }
     }

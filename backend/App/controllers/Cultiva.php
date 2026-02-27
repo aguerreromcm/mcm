@@ -143,7 +143,7 @@ html;
         View::set('header', $this->_contenedor->header($extraHeader));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('tabla', $tabla);
-        View::render("zz_cultiva_consulta_clientes");
+        View::render("Cultiva/zz_cultiva_consulta_clientes");
     }
 
     public function ReingresarClientesCredito()
@@ -236,11 +236,11 @@ html;
             View::set('footer', $this->_contenedor->footer($extraFooter));
             View::set('tabla', $tabla);
             View::set('Nombre', $Clientes[1]['NOMBRE']);
-            View::render("reingresar_clientes_cultiva_sec");
+            View::render("Cultiva/reingresar_clientes_cultiva_sec");
         } else {
             View::set('header', $this->_contenedor->header($extraHeader));
             View::set('footer', $this->_contenedor->footer($extraFooter));
-            View::render("reingresar_clientes_cultiva_ini");
+            View::render("Cultiva/reingresar_clientes_cultiva_ini");
         }
     }
 

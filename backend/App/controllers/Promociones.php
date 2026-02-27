@@ -288,14 +288,14 @@ html;
                 View::set('Promocion_estatus', $promocion_estatus);
                 View::set('tabla_promociones', $tabla_promociones);
                 // View::set('tabla_promociones', $this->TablaPromociones());
-                View::render("promociones_telarana_busqueda_all");
+                View::render("Promociones/promociones_telarana_busqueda_all");
             } else {
                 echo "El cliente no aplica para un descuento, ya que actualmente no tiene un credito activo";
             }
         } else {
             View::set('header', $this->_contenedor->header($extraHeader));
             View::set('footer', $this->_contenedor->footer($extraFooter));
-            View::render("promociones_telarana_busqueda");
+            View::render("Promociones/promociones_telarana_busqueda");
         }
     }
 

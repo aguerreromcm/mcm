@@ -282,7 +282,7 @@ class AdminSucursales extends Controller
         // View::set('filas', $filas);
         // View::set('fechaI', date('Y-m-d'));
         // View::set('fechaF', date('Y-m-d'));
-        View::render("caja_admin_saldos_dia");
+        View::render("AdminSucursales/caja_admin_saldos_dia");
     }
 
     public function GetSaldosSucursal()
@@ -329,7 +329,7 @@ class AdminSucursales extends Controller
         View::set('header', $this->_contenedor->header(self::GetExtraHeader("Arqueo de Caja")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('fecha', date('Y-m-d'));
-        View::render("caja_admin_cierre_dia");
+        View::render("AdminSucursales/caja_admin_cierre_dia");
     }
 
     // Ingreso de efectivo a sucursal
@@ -448,7 +448,7 @@ class AdminSucursales extends Controller
         View::set('header', $this->_contenedor->header(self::GetExtraHeader("Arqueo de Caja")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('fecha', date('d/m/Y H:i:s'));
-        View::render("caja_admin_fondeo");
+        View::render("AdminSucursales/caja_admin_fondeo");
     }
 
     public function AplicarFondeo()
@@ -573,7 +573,7 @@ class AdminSucursales extends Controller
         View::set('header', $this->_contenedor->header(self::GetExtraHeader("Retiro de Caja")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('fecha', date('d/m/Y H:i:s'));
-        View::render("caja_admin_retiro");
+        View::render("AdminSucursales/caja_admin_retiro");
     }
 
     public function AplicarRetiro()
@@ -682,7 +682,7 @@ class AdminSucursales extends Controller
         View::set('opcUsuarios', $opcUsuarios);
         View::set('opcSucursales', $opcSucursales);
         View::set(('fecha'), date('Y-m-d'));
-        View::render("caja_admin_log");
+        View::render("AdminSucursales/caja_admin_log");
     }
 
     public function GetLogTransacciones()
@@ -866,7 +866,7 @@ class AdminSucursales extends Controller
         View::set('opcSucursales', $opcSucursales);
         View::set('tabla', $tabla);
         View::set('fecha', date('d/m/Y H:i:s'));
-        View::render("caja_admin_configurar");
+        View::render("AdminSucursales/caja_admin_configurar");
     }
 
     public function GetMontoSucursal()
@@ -990,7 +990,7 @@ class AdminSucursales extends Controller
 
         View::set('header', $this->_contenedor->header(self::GetExtraHeader("Catalogo de Clientes")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render("caja_admin_clientes");
+        View::render("AdminSucursales/caja_admin_clientes");
     }
 
     public function ResumenCuenta()
@@ -1038,7 +1038,7 @@ class AdminSucursales extends Controller
         View::set('saldoFinal', $movimientos['saldoFinal']);
         View::set('filas', $movimientos['filas']);
         View::set('opcSegmentos', $opcSegmentos);
-        echo View::fetch("caja_admin_clientes_resumenCta");
+        echo View::fetch("AdminSucursales/caja_admin_clientes_resumenCta");
     }
 
     public function ListaMovimientos($d = null)
@@ -1150,7 +1150,7 @@ class AdminSucursales extends Controller
         View::set('fecha', date('Y-m-d'));
         View::set('opcSegmentos', $opcSegmentos);
         View::set('filas', $filas);
-        echo View::fetch("caja_admin_clientes_rendimiento");
+        echo View::fetch("AdminSucursales/caja_admin_clientes_rendimiento");
     }
 
     public function GetRendimientos($d = null)
@@ -1372,7 +1372,7 @@ html;
         view::set('productos', $opcProductos);
         view::set('operacion', $opcOperaciones);
         View::set('tabla', $tabla);
-        View::render("caja_admin_reporteria_transacciones");
+        View::render("AdminSucursales/caja_admin_reporteria_transacciones");
     }
 
     public function Transacciones()
@@ -1562,7 +1562,7 @@ html;
         view::set('productos', $opcProductos);
         view::set('operacion', $opcOperaciones);
         View::set('tabla', $tabla);
-        View::render("caja_admin_reporteria_transacciones_saldo");
+        View::render("AdminSucursales/caja_admin_reporteria_transacciones_saldo");
     }
 
     public function TransaccionesOperaciones()
@@ -1764,7 +1764,7 @@ html;
         view::set('productos', $opcProductos);
         view::set('operacion', $opcOperaciones);
         View::set('tabla', $tabla);
-        View::render("caja_admin_reporteria_transacciones_saldo_operaciones");
+        View::render("AdminSucursales/caja_admin_reporteria_transacciones_saldo_operaciones");
     }
 
 
@@ -1786,7 +1786,7 @@ script;
         View::set('header', $this->_contenedor->header(self::GetExtraHeader("Reporteria")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('fecha', date('Y-m-d'));
-        View::render("caja_admin_reporteria_transacciones");
+        View::render("AdminSucursales/caja_admin_reporteria_transacciones");
         //View::render("caja_admin_reporteria");
     }
 
@@ -2019,7 +2019,7 @@ html;
         View::set('fecha', date('Y-m-d'));
         View::set('tabla', $tabla);
         View::set('tabla_his', $tabla_his);
-        View::render("caja_admin_solicitudes");
+        View::render("AdminSucursales/caja_admin_solicitudes");
     }
 
     public function SolicitudResumenMovimientos()
@@ -2148,7 +2148,7 @@ html;
         View::set('fecha', date('Y-m-d'));
         view::set('sucursales', $opcSucursales);
         View::set('tabla', $tabla);
-        View::render("caja_admin_solicitudes_resumen_movimientos");
+        View::render("AdminSucursales/caja_admin_solicitudes_resumen_movimientos");
     }
 
     public function SolicitudRetiroOrdinario()
@@ -2380,7 +2380,7 @@ html;
         View::set('fecha', date('Y-m-d'));
         View::set('tabla', $tabla);
         View::set('tabla_historial', $tabla_historial);
-        View::render("caja_admin_solicitudes_retiro_ordinario");
+        View::render("AdminSucursales/caja_admin_solicitudes_retiro_ordinario");
     }
 
     public function ActualizaSolicitudRetiro()
@@ -2600,7 +2600,7 @@ html;
         View::set('fecha', date('Y-m-d'));
         View::set('tabla', $tabla);
         View::set('tabla_historial', $tabla_historial);
-        View::render("caja_admin_solicitudes_retiro_express");
+        View::render("AdminSucursales/caja_admin_solicitudes_retiro_express");
     }
 
     public function SolicitudRetiroEfectivoCaja()
@@ -2732,7 +2732,7 @@ html;
         View::set('fecha', date('Y-m-d'));
         view::set('sucursales', $opcSucursales);
         View::set('tabla', $tabla);
-        View::render("caja_admin_solicitudes_retirar_efectivo_sucursal");
+        View::render("AdminSucursales/caja_admin_solicitudes_retirar_efectivo_sucursal");
     }
 
     public function TicketSolicitudUpdate()
@@ -2812,7 +2812,7 @@ html;
         View::set('header', $this->_contenedor->header(self::GetExtraHeader("Configuración de Caja Usuarios")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('tabla', $tabla);
-        View::render("caja_admin_configurar_usuarios");
+        View::render("AdminSucursales/caja_admin_configurar_usuarios");
     }
 
     public function ConfiguracionParametros()
@@ -2830,7 +2830,7 @@ script;
         View::set('opcSucursales', $opcSucursales);
         View::set('tabla', $tabla);
         View::set('fecha', date('d/m/Y H:i:s'));
-        View::render("caja_admin_configurar_parametros");
+        View::render("AdminSucursales/caja_admin_configurar_parametros");
     }
 
     public function HistorialFondeoSucursal()
@@ -2915,7 +2915,7 @@ script;
         View::set('fechaF', $fechaF);
         View::set('filas', $filas);
         View::set('opcSucursales', self::GetSucursalesReporteria());
-        View::render("caja_admin_historial_fondeo");
+        View::render("AdminSucursales/caja_admin_historial_fondeo");
     }
 
     public function HistorialRetiroSucursal()
@@ -2994,7 +2994,7 @@ script;
         View::set('fechaF', $fechaF);
         View::set('filas', $filas);
         View::set('opcSucursales', self::GetSucursalesReporteria());
-        View::render("caja_admin_historial_retiro_sucursal");
+        View::render("AdminSucursales/caja_admin_historial_retiro_sucursal");
     }
 
     public function GetSucursalesReporteria()
@@ -3099,7 +3099,7 @@ script;
         View::set('opcUsuarios', $opcUsuarios);
         View::set('opcSucursales', $opcSucursales);
         View::set(('fecha'), date('Y-m-d'));
-        View::render("caja_admin_log_configuracion");
+        View::render("AdminSucursales/caja_admin_log_configuracion");
     }
 
     public function genExcelSolsRetOrdPendiente()

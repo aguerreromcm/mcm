@@ -210,7 +210,7 @@ SQL;
             try {
                 $res = self::EnriquecerFilasConDatosInsertar($db, $res);
             } catch (\Throwable $e) {
-                $logPath = defined('APPPATH') ? APPPATH . '/../logs/auditoria_devengo_proceso.log' : __DIR__ . '/../../logs/auditoria_devengo_proceso.log';
+                $logPath = defined('APPPATH') ? APPPATH . '/../storage/logs/auditoria_devengo_proceso.log' : __DIR__ . '/../../storage/logs/auditoria_devengo_proceso.log';
                 @file_put_contents($logPath, date('c') . " [GetDevengosFaltantes] EnriquecerFilasConDatosInsertar: " . $e->getMessage() . "\n", FILE_APPEND);
             }
             return self::Responde(true, 'Consulta exitosa', $res);
@@ -274,7 +274,7 @@ SQL;
         } catch (\Throwable $e) {
             $db->CancelaTransaccion();
             $msg = $e->getMessage();
-            $logPath = defined('APPPATH') ? APPPATH . '/../logs/auditoria_devengo_proceso.log' : __DIR__ . '/../../logs/auditoria_devengo_proceso.log';
+            $logPath = defined('APPPATH') ? APPPATH . '/../storage/logs/auditoria_devengo_proceso.log' : __DIR__ . '/../../storage/logs/auditoria_devengo_proceso.log';
             if (strpos($msg, 'ORA-00054') !== false) {
                 @file_put_contents($logPath, date('c') . " [INSERT] BLOQUEO ORA-00054: $msg\n", FILE_APPEND);
             }
@@ -609,7 +609,7 @@ SQL;
         if (empty($filas)) {
             return 0;
         }
-        $logPath = defined('APPPATH') ? APPPATH . '/../logs/auditoria_devengo_proceso.log' : __DIR__ . '/../../logs/auditoria_devengo_proceso.log';
+        $logPath = defined('APPPATH') ? APPPATH . '/../storage/logs/auditoria_devengo_proceso.log' : __DIR__ . '/../../storage/logs/auditoria_devengo_proceso.log';
 
         for ($i = 0; $i < count($filas); $i++) {
             $f = array_change_key_case((array) $filas[$i], CASE_UPPER);
@@ -897,7 +897,7 @@ SQL;
         string $usuario,
         string $fechaCorte
     ): int {
-        $logPath = defined('APPPATH') ? APPPATH . '/../logs/auditoria_devengo_proceso.log' : __DIR__ . '/../../logs/auditoria_devengo_proceso.log';
+        $logPath = defined('APPPATH') ? APPPATH . '/../storage/logs/auditoria_devengo_proceso.log' : __DIR__ . '/../../storage/logs/auditoria_devengo_proceso.log';
 
         $currentSchema = null;
         try {

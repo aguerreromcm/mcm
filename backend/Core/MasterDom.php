@@ -1216,7 +1216,7 @@ class MasterDom
         View::set('class', $class);
         View::set('titulo', $titulo);
         View::set('mensaje', $mensaje);
-        View::render("alertas");
+        View::render("Principal/alertas");
         exit();
     }
 }

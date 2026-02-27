@@ -360,7 +360,7 @@ class Indicadores extends Controller
 
         View::set('header', $this->_contenedor->header($this->GetExtraHeader('Productividad Operaciones', [$this->graficas])));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render('indicadores_productividadOP');
+        View::render('Indicadores/indicadores_productividadOP');
     }
 
     public function GetIncidenciasUsuarios()

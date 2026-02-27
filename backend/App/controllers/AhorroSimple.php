@@ -130,19 +130,19 @@ class AhorroSimple extends Controller
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
                 View::set('fechaActual', $fechaActual);
-                View::render("pagos_consulta_busqueda_message_ahorro");
+                View::render("AhorroSimple/pagos_consulta_busqueda_message_ahorro");
             } else {
                 View::set('tabla', $tabla);
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
                 View::set('ConsultaDatos', $ConsultaDatos);
-                View::render("pagos_consulta_busqueda_ahorro");
+                View::render("AhorroSimple/pagos_consulta_busqueda_ahorro");
             }
         } else {
             View::set('header', $this->_contenedor->header($extraHeader));
             View::set('footer', $this->_contenedor->footer($extraFooter));
             View::set('fechaActual', $fechaActual);
-            View::render("pagos_consulta_ahorro_all");
+            View::render("AhorroSimple/pagos_consulta_ahorro_all");
         }
     }
 
@@ -153,7 +153,7 @@ class AhorroSimple extends Controller
         </script>
         HTML;
 
-        $vista = "pagos_consulta_ahorro_all";
+        $vista = "AhorroSimple/pagos_consulta_ahorro_all";
 
         if (isset($_GET['credito'])) {
             $infoCredito = AhorroSimpleDao::GetInfoAhorro($_GET);
@@ -293,12 +293,12 @@ class AhorroSimple extends Controller
             View::set('footer', $this->_contenedor->footer($extraFooter));
             View::set('ConsultaDatos', $ConsultaDatos);
             View::set('resultado', $Consulta1);
-            View::render("resultado_validacion_adicional");
+            View::render("AhorroSimple/resultado_validacion_adicional");
         } else {
             View::set('header', $this->_contenedor->header($extraHeader));
             View::set('footer', $this->_contenedor->footer($extraFooter));
             View::set('fechaActual', $fechaActual);
-            View::render("valida_consulta_adicional_all");
+            View::render("AhorroSimple/valida_consulta_adicional_all");
         }
     }
 
@@ -361,12 +361,12 @@ class AhorroSimple extends Controller
             View::set('ConsultaDatos', $ConsultaDatos);
             View::set('resultado', $Consulta1);
             View::set('ConsultaActivos', $ConsultaActivos);
-            View::render("agregar_excepcion_adicional");
+            View::render("AhorroSimple/agregar_excepcion_adicional");
         } else {
             View::set('header', $this->_contenedor->header($extraHeader));
             View::set('footer', $this->_contenedor->footer($extraFooter));
             View::set('fechaActual', $fechaActual);
-            View::render("agrega_excepciones_adicional_all");
+            View::render("AhorroSimple/agrega_excepciones_adicional_all");
         }
     }
 
@@ -617,7 +617,7 @@ class AhorroSimple extends Controller
         View::set('header', $this->_contenedor->header($extraHeader));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('parentescosOptions', $parentescosOptions);
-        View::render("contratos_lista_ahorro");
+        View::render("AhorroSimple/contratos_lista_ahorro");
     }
 
     public function GetCliente()

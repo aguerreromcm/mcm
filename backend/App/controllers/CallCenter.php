@@ -754,19 +754,19 @@ class CallCenter extends Controller
             $inicializar = CallCenterDao::iniciaRetiroCallCenter($_GET);
             if ($inicializar['success'] == false) {
                 View::set('mensaje', $inicializar['mensaje']);
-                View::render("callcenter_retiros_message");
+                View::render("CallCenter/callcenter_retiros_message");
                 exit;
             }
 
             $datos_retiro = CallCenterDao::getInfoRetiro($_GET);
             if ($datos_retiro['success'] == false) {
                 View::set('mensaje', $datos_retiro['mensaje']);
-                View::render("callcenter_retiros_message");
+                View::render("CallCenter/callcenter_retiros_message");
                 exit;
             }
 
             View::set('datos_retiro', $datos_retiro['datos']);
-            View::render("callcenter_retiros");
+            View::render("CallCenter/callcenter_retiros");
         } elseif ($credito != '' && $ciclo != '' && $fec != '') {
             $AdministracionOne = CallCenterDao::getAllDescription($credito, $ciclo, $fec);
 
@@ -774,7 +774,7 @@ class CallCenter extends Controller
                 View::set('Administracion', $AdministracionOne);
                 View::set('credito', $credito);
                 View::set('ciclo', $ciclo);
-                View::render("callcenter_cliente_message_all");
+                View::render("CallCenter/callcenter_cliente_message_all");
             } else {
                 View::set('Administracion', $AdministracionOne);
                 View::set('visible', $AdministracionOne[0]['CREDITO_ADICIONAL'] == '1' ? 'none' : 'block');
@@ -782,7 +782,7 @@ class CallCenter extends Controller
                 View::set('reg', $reg);
                 View::set('cdgpe', $this->__usuario);
                 View::set('pendientes', 'Mis ');
-                View::render($AdministracionOne[0]['CREDITO_ADICIONAL'] == 1 ? "callcenter_cliente_all_mas" : "callcenter_cliente_all");
+                View::render($AdministracionOne[0]['CREDITO_ADICIONAL'] == 1 ? "CallCenter/callcenter_cliente_all_mas" : "CallCenter/callcenter_cliente_all");
             }
         } else {
             $param = null;
@@ -1257,11 +1257,11 @@ html;
             View::set('usuario', $this->__usuario);
             View::set('header', $this->_contenedor->header($extraHeader));
             View::set('footer', $this->_contenedor->footer($extraFooter));
-            View::render("busqueda_registro_rapida");
+            View::render("CallCenter/busqueda_registro_rapida");
         } else {
             View::set('header', $this->_contenedor->header($extraHeader));
             View::set('footer', $this->_contenedor->footer($extraFooter));
-            View::render("callcenter_busqueda_rapida");
+            View::render("CallCenter/callcenter_busqueda_rapida");
         }
     }
 
@@ -1867,7 +1867,7 @@ html;
                 View::set('Administracion', $AdministracionOne);
                 View::set('credito', $credito);
                 View::set('ciclo', $ciclo);
-                View::render("callcenter_cliente_message_all");
+                View::render("CallCenter/callcenter_cliente_message_all");
             } else {
 
                 View::set('header', $this->_contenedor->header($extraHeader));
@@ -1875,7 +1875,7 @@ html;
                 View::set('Administracion', $AdministracionOne);
                 View::set('suc', $suc);
                 View::set('pendientes', 'Mis ');
-                View::render("callcenter_cliente_all");
+                View::render("CallCenter/callcenter_cliente_all");
             }
         } else {
 
@@ -1996,7 +1996,7 @@ html;
             View::set('footer', $this->_contenedor->footer($extraFooter));
             View::set('tabla', $tabla);
             View::set('sucursal', $opciones_suc);
-            View::render("callcenter_prorroga_all");
+            View::render("CallCenter/callcenter_prorroga_all");
         }
     }
 
@@ -2602,7 +2602,7 @@ html;
                 View::set('Administracion', $AdministracionOne);
                 View::set('credito', $credito);
                 View::set('ciclo', $ciclo);
-                View::render("callcenter_cliente_message_all");
+                View::render("CallCenter/callcenter_cliente_message_all");
             } else {
 
                 View::set('header', $this->_contenedor->header($extraHeader));
@@ -2610,7 +2610,7 @@ html;
                 View::set('Administracion', $AdministracionOne);
                 View::set('suc', $suc);
                 View::set('pendientes', 'Mis ');
-                View::render("callcenter_cliente_all");
+                View::render("CallCenter/callcenter_cliente_all");
             }
         } else {
 
@@ -2731,7 +2731,7 @@ html;
             View::set('footer', $this->_contenedor->footer($extraFooter));
             View::set('tabla', $tabla);
             View::set('sucursal', $opciones_suc);
-            View::render("callcenter_reactivar_all");
+            View::render("CallCenter/callcenter_reactivar_all");
         }
     }
 
@@ -2811,7 +2811,7 @@ html;
                 View::set('credito', $credito);
                 View::set('ciclo', $ciclo);
                 View::set('pendientes', 'Todos los ');
-                View::render("callcenter_cliente_message_all");
+                View::render("CallCenter/callcenter_cliente_message_all");
             } else {
 
                 View::set('header', $this->_contenedor->header($extraHeader));
@@ -2820,7 +2820,7 @@ html;
                 View::set('reg', $reg);
                 View::set('suc', $suc);
                 View::set('pendientes', 'Todos los ');
-                View::render("callcenter_cliente_all");
+                View::render("CallCenter/callcenter_cliente_all");
             }
         } else {
 
@@ -3488,10 +3488,10 @@ html;
             }
 
             if ($Consulta[0] == '') {
-                $vista = "historico_call_center_message_f";
+                $vista = "CallCenter/historico_call_center_message_f";
             } else {
                 View::set('tabla', $tabla);
-                $vista = "Historico_Call_Center";
+                $vista = "CallCenter/Historico_Call_Center";
             }
         } else {
             $Consulta = CallCenterDao::getAllSolicitudesHistorico($fechaActual, $fechaActual, $cdgco, $this->__usuario, $this->__perfil, $Sucursal);
@@ -3666,10 +3666,10 @@ html;
 
             if ($Consulta[0] == '') {
                 View::set('fechaActual', $fechaActual);
-                $vista = "historico_call_center_message_f";
+                $vista = "CallCenter/historico_call_center_message_f";
             } else {
                 View::set('tabla', $tabla);
-                $vista = "Historico_Call_Center";
+                $vista = "CallCenter/Historico_Call_Center";
             }
         }
 
@@ -3926,14 +3926,14 @@ html;
                 View::set('footer', $this->_contenedor->footer($extraFooter));
                 View::set('Inicial', $fechaActual);
                 View::set('Final', $fechaActual);
-                View::render("historico_analistas_message_f");
+                View::render("CallCenter/historico_analistas_message_f");
             } else {
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
                 View::set('tabla', $tabla);
                 View::set('Inicial', $Inicial);
                 View::set('Final', $Final);
-                View::render("Historico_Analistas_Center");
+                View::render("CallCenter/Historico_Analistas_Center");
             }
         } else {
             $Consulta = CallCenterDao::getAllSolicitudesHistorico($fechaActual, $fechaActual, '', $this->__usuario, $this->__perfil, $Sucursal);
@@ -4093,14 +4093,14 @@ html;
                 View::set('fechaActual', $fechaActual);
                 View::set('Inicial', $fechaActual);
                 View::set('Final', $fechaActual);
-                View::render("historico_analistas_message_f");
+                View::render("CallCenter/historico_analistas_message_f");
             } else {
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
                 View::set('tabla', $tabla);
                 View::set('Inicial', $fechaActual);
                 View::set('Final', $fechaActual);
-                View::render("Historico_Analistas_Center");
+                View::render("CallCenter/Historico_Analistas_Center");
             }
         }
     }
@@ -4567,7 +4567,7 @@ html;
 
         View::set('header', $this->_contenedor->header(self::GetExtraHeader("Postventa", [$this->socket])));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render("callcenter_encuestaPostventa", $extraFooter);
+        View::render("CallCenter/callcenter_encuestaPostventa", $extraFooter);
     }
 
     public function AsignaClienteEncuestaPostventa()
@@ -4641,7 +4641,7 @@ html;
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set("fecha", date("Y-m-d"));
         View::set("estatus", $optEstatus);
-        View::render("callcenter_reporteEncuestaPostventa", $extraFooter);
+        View::render("CallCenter/callcenter_reporteEncuestaPostventa", $extraFooter);
     }
 
     public function HTMLReporteEncuestaPostventa()
@@ -4893,7 +4893,7 @@ html;
 
         View::set('header', $this->_contenedor->header(self::GetExtraHeader('Supervisión encuesta Postventa', [$this->socket])));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render('callcenter_supervisionEncuestaPostventa', $extraFooter);
+        View::render('CallCenter/callcenter_supervisionEncuestaPostventa', $extraFooter);
     }
 
     public function Plantilla_Retiro_Finalizado($datos)

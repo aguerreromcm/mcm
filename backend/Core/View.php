@@ -12,9 +12,13 @@ class View
     protected static $data;
 
     /**
-     * @var
+     * Ruta base de vistas (absoluta si PROJECTPATH está definido, para no depender del CWD).
+     * @var string
      */
-    const VIEWS_PATH = "../App/views/";
+    protected static function getViewsPath()
+    {
+        return defined('PROJECTPATH') ? (PROJECTPATH . '/App/views/') : '../App/views/';
+    }
 
     /**
      * @var
@@ -28,13 +32,14 @@ class View
      */
     public static function render($template)
     {
-        if (!file_exists(self::VIEWS_PATH . $template . "." . self::EXTENSION_TEMPLATES)) {
-            throw new \Exception("Error: El archivo " . self::VIEWS_PATH . $template . "." . self::EXTENSION_TEMPLATES . " no existe", 1);
+        $path = self::getViewsPath() . $template . "." . self::EXTENSION_TEMPLATES;
+        if (!file_exists($path)) {
+            throw new \Exception("Error: El archivo " . $path . " no existe", 1);
         }
 
         ob_start();
         extract(self::$data);
-        include(self::VIEWS_PATH . $template . "." . self::EXTENSION_TEMPLATES);
+        include($path);
         $str = ob_get_contents();
         ob_end_clean();
         echo $str;
@@ -52,13 +57,14 @@ class View
 
     public static function fetch($template)
     {
-        if (!file_exists(self::VIEWS_PATH . $template . "." . self::EXTENSION_TEMPLATES)) {
-            throw new \Exception("Error: El archivo " . self::VIEWS_PATH . $template . "." . self::EXTENSION_TEMPLATES . " no existe", 1);
+        $path = self::getViewsPath() . $template . "." . self::EXTENSION_TEMPLATES;
+        if (!file_exists($path)) {
+            throw new \Exception("Error: El archivo " . $path . " no existe", 1);
         }
 
         ob_start();
         extract(self::$data);
-        include(self::VIEWS_PATH . $template . "." . self::EXTENSION_TEMPLATES);
+        include($path);
         // $str = ob_get_contents();
         $str = ob_get_clean();
         return $str;
@@ -66,6 +72,6 @@ class View
 
     public static function getPath($template)
     {
-        return self::VIEWS_PATH . $template . "." . self::EXTENSION_TEMPLATES;
+        return self::getViewsPath() . $template . "." . self::EXTENSION_TEMPLATES;
     }
 }

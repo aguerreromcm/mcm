@@ -50,7 +50,7 @@ class AuditoriaDevengoService
      */
     public static function ProcesarIndividual(array $datos, string $usuario, string $perfil, string $ip): array
     {
-        $log = defined('APPPATH') ? APPPATH . '/../logs/auditoria_devengo_proceso.log' : __DIR__ . '/../../logs/auditoria_devengo_proceso.log';
+        $log = defined('APPPATH') ? APPPATH . '/../storage/logs/auditoria_devengo_proceso.log' : __DIR__ . '/../../storage/logs/auditoria_devengo_proceso.log';
         $fila = isset($datos['fila']) ? $datos['fila'] : $datos;
         $credito = trim((string) ($fila['CREDITO'] ?? $fila['CDGCLNS'] ?? $fila['credito'] ?? ''));
         $ciclo = trim((string) ($fila['CICLO'] ?? $fila['ciclo'] ?? ''));

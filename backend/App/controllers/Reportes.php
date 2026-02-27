@@ -107,7 +107,7 @@ html;
         View::set('header', $this->_contenedor->header($extraHeader));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('tabla', $tabla);
-        View::render("usuarios_SICAFIN_Reporte");
+        View::render("Reportes/usuarios_SICAFIN_Reporte");
     }
 
     public function UsuariosCultiva()
@@ -197,7 +197,7 @@ html;
         View::set('header', $this->_contenedor->header($extraHeader));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('tabla', $tabla);
-        View::render("usuarios_SICAFIN_Reporte_Cultiva");
+        View::render("Reportes/usuarios_SICAFIN_Reporte_Cultiva");
     }
 
     public function generarExcel()

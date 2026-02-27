@@ -240,7 +240,7 @@ class Operaciones extends Controller
 
         View::set('header', $this->_contenedor->header(self::GetExtraHeader('Cierre diario')));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render('operaciones_cierre_diario');
+        View::render('Operaciones/operaciones_cierre_diario');
     }
 
     function ValidaCierreEnEjecucion()
@@ -349,7 +349,7 @@ class Operaciones extends Controller
         View::set('header', $this->_contenedor->header($this->getExtraHeader("Reporte Productora Cultiva")));
         View::set('footer', $this->_contenedor->footer($extraFooter));
 
-        View::render('operaciones_reporte_pc');
+        View::render('Operaciones/operaciones_reporte_pc');
     }
 
     public function GetReportePC($datos = null)

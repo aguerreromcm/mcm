@@ -318,7 +318,7 @@ class Pagos extends Controller
         View::set('footer', $this->_contenedor->footer($extraFooter));
 
         $credito = $_GET['Credito'];
-        if ($credito == '') return View::render("pagos_admin_all");
+        if ($credito == '') return View::render("Pagos/pagos_admin_all");
 
         $getStatus = '';
         $status = PagosDao::ListaEjecutivosAdmin($credito);
@@ -335,7 +335,7 @@ class Pagos extends Controller
             View::set('status', $getStatus);
             View::set('credito', $credito);
             View::set('usuario', $this->__usuario);
-            View::render('pagos_admin_busqueda_message');
+            View::render('Pagos/pagos_admin_busqueda_message');
             return;
         }
 
@@ -413,7 +413,7 @@ class Pagos extends Controller
         View::set('fin_f', $fin_f);
         View::set('status', $getStatus);
         View::set('usuario', $this->__usuario);
-        View::render('pagos_admin_busqueda');
+        View::render('Pagos/pagos_admin_busqueda');
     }
 
     public function AjusteHoraCierre()
@@ -561,7 +561,7 @@ html;
 
         View::set('header', $this->_contenedor->header($extraHeader));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render("horarios_caja_sucursal");
+        View::render("Pagos/horarios_caja_sucursal");
     }
 
     public function DiasFestivos()
@@ -633,7 +633,7 @@ html;
         View::set('opciones_suc', $opciones_suc);
         View::set('header', $this->_contenedor->header($extraHeader));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render("dias_festivos_caja_sucursal");
+        View::render("Pagos/dias_festivos_caja_sucursal");
     }
 
     public function CorteEjecutivo()
@@ -902,7 +902,7 @@ html;
                 }
             }
 
-            $vista = 'view_pagos_app_ejecutivos';
+            $vista = 'Pagos/view_pagos_app_ejecutivos';
         } else {
             $ejecutivo = $_GET['ejecutivo'];
             $barcode = $_GET['barcode'];
@@ -1113,9 +1113,9 @@ html;
                         }
                     }
 
-                    $vista = $procesados ? 'view_pagos_app_detalle_imprimir' : 'view_pagos_app_detalle';
+                    $vista = $procesados ? 'Pagos/view_pagos_app_detalle_imprimir' : 'Pagos/view_pagos_app_detalle';
                 } else {
-                    $vista = 'view_pagos_app_detalle';
+                    $vista = 'Pagos/view_pagos_app_detalle';
                 }
             }
         }
@@ -1478,7 +1478,7 @@ html;
                 View::set('footer', $this->_contenedor->footer($extraFooter));
                 View::set('getSucursales', $getSucursales);
                 View::set('fechaActual', $fechaActual);
-                View::render("pagos_consulta_busqueda_message");
+                View::render("Pagos/pagos_consulta_busqueda_message");
             } else {
                 View::set('tabla', $tabla);
                 View::set('Inicial', $Inicial);
@@ -1486,14 +1486,14 @@ html;
                 View::set('getSucursales', $getSucursales);
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
-                View::render("pagos_consulta_busqueda");
+                View::render("Pagos/pagos_consulta_busqueda");
             }
         } else {
             View::set('header', $this->_contenedor->header($extraHeader));
             View::set('footer', $this->_contenedor->footer($extraFooter));
             View::set('fechaActual', $fechaActual);
             View::set('getSucursales', $getSucursales);
-            View::render("pagos_consulta_all");
+            View::render("Pagos/pagos_consulta_all");
         }
     }
 
@@ -1985,7 +1985,7 @@ html;
         View::set('footer', $this->_contenedor->footer($extraFooter));
 
         $credito = $_GET['Credito'];
-        if ($credito == '') return View::render("pagos_registro_all");
+        if ($credito == '') return View::render("Pagos/pagos_registro_all");
 
         $status = PagosDao::ListaEjecutivosAdmin($credito);
         $getStatus = '';
@@ -2000,7 +2000,7 @@ html;
             View::set('status', $getStatus);
             View::set('credito', $credito);
             View::set('usuario', $this->__usuario);
-            return View::render("pagos_registro_busqueda_message");
+            return View::render("Pagos/pagos_registro_busqueda_message");
         }
 
         $tabla = '';
@@ -2144,7 +2144,7 @@ html;
         View::set('status', $getStatus);
         View::set('usuario', $this->__usuario);
         View::set('cdgco', $this->__cdgco);
-        View::render("pagos_registro_busqueda");
+        View::render("Pagos/pagos_registro_busqueda");
     }
 
     public function PagosConsultaUsuarios()
@@ -2379,7 +2379,7 @@ html;
                 View::set('status', $getStatus);
                 View::set('credito', $credito);
                 View::set('usuario', $this->__usuario);
-                View::render("pagos_consulta_p_busqueda_message");
+                View::render("Pagos/pagos_consulta_p_busqueda_message");
             } else {
                 $Administracion = PagosDao::ConsultarPagosAdministracion($credito, $hora_cierre);
                 foreach ($Administracion as $key => $value) {
@@ -2423,12 +2423,12 @@ html;
                 View::set('usuario', $this->__usuario);
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
-                View::render("pagos_consulta_p_busqueda");
+                View::render("Pagos/pagos_consulta_p_busqueda");
             }
         } else {
             View::set('header', $this->_contenedor->header($extraHeader));
             View::set('footer', $this->_contenedor->footer($extraFooter));
-            View::render("pagos_consulta_p_all");
+            View::render("Pagos/pagos_consulta_p_all");
         }
     }
 
@@ -2580,13 +2580,13 @@ html;
             if ($CorteCaja[0] == '') {
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
-                View::render("cortecaja_view");
+                View::render("Pagos/cortecaja_view");
             } else {
                 View::set('tabla', $tabla);
                 View::set('CorteCajaById', $CorteCajaById);
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
-                View::render("cortecaja_view");
+                View::render("Pagos/cortecaja_view");
             }
         } else {
 
@@ -2616,12 +2616,12 @@ html;
             if ($CorteCaja[0] == '') {
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
-                View::render("cortecaja_all"); ////CAmbiar a una en donde diga que no hay registros
+                View::render("Pagos/cortecaja_all"); ////CAmbiar a una en donde diga que no hay registros
             } else {
                 View::set('tabla', $tabla);
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
-                View::render("cortecaja_all");
+                View::render("Pagos/cortecaja_all");
             }
             //////////////////////////////////////////////////////////////////
         }
@@ -2691,7 +2691,7 @@ html;
             View::set('fechaActual', $fechaActual);
             View::set('header', $this->_contenedor->header($extraHeader));
             View::set('footer', $this->_contenedor->footer($extraFooter));
-            View::render("pagos_layout_all");
+            View::render("Pagos/pagos_layout_all");
         } else {
             $tabla = '';
 
@@ -2713,20 +2713,20 @@ html;
                     View::set('header', $this->_contenedor->header($extraHeader));
                     View::set('footer', $this->_contenedor->footer($extraFooter));
                     View::set('fechaActual', $fechaActual);
-                    View::render("pagos_layout_busqueda_message");
+                    View::render("Pagos/pagos_layout_busqueda_message");
                 } else {
                     View::set('tabla', $tabla);
                     View::set('Inicial', $Inicial);
                     View::set('Final', $Final);
                     View::set('header', $this->_contenedor->header($extraHeader));
                     View::set('footer', $this->_contenedor->footer($extraFooter));
-                    View::render("pagos_layout_busqueda");
+                    View::render("Pagos/pagos_layout_busqueda");
                 }
             } else {
                 View::set('fechaActual', $fechaActual);
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
-                View::render("pagos_layout_all");
+                View::render("Pagos/pagos_layout_all");
             }
         }
     }
@@ -2812,7 +2812,7 @@ html;
         View::set('header', $this->_contenedor->header(self::GetExtraHeader('Reimprimir Recibo de Efectivo')));
         View::set('footer', $this->_contenedor->footer());
         View::set('tabla', $tabla);
-        View::render('view_pagos_reimprimir_recibo_efectivo');
+        View::render('Pagos/view_pagos_reimprimir_recibo_efectivo');
     }
 
     public function GetPagosAppHistorico()

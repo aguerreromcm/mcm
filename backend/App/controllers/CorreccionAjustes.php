@@ -171,7 +171,7 @@ class CorreccionAjustes extends Controller
         View::set('header', $this->_contenedor->header($this->GetExtraHeader('Cancelación de Refinanciamientos')));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set("razones", $this->GetRazones());
-        View::render("correccion_ajustes");
+        View::render("CorreccionAjustes/correccion_ajustes");
     }
 
     public function GetRazones()
