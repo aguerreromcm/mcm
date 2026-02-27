@@ -75,12 +75,12 @@ class Herramientas extends Model
     }
 
     /**
-     * Devengos faltantes: misma lógica y universo que SP_AUDITA_DEVENGO (sin llamar al SP).
-     * Base: PRN + MP (TIPO='IN') + CF. FACTOR_DIAS, FIN, DEVENGO_DIARIO, calendario INICIO+1 hasta CORTE_EFECTIVA,
-     * ajuste último día, detección por NOT EXISTS en ESIACOM.DEVENGO_DIARIO (CDGEM, CDGCLNS, CICLO, TRUNC(FECHA_CALC)).
-     * Exclusión por FECHA_LIQUIDA aplicada al final (no altera universo base).
+     * Devengos faltantes en una sola consulta.
+     * Estructura: PARAMETROS → DATOS_CREDITO → DATOS_CALCULO → CALENDARIO (recursivo) → PROYECCION.
+     * Devuelve solo los que no existen en ESIACOM.DEVENGO_DIARIO, con todos los campos para INSERT.
+     * Exclusión por FECHA_LIQUIDA (TBL_CIERRE_DIA). No se llama a EnriquecerFilasConDatosInsertar.
      *
-     * @param array $datos ['credito','ciclo','fecha_desde','fecha_hasta','fecha_corte']
+     * @param array $datos ['credito','ciclo','fecha_corte']
      * @return array { success, mensaje, datos }
      */
     public static function GetDevengosFaltantes($datos = [])
@@ -88,7 +88,6 @@ class Herramientas extends Model
         $credito = !empty(trim((string) ($datos['credito'] ?? ''))) ? trim($datos['credito']) : null;
         $ciclo = !empty(trim((string) ($datos['ciclo'] ?? ''))) ? trim($datos['ciclo']) : null;
         $fechaCorte = !empty(trim((string) ($datos['fecha_corte'] ?? ''))) ? trim($datos['fecha_corte']) : null;
-
 
         if ($fechaCorte === null) {
             $fechaCorte = date('Y-m-d');
@@ -98,107 +97,98 @@ class Herramientas extends Model
             $fechaCorte = $hoy;
         }
 
-        $filtroExtra = '';
-        $prm = ['fecha_corte' => $fechaCorte];
-        if ($credito !== null) {
-            $filtroExtra .= ' AND CF.CREDITO = :credito';
-            $prm['credito'] = $credito;
-        }
-        if ($ciclo !== null) {
-            $filtroExtra .= ' AND CF.CICLO = :ciclo';
-            $prm['ciclo'] = $ciclo;
-        }
+        $prm = [
+            'fecha_corte' => $fechaCorte,
+            'credito'     => $credito,
+            'ciclo'       => $ciclo,
+        ];
 
         $qry = <<<SQL
-WITH DATOS_BASE AS (
+WITH
+PARAMETROS AS (
+    SELECT PRN.CDGNS AS CREDITO, PRN.CICLO, TO_DATE(:fecha_corte, 'YYYY-MM-DD') AS CORTE
+    FROM PRN
+    JOIN MP ON PRN.CDGEM = MP.CDGEM AND PRN.CDGNS = MP.CDGCLNS AND PRN.CICLO = MP.CICLO AND MP.TIPO = 'IN'
+    JOIN CF ON PRN.CDGEM = CF.CDGEM AND PRN.CDGFDI = CF.CDGFDI
+    WHERE PRN.CDGEM = 'EMPFIN'
+      AND (:credito IS NULL OR PRN.CDGNS = :credito)
+      AND (:ciclo IS NULL OR PRN.CICLO = :ciclo)
+),
+DATOS_CREDITO AS (
     SELECT
-        PRN.CDGNS AS CREDITO,
-        PRN.CICLO,
-        PRN.CDGEM,
-        TRUNC(PRN.INICIO) AS INICIO,
-        PRN.PLAZO,
+        P.CREDITO, P.CICLO, P.CORTE, PRN.INICIO, PRN.PLAZO,
         NVL(PRN.PERIODICIDAD, 'S') AS PERIODICIDAD,
         DECODE(NVL(PRN.PERIODICIDAD, 'S'), 'S', 7, 'C', 14, 'Q', 15, 'M', 30, 7) AS FACTOR_DIAS,
-        TRUNC(PRN.INICIO + (DECODE(NVL(PRN.PERIODICIDAD, 'S'), 'S', 7, 'C', 14, 'Q', 15, 'M', 30, 7) * PRN.PLAZO)) AS FIN,
         ABS(APagarInteresPrN(
             PRN.CDGEM, PRN.CDGNS, PRN.CICLO,
             NVL(PRN.CANTENTRE, PRN.CANTAUTOR), PRN.TASA, PRN.PLAZO, PRN.PERIODICIDAD,
             PRN.CDGMCI, PRN.INICIO, PRN.DIAJUNTA, PRN.MULTPER, PRN.PERIGRCAP, PRN.PERIGRINT,
             PRN.DESFASEPAGO, PRN.CDGTI
-        )) AS DEVENGO_TOTAL
+        )) AS DEVENGO_TOTAL,
+        NVL(CF.IVA / NULLIF(CF.PORCENTAJE, 0), 0.16) AS IVA
     FROM PRN
-    INNER JOIN MP ON PRN.CDGEM = MP.CDGEM AND PRN.CDGNS = MP.CDGCLNS AND PRN.CICLO = MP.CICLO AND MP.TIPO = 'IN'
-    LEFT JOIN CF ON PRN.CDGEM = CF.CDGEM AND PRN.CDGFDI = CF.CDGFDI
+    JOIN MP ON PRN.CDGEM = MP.CDGEM AND PRN.CDGNS = MP.CDGCLNS AND PRN.CICLO = MP.CICLO AND MP.TIPO = 'IN'
+    JOIN CF ON PRN.CDGEM = CF.CDGEM AND PRN.CDGFDI = CF.CDGFDI
+    CROSS JOIN PARAMETROS P
+    WHERE PRN.CDGNS = P.CREDITO AND PRN.CICLO = P.CICLO AND PRN.CDGEM = 'EMPFIN'
 ),
-RNG AS (
-    SELECT LEVEL - 1 AS N FROM DUAL CONNECT BY LEVEL <= 3660
+DATOS_CALCULO AS (
+    SELECT DC.*,
+        (DC.FACTOR_DIAS * DC.PLAZO) AS PLAZO_DIAS,
+        TRUNC(DC.INICIO + (DC.FACTOR_DIAS * DC.PLAZO)) AS FIN,
+        ROUND(DC.DEVENGO_TOTAL / NULLIF(DC.FACTOR_DIAS * DC.PLAZO, 0), 2) AS DEVENGO_DIARIO
+    FROM DATOS_CREDITO DC
 ),
-CALENDARIO AS (
-    SELECT
-        DB.CREDITO,
-        DB.CICLO,
-        DB.CDGEM,
-        DB.INICIO,
-        DB.FIN,
-        DB.DEVENGO_TOTAL,
-        (DB.FACTOR_DIAS * DB.PLAZO) AS PLAZO_DIAS,
-        ROUND(DB.DEVENGO_TOTAL / NULLIF(DB.FACTOR_DIAS * DB.PLAZO, 0), 2) AS DEVENGO_DIARIO_FIJO,
-        TRUNC(DB.INICIO) + 1 + RNG.N AS FECHA_CALC
-    FROM DATOS_BASE DB
-    CROSS JOIN RNG
-    WHERE TRUNC(DB.INICIO) + 1 + RNG.N <= LEAST(TO_DATE(:fecha_corte, 'YYYY-MM-DD'), TRUNC(SYSDATE), DB.FIN)
-    AND TRUNC(DB.INICIO) + 1 + RNG.N >= TRUNC(DB.INICIO) + 1
-),
-CON_ACUM AS (
-    SELECT
-        C.CREDITO,
-        C.CICLO,
-        C.CDGEM,
-        C.INICIO,
-        C.FIN,
-        C.FECHA_CALC,
-        C.DEVENGO_TOTAL,
-        C.DEVENGO_DIARIO_FIJO,
-        C.PLAZO_DIAS,
-        COUNT(*) OVER (PARTITION BY C.CREDITO, C.CICLO ORDER BY C.FECHA_CALC ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS NUM_PREV
+CALENDARIO (FECHA_CALC, CREDITO, CICLO, DEVENGO_DIARIO, FIN) AS (
+    SELECT DC.INICIO + 1, DC.CREDITO, DC.CICLO, DC.DEVENGO_DIARIO, DC.FIN
+    FROM DATOS_CALCULO DC
+    UNION ALL
+    SELECT C.FECHA_CALC + 1, C.CREDITO, C.CICLO, C.DEVENGO_DIARIO, C.FIN
     FROM CALENDARIO C
+    WHERE C.FECHA_CALC + 1 <= LEAST(C.FIN, (SELECT MAX(CORTE) FROM PARAMETROS))
 ),
-CALCULO_FINAL AS (
+PROYECCION AS (
+    SELECT C.CREDITO, C.CICLO, DC.INICIO, DC.FIN, C.FECHA_CALC, DC.PLAZO, DC.PLAZO_DIAS, DC.PERIODICIDAD, DC.DEVENGO_TOTAL, DC.IVA,
+        CASE WHEN C.FECHA_CALC = DC.FIN THEN 1 ELSE 0 END AS ES_ULTIMO_DIA,
+        SUM(C.DEVENGO_DIARIO) OVER (PARTITION BY C.CREDITO, C.CICLO ORDER BY C.FECHA_CALC ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS DEVENGO_ACUMULADO,
+        C.DEVENGO_DIARIO
+    FROM CALENDARIO C
+    JOIN DATOS_CALCULO DC ON C.CREDITO = DC.CREDITO AND C.CICLO = DC.CICLO
+    WHERE C.FECHA_CALC <= LEAST(NVL(DC.CORTE, DC.FIN), TRUNC(SYSDATE))
+),
+RESULTADO AS (
     SELECT
-        CA.CREDITO,
-        CA.CICLO,
-        CA.CDGEM,
-        CA.FECHA_CALC,
-        CASE
-            WHEN TRUNC(CA.FECHA_CALC) = TRUNC(CA.FIN)
-            THEN CA.DEVENGO_TOTAL - NVL(CA.NUM_PREV, 0) * CA.DEVENGO_DIARIO_FIJO
-            ELSE CA.DEVENGO_DIARIO_FIJO
-        END AS DEV_DIARIO
-    FROM CON_ACUM CA
+        P.CREDITO, P.CICLO,
+        TO_CHAR(P.FECHA_CALC, 'YYYY-MM-DD') AS FECHA_CALC_ISO,
+        TO_CHAR(P.FECHA_CALC, 'DD/MM/YYYY') AS FECHA_FALTANTE,
+        TO_CHAR(P.INICIO, 'YYYY-MM-DD') AS INICIO,
+        CASE WHEN P.ES_ULTIMO_DIA = 1 THEN P.DEVENGO_TOTAL - NVL(P.DEVENGO_ACUMULADO, 0) ELSE P.DEVENGO_DIARIO END AS DEV_DIARIO,
+        (P.FECHA_CALC - P.INICIO) AS DIAS_DEV,
+        SUM(CASE WHEN P.ES_ULTIMO_DIA = 1 THEN P.DEVENGO_TOTAL - NVL(P.DEVENGO_ACUMULADO, 0) ELSE P.DEVENGO_DIARIO END)
+            OVER (PARTITION BY P.CREDITO, P.CICLO ORDER BY P.FECHA_CALC) AS INT_DEV,
+        ROUND((CASE WHEN P.ES_ULTIMO_DIA = 1 THEN P.DEVENGO_TOTAL - NVL(P.DEVENGO_ACUMULADO, 0) ELSE P.DEVENGO_DIARIO END) / (1 + P.IVA), 2) AS DEV_DIARIO_SIN_IVA,
+        ROUND((CASE WHEN P.ES_ULTIMO_DIA = 1 THEN P.DEVENGO_TOTAL - NVL(P.DEVENGO_ACUMULADO, 0) ELSE P.DEVENGO_DIARIO END)
+            - (CASE WHEN P.ES_ULTIMO_DIA = 1 THEN P.DEVENGO_TOTAL - NVL(P.DEVENGO_ACUMULADO, 0) ELSE P.DEVENGO_DIARIO END) / (1 + P.IVA), 2) AS IVA_INT,
+        P.PLAZO, P.PERIODICIDAD, P.PLAZO_DIAS, TO_CHAR(P.FIN, 'YYYY-MM-DD') AS FIN_DEVENGO,
+        'EMPFIN' AS CDGEM, 'RE' AS ESTATUS, 'G' AS CLNS
+    FROM PROYECCION P
 )
 SELECT
-    CF.CREDITO,
-    CF.CICLO,
-    TO_CHAR(CF.FECHA_CALC, 'DD/MM/YYYY') AS FECHA_FALTANTE,
-    TO_CHAR(CF.FECHA_CALC, 'DD/MM/YYYY') AS FECHA_CALC,
-    TO_CHAR(CF.FECHA_CALC, 'YYYY-MM-DD') AS FECHA_CALC_ISO,
-    NS.NOMBRE
-FROM CALCULO_FINAL CF
-LEFT JOIN NS ON NS.CODIGO = CF.CREDITO AND NS.CDGEM = CF.CDGEM
+    R.CREDITO, R.CICLO, R.FECHA_FALTANTE, R.FECHA_CALC_ISO AS FECHA_CALC, R.FECHA_CALC_ISO, NS.NOMBRE,
+    R.INICIO, R.DEV_DIARIO, R.DIAS_DEV, R.INT_DEV, R.DEV_DIARIO_SIN_IVA, R.IVA_INT,
+    R.PLAZO, R.PERIODICIDAD, R.PLAZO_DIAS, R.FIN_DEVENGO, R.CDGEM, R.ESTATUS, R.CLNS
+FROM RESULTADO R
+LEFT JOIN NS ON NS.CODIGO = R.CREDITO AND NS.CDGEM = 'EMPFIN'
 WHERE NOT EXISTS (
-    SELECT 1
-    FROM ESIACOM.DEVENGO_DIARIO DD
-    WHERE DD.CDGCLNS = CF.CREDITO
-    AND DD.CICLO = CF.CICLO
-    AND DD.CDGEM = CF.CDGEM
-    AND TRUNC(DD.FECHA_CALC) = TRUNC(CF.FECHA_CALC)
+    SELECT 1 FROM ESIACOM.DEVENGO_DIARIO DD
+    WHERE DD.CDGCLNS = R.CREDITO AND DD.CICLO = R.CICLO AND DD.CDGEM = R.CDGEM
+      AND TRUNC(DD.FECHA_CALC) = TO_DATE(R.FECHA_CALC_ISO, 'YYYY-MM-DD')
 )
 AND NOT EXISTS (
     SELECT 1 FROM TBL_CIERRE_DIA TCD
-    WHERE TCD.CDGCLNS = CF.CREDITO AND TCD.CICLO = CF.CICLO AND TCD.FECHA_LIQUIDA IS NOT NULL
+    WHERE TCD.CDGCLNS = R.CREDITO AND TCD.CICLO = R.CICLO AND TCD.FECHA_LIQUIDA IS NOT NULL
 )
-{$filtroExtra}
-ORDER BY CF.CREDITO, CF.CICLO, CF.FECHA_CALC
+ORDER BY R.CREDITO, R.CICLO, R.FECHA_CALC_ISO
 SQL;
 
         try {
@@ -207,12 +197,6 @@ SQL;
             $stmt->execute($prm);
             $res = $stmt->fetchAll(\PDO::FETCH_ASSOC);
             $res = is_array($res) ? $res : [];
-            try {
-                $res = self::EnriquecerFilasConDatosInsertar($db, $res);
-            } catch (\Throwable $e) {
-                $logPath = defined('APPPATH') ? APPPATH . '/../logs/auditoria_devengo_proceso.log' : __DIR__ . '/../../logs/auditoria_devengo_proceso.log';
-                @file_put_contents($logPath, date('c') . " [GetDevengosFaltantes] EnriquecerFilasConDatosInsertar: " . $e->getMessage() . "\n", FILE_APPEND);
-            }
             return self::Responde(true, 'Consulta exitosa', $res);
         } catch (\PDOException $e) {
             return self::Responde(false, 'Error al consultar devengos faltantes: ' . $e->getMessage(), null, $e->getMessage());
