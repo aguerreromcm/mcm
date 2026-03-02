@@ -17,13 +17,6 @@ class Herramientas extends Controller
     function __construct()
     {
         parent::__construct();
-        // Solo permitir acceso si en configuracion.ini la clave es exactamente "accesoh"
-        $config = App::getConfig();
-        $claveHerramientas = isset($config['HERRAMIENTAS_CLAVE']) ? trim((string) $config['HERRAMIENTAS_CLAVE']) : '';
-        if ($claveHerramientas !== 'accesoh') {
-            header('Location: /Principal/');
-            exit;
-        }
         $this->_contenedor = new Contenedor;
         View::set('header', $this->_contenedor->header());
         View::set('footer', $this->_contenedor->footer());
@@ -36,8 +29,18 @@ class Herramientas extends Controller
     public function RepDiaAtraso()
     {
         $meses = [
-            1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril', 5 => 'Mayo', 6 => 'Junio',
-            7 => 'Julio', 8 => 'Agosto', 9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre'
+            1 => 'Enero',
+            2 => 'Febrero',
+            3 => 'Marzo',
+            4 => 'Abril',
+            5 => 'Mayo',
+            6 => 'Junio',
+            7 => 'Julio',
+            8 => 'Agosto',
+            9 => 'Septiembre',
+            10 => 'Octubre',
+            11 => 'Noviembre',
+            12 => 'Diciembre'
         ];
         $anio_actual = (int) date('Y');
         $options_mes = '<option value="">Todos</option>';
@@ -356,12 +359,12 @@ class Herramientas extends Controller
                     });
                 }
 
-                function procesarIndividual(idx, $btn) {
+                function procesarIndividual(idx, btn) {
                     var fila = Array.isArray(datosActuales) && datosActuales[idx] ? datosActuales[idx] : null;
                     if (!fila) { mostrarMensaje('error', "No se pudo obtener la fila a procesar."); return; }
                     swal({ title: "¿Deseas procesar este devengo?", icon: "warning", buttons: ["No", "Sí"], dangerMode: true }).then(function(ok) {
                         if (!ok) return;
-                        $btn.prop("disabled", true);
+                        btn.prop("disabled", true);
                         swal({ text: "Procesando...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
                         $.ajax({
                             type: "POST",
@@ -370,7 +373,7 @@ class Herramientas extends Controller
                             data: JSON.stringify({ fila: fila }),
                             success: function(res) {
                                 swal.close();
-                                $btn.prop("disabled", false);
+                                btn.prop("disabled", false);
                                 try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { mostrarMensaje('error', 'Error al procesar la respuesta'); return; }
 
                                 if (res.success) {
@@ -388,7 +391,7 @@ class Herramientas extends Controller
                             },
                             error: function() {
                                 swal.close();
-                                $btn.prop("disabled", false);
+                                btn.prop("disabled", false);
                                 mostrarMensaje('error', "Error de conexión o tiempo agotado.");
                             }
                         });
@@ -413,8 +416,8 @@ class Herramientas extends Controller
                     if (!registros.length) { mostrarMensaje("error", "No se pudieron obtener los registros seleccionados."); return; }
                     swal({ title: "Se procesarán " + registros.length + " registros. ¿Continuar?", icon: "warning", buttons: ["No", "Sí"], dangerMode: true }).then(function(ok) {
                         if (!ok) return;
-                        var $btnMasivo = $("#btn_masivo");
-                        $btnMasivo.prop("disabled", true);
+                        var btnMasivo = $("#btn_masivo");
+                        btnMasivo.prop("disabled", true);
                         swal({ text: "Procesando " + registros.length + " registro(s)...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
                         $.ajax({
                             type: "POST",
@@ -424,7 +427,7 @@ class Herramientas extends Controller
                             timeout: 300000,
                             success: function(res) {
                                 swal.close();
-                                $btnMasivo.prop("disabled", false);
+                                btnMasivo.prop("disabled", false);
                                 try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { mostrarMensaje('error', 'Error al procesar la respuesta'); return; }
 
                                 if (res.success) {
@@ -462,7 +465,7 @@ class Herramientas extends Controller
                             },
                             error: function() {
                                 swal.close();
-                                $btnMasivo.prop("disabled", false);
+                                btnMasivo.prop("disabled", false);
                                 mostrarMensaje('error', "Error de conexión o tiempo agotado.");
                             }
                         });
@@ -494,11 +497,11 @@ class Herramientas extends Controller
                     $("#btn_masivo").click(procesarMasivo);
 
                     $(document).on("click", ".btn-procesar", function() {
-                        var $btn = $(this);
-                        if ($btn.prop("disabled")) return;
-                        var idx = $btn.data("index");
+                        var btn = $(this);
+                        if (btn.prop("disabled")) return;
+                        var idx = btn.data("index");
                         if (typeof idx === "undefined") { mostrarMensaje('error', "No se pudo obtener la fila."); return; }
-                        procesarIndividual(idx, $btn);
+                        procesarIndividual(idx, btn);
                     });
                 });
             </script>

@@ -1087,8 +1087,10 @@ class CallCenter extends Controller
     public function FinalizaSolicitudRetiro()
     {
         $registro = CallCenterDao::FinalizaSolicitudRetiro($_POST);
-        if ($registro['success']) {
-            $destinatarios = $this->GetDestinatarios(CallCenterDao::GetDestinatarios_Aplicacion(3));
+        if ($registro['success'] && $_POST['estatus'] !== 'P') {
+            $destinatarios = $this->GetDestinatarios(CallCenterDao::GetDestinatarios_Sucursal($_SESSION['cdgco']));
+            $destinatariosTmp = $this->GetDestinatarios(CallCenterDao::GetDestinatarios_Aplicacion(3));
+            $destinatarios = array_unique(array_merge($destinatarios, $destinatariosTmp));
 
             if (count($destinatarios) > 0) {
                 $datos = \App\models\AhorroConsulta::getInfoCorreoCC($_POST);
