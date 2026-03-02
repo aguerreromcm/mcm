@@ -66,7 +66,6 @@ class Login
                                     }
                                 }
                             })
-
                             return response
                         },
                         "El usuario no es correcto, o no tiene acceso al sistema, verifique. "

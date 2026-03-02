@@ -48,7 +48,7 @@ class Menu
      * @param string $titulo
      * @param string $ruta   URL (ej. /Pagos/PagosConsulta/)
      * @param array  $permisos
-     * @param string|null $icono Clase CSS del icono (opcional, ej. glyphicon glyphicon-usd)
+     * @param string|null $icono Clase CSS del icono (opcional, ej. fa fa-credit-card)
      * @return array
      */
     private function enlace($titulo, $ruta, array $permisos, $icono = null)
@@ -228,21 +228,21 @@ class Menu
         $tituloAdmin = $this->ValidaPermisos(['ADMIN', 'LGFR']) ? 'Administración' : 'Usuarios SICAFIN';
 
         $opciones = [
-            $this->submenu('Pagos', 'glyphicon glyphicon-usd', $this->opcionesPagos()),
+            $this->submenu('Pagos', 'fa fa-credit-card', $this->opcionesPagos()),
             $this->submenu('Resumen Ahorro', 'fa fa-money', $this->opcionesResumenAhorro()),
             $this->submenu('Créditos', 'fa fa-users', $this->opcionesCreditos()),
-            $this->submenu('Call Center', 'glyphicon glyphicon-phone-alt', $this->opcionesCallCenter()),
-            $this->submenu('Operaciones', 'glyphicon glyphicon-usd', $this->opcionesOperaciones()),
-            $this->submenu('Tesorería', 'glyphicon glyphicon-globe', $this->opcionesTesoreria()),
-            $this->submenu('Cultiva', 'glyphicon glyphicon-globe', $this->opcionesCultiva()),
-            $this->submenu('Incidencias MCM', 'glyphicon glyphicon-cog', $this->opcionesIncidencias()),
-            $this->submenu($tituloAdmin, 'glyphicon glyphicon-cog', $this->opcionesAdministracion()),
-            $this->submenu('Indicadores', 'glyphicon glyphicon-cog', $this->opcionesIndicadores()),
-            $this->submenu('Radar de Cobranza', 'glyphicon glyphicon-screenshot', $this->opcionesRadarCobranza()),
+            $this->submenu('Call Center', 'fa fa-phone', $this->opcionesCallCenter()),
+            $this->submenu('Operaciones', 'fa fa-usd', $this->opcionesOperaciones()),
+            $this->submenu('Tesorería', 'fa fa-globe', $this->opcionesTesoreria()),
+            $this->submenu('Cultiva', 'fa fa-globe', $this->opcionesCultiva()),
+            $this->submenu('Incidencias MCM', 'fa fa-cog', $this->opcionesIncidencias()),
+            $this->submenu($tituloAdmin, 'fa fa-cog', $this->opcionesAdministracion()),
+            $this->submenu('Indicadores', 'fa fa-cog', $this->opcionesIndicadores()),
+            $this->submenu('Radar de Cobranza', 'fa fa-bullseye', $this->opcionesRadarCobranza()),
         ];
 
         if ($this->mostrarHerramientas) {
-            $opciones[] = $this->submenu('Herramientas', 'glyphicon glyphicon-wrench', $this->opcionesHerramientas());
+            $opciones[] = $this->submenu('Herramientas', 'fa fa-wrench', $this->opcionesHerramientas());
         }
 
         return [

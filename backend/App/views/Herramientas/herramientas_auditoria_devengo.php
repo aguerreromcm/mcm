@@ -13,8 +13,14 @@
                     <input type="text" id="credito" placeholder="Crédito" style="margin-right: 15px; padding: 5px; width: 120px;">
                     <label style="margin-right: 8px;">Ciclo:</label>
                     <input type="text" id="ciclo" placeholder="Ciclo" style="margin-right: 15px; padding: 5px; width: 80px;">
+                    <label style="margin-right: 8px;">Fecha desde:</label>
+                    <input type="date" id="fecha_desde" class="form-control mr-sm-2" style="margin-right: 15px; padding: 5px; width: 150px; display: inline-block;" aria-label="Fecha desde">
+                    <label style="margin-right: 8px;">Fecha hasta:</label>
+                    <input type="date" id="fecha_hasta" class="form-control mr-sm-2" style="margin-right: 15px; padding: 5px; width: 150px; display: inline-block;" aria-label="Fecha hasta">
                     <button id="btnConsultar" type="button" class="btn btn-primary btn-circle"><i class="fa fa-search"></i> Consultar</button>
-                    <button id="btn_masivo" type="button" class="btn btn-warning btn-circle" style="margin-left: 10px;"><i class="fa fa-list"></i> Procesar seleccionados</button>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <button id="btn_masivo" type="button" class="btn btn-warning btn-circle"><i class="fa fa-list"></i> Procesar seleccionados</button>
                 </div>
                 <hr style="border-top: 1px solid #787878; margin-top: 5px;">
 
@@ -280,10 +286,14 @@
         console.log('consultarDevengos called');
         var credito = $("#credito").val() ? $("#credito").val().trim() : "";
         var ciclo = $("#ciclo").val() ? $("#ciclo").val().trim() : "";
+        var fecha_desde = $("#fecha_desde").val() ? $("#fecha_desde").val().trim() : "";
+        var fecha_hasta = $("#fecha_hasta").val() ? $("#fecha_hasta").val().trim() : "";
 
         var data = {};
         if (credito) data.credito = credito;
         if (ciclo) data.ciclo = ciclo;
+        if (fecha_desde) data.fecha_desde = fecha_desde;
+        if (fecha_hasta) data.fecha_hasta = fecha_hasta;
 
         console.log('consultarDevengos params', data);
         swal({ text: "Procesando la solicitud, espere un momento...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
@@ -301,6 +311,7 @@
                     return;
                 }
                 if (!res.success) {
+                    var chk = '<input type="checkbox" class="chk-procesar" data-index="' + idx + '">';
                     showError(res.mensaje || "Error al cargar");
                     if (tabla) { tabla.clear().draw(); }
                     return;
@@ -328,7 +339,7 @@
                         tabla.rows.add(rows).draw();
                     } else {
                         tabla.draw();
-                        if (credito || ciclo) {
+                        if (credito || ciclo || fecha_desde || fecha_hasta) {
                             showInfo("No se encontraron devengos faltantes para los filtros aplicados.");
                         }
                     }
@@ -343,7 +354,8 @@
             }
         });
     };
-
+            var chk = '<input type="checkbox" class="chk-procesar" data-index="' + idx + '">';
+    
     // Reconstruye la tabla local a partir de window._devengosFaltantesDatos (elimina entradas null)
     function actualizarTablaLocal() {
         if (!Array.isArray(window._devengosFaltantesDatos)) return;

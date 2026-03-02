@@ -51,7 +51,7 @@ class Contenedor extends Controller
                 <link rel="stylesheet" type="text/css" href="/css/bootstrap/bootstrap.css">
                 <link rel="stylesheet" type="text/css" href="/css/bootstrap/bootstrap-switch.css">
                 <link rel="stylesheet" type="text/css" href="/css/validate/screen.css">
-                <link rel="stylesheet" type="text/css" href="/css/font-awesome.min.css">
+                <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" crossorigin="anonymous">
                 <link rel="stylesheet" type="text/css" href="/css/green.css">
                 <link rel="stylesheet" type="text/css" href="/css/custom.min.css">
                 <link rel="stylesheet" type="text/css" href="/css/custom_menu.css">
@@ -125,10 +125,10 @@ class Contenedor extends Controller
                 <script src="/js/tabla/dataTables.bootstrap.min.js"></script>
                 <script src="/js/tabla/jquery.tablesorter.js"></script>
                 <script src="/js/dataTables.buttons.min.js" ></script>
-                <script src="//cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js" ></script>
-                <script src="//cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.32/pdfmake.min.js" ></script>
-                <script src="//cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.32/vfs_fonts.js" ></script>
-                <script src="//cdn.datatables.net/buttons/1.4.2/js/buttons.html5.min.js" ></script>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.36/pdfmake.min.js" crossorigin="anonymous"></script>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.36/vfs_fonts.js" crossorigin="anonymous"></script>
+                <script src="https://cdn.datatables.net/buttons/1.4.2/js/buttons.html5.min.js"></script>
                 $extra
             </body>
         </html>

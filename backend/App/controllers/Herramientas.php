@@ -209,6 +209,7 @@ class Herramientas extends Controller
     public function AuditoriaDevengo()
     {
         $extraFooter = <<<HTML
+            <script src="/js/daterangepicker.js"></script>
             <script>
                 {$this->mensajes}
                 {$this->configuraTabla}
@@ -273,9 +274,13 @@ class Herramientas extends Controller
                 function consultarDevengosFaltantes() {
                     var credito = $("#filtro_credito").val() ? $("#filtro_credito").val().trim() : "";
                     var ciclo = $("#filtro_ciclo").val() ? $("#filtro_ciclo").val().trim() : "";
+                    var fechaDesde = toYMD($("#filtro_fecha_desde").val());
+                    var fechaHasta = toYMD($("#filtro_fecha_hasta").val());
                     var params = [];
                     if (credito) params.push("credito=" + encodeURIComponent(credito));
                     if (ciclo) params.push("ciclo=" + encodeURIComponent(ciclo));
+                    if (fechaDesde) params.push("fecha_desde=" + encodeURIComponent(fechaDesde));
+                    if (fechaHasta) params.push("fecha_hasta=" + encodeURIComponent(fechaHasta));
                     var url = "/Herramientas/GetDevengosFaltantes/" + (params.length ? "?" + params.join("&") : "");
 
                     swal({ text: "Procesando la solicitud, espere un momento...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
@@ -311,7 +316,7 @@ class Herramientas extends Controller
                                 tabla.rows.add(rows).draw();
                             } else {
                                 tabla.draw();
-                                if (credito || ciclo) {
+                                if (credito || ciclo || fechaDesde || fechaHasta) {
                                     mostrarMensaje('info', "No se encontraron devengos faltantes para los filtros aplicados.");
                                 }
                             }
@@ -470,6 +475,11 @@ class Herramientas extends Controller
                 }
 
                 $(document).ready(function(){
+                    var cfgDrp = { singleDatePicker: true, locale: { format: "DD/MM/YYYY" }, autoUpdateInput: false };
+                    $("#filtro_fecha_desde").daterangepicker(cfgDrp, function(start) { $("#filtro_fecha_desde").val(start.format("DD/MM/YYYY")); });
+                    $("#icon_fecha_desde").on("click", function() { $("#filtro_fecha_desde").focus(); });
+                    $("#filtro_fecha_hasta").daterangepicker(cfgDrp, function(start) { $("#filtro_fecha_hasta").val(start.format("DD/MM/YYYY")); });
+                    $("#icon_fecha_hasta").on("click", function() { $("#filtro_fecha_hasta").focus(); });
 
                     $("#" + idTablaAuditoria).DataTable({
                         lengthMenu: [[25, 50, 100, -1], [25, 50, 100, "Todos"]],
@@ -504,7 +514,7 @@ class Herramientas extends Controller
             </script>
         HTML;
 
-        View::set('header', $this->_contenedor->header($this->getExtraHeader("Auditoría Devengo")));
+        View::set('header', $this->_contenedor->header($this->getExtraHeader("Auditoría Devengo", ['<link rel="stylesheet" href="/css/daterangepicker.css">'])));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('tabla', '');
         View::render('Herramientas/herramientas_auditoria_devengo');
@@ -518,7 +528,34 @@ class Herramientas extends Controller
         try {
             set_time_limit(120);
             header('Content-Type: application/json; charset=UTF-8');
+            $fechaDesde = isset($_GET['fecha_desde']) ? trim($_GET['fecha_desde']) : null;
+            $fechaHasta = isset($_GET['fecha_hasta']) ? trim($_GET['fecha_hasta']) : null;
             $fechaCorte = isset($_GET['fecha_corte']) ? trim($_GET['fecha_corte']) : null;
+            // Normalizar a Y-m-d: aceptar YYYY-MM-DD o DD/MM/YYYY (frontend puede enviar ambos)
+            if ($fechaDesde !== null && $fechaDesde !== '') {
+                $d = \DateTime::createFromFormat('Y-m-d', $fechaDesde);
+                if (!$d) {
+                    $d = \DateTime::createFromFormat('d/m/Y', $fechaDesde);
+                    if ($d) {
+                        $fechaDesde = $d->format('Y-m-d');
+                    } else {
+                        $ts = strtotime(str_replace('/', '-', $fechaDesde));
+                        $fechaDesde = ($ts !== false) ? date('Y-m-d', $ts) : null;
+                    }
+                }
+            }
+            if ($fechaHasta !== null && $fechaHasta !== '') {
+                $d = \DateTime::createFromFormat('Y-m-d', $fechaHasta);
+                if (!$d) {
+                    $d = \DateTime::createFromFormat('d/m/Y', $fechaHasta);
+                    if ($d) {
+                        $fechaHasta = $d->format('Y-m-d');
+                    } else {
+                        $ts = strtotime(str_replace('/', '-', $fechaHasta));
+                        $fechaHasta = ($ts !== false) ? date('Y-m-d', $ts) : null;
+                    }
+                }
+            }
             if ($fechaCorte !== null && $fechaCorte !== '') {
                 $d = \DateTime::createFromFormat('Y-m-d', $fechaCorte);
                 if (!$d) {
@@ -537,6 +574,8 @@ class Herramientas extends Controller
             $datos = [
                 'credito'      => isset($_GET['credito']) ? trim($_GET['credito']) : null,
                 'ciclo'        => isset($_GET['ciclo']) ? trim($_GET['ciclo']) : null,
+                'fecha_desde'  => $fechaDesde,
+                'fecha_hasta'  => $fechaHasta,
                 'fecha_corte'  => $fechaCorte,
             ];
 
