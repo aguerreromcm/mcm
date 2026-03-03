@@ -60,6 +60,7 @@
                             <th>Referencia</th>
                             <th>Monto</th>
                             <th>Moneda</th>
+                            <th>Estado</th>
                         </tr>
                     </thead>
                     <tbody id="tablaAplicarPagosBody">

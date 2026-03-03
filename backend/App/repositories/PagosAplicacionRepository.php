@@ -117,6 +117,76 @@ sql;
     }
 
     /**
+     * Devuelve las claves (referencia|monto|fecha) de pagos ya aplicados para la fecha, según DETALLE_JSON.
+     * Se usa para aplicar solo pendientes: los que no estén en este conjunto.
+     *
+     * @param string $fecha Fecha en Y-m-d
+     * @return array Lista de claves (strings)
+     */
+    public function obtenerClavesAplicadas($fecha)
+    {
+        $row = $this->obtenerProcesado($fecha);
+        if ($row === null || empty($row['DETALLE_JSON'])) {
+            return [];
+        }
+        $detalle = json_decode($row['DETALLE_JSON'], true);
+        if (!is_array($detalle)) {
+            return [];
+        }
+        $claves = [];
+        foreach ($detalle as $d) {
+            $ref = isset($d['referencia']) ? trim((string) $d['referencia']) : '';
+            $monto = isset($d['monto']) ? (float) $d['monto'] : 0;
+            $f = isset($d['fecha']) ? (string) $d['fecha'] : '';
+            $fechaPart = strlen($f) >= 10 ? substr($f, 0, 10) : $fecha;
+            $claves[] = $ref . '|' . $monto . '|' . $fechaPart;
+        }
+        return $claves;
+    }
+
+    /**
+     * Inserta o actualiza PAGOS_PROCESADOS: si ya existe fila para la fecha, merge del detalle y suma de totales.
+     *
+     * @param string $fechaProceso Y-m-d
+     * @param int $totalRegistrosNuevos
+     * @param float $totalImporteNuevos
+     * @param string $usuario
+     * @param string $estado OK|ERROR
+     * @param string|null $mensaje
+     * @param string|null $detalleJsonNuevo JSON del detalle de esta ejecución
+     * @param Database|null $db
+     * @return bool
+     */
+    public function insertarOActualizarProcesado($fechaProceso, $totalRegistrosNuevos, $totalImporteNuevos, $usuario, $estado, $mensaje = null, $detalleJsonNuevo = null, Database $db = null)
+    {
+        if ($db === null) {
+            $db = new Database();
+        }
+        if ($db->db_activa === null) {
+            return false;
+        }
+        $existente = $this->obtenerProcesado($fechaProceso);
+        if ($existente !== null) {
+            $detalleExistente = is_string($existente['DETALLE_JSON']) ? json_decode($existente['DETALLE_JSON'], true) : [];
+            $detalleNuevo = is_string($detalleJsonNuevo) ? json_decode($detalleJsonNuevo, true) : [];
+            $merged = is_array($detalleExistente) && is_array($detalleNuevo)
+                ? array_merge($detalleExistente, $detalleNuevo)
+                : (is_array($detalleNuevo) ? $detalleNuevo : []);
+            $totalReg = (int) ($existente['TOTAL_REGISTROS'] ?? 0) + (int) $totalRegistrosNuevos;
+            $totalImp = (float) ($existente['TOTAL_IMPORTE'] ?? 0) + (float) $totalImporteNuevos;
+            $sql = "UPDATE PAGOS_PROCESADOS SET DETALLE_JSON = :detalle, TOTAL_REGISTROS = :total_reg, TOTAL_IMPORTE = :total_imp, FECHA_EJECUCION = CURRENT_TIMESTAMP WHERE FECHA_PROCESO = TO_DATE(:fecha, 'YYYY-MM-DD')";
+            $stmt = $db->db_activa->prepare($sql);
+            return $stmt->execute([
+                'detalle' => json_encode($merged, JSON_UNESCAPED_UNICODE),
+                'total_reg' => $totalReg,
+                'total_imp' => $totalImp,
+                'fecha' => $fechaProceso,
+            ]);
+        }
+        return $this->insertarProcesado($fechaProceso, $totalRegistrosNuevos, $totalImporteNuevos, $usuario, $estado, $mensaje, $detalleJsonNuevo, $db);
+    }
+
+    /**
      * Inserta cabecera en PAGOS_PROCESADOS (dentro de transacción si se pasa $db).
      *
      * @param string $fechaProceso Y-m-d
