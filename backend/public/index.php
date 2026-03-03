@@ -3,6 +3,9 @@
 error_reporting(E_ERROR | E_PARSE);
 // error_reporting(E_ALL);
 
+// Buffer para poder enviar solo JSON en endpoints que lo requieran
+ob_start();
+
 // Configuración de la zona horaria para contemplar horario de verano
 $validaHV = new DateTime('now', new DateTimeZone('America/Mexico_City'));
 if ($validaHV->format('I')) date_default_timezone_set('America/Mazatlan');

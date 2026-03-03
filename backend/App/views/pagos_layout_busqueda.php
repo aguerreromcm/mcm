@@ -18,7 +18,7 @@
                             <span id="availability1"></span>
                         </div>
                         <div class="col-md-4">
-                            <input class="form-control mr-sm-4" autofocus type="date" id="Final" name="Final" placeholder="000000" aria-label="Search" value="<?php echo $Final; ?>">
+                            <input class="form-control mr-sm-4" autofocus type="date" id="Final" name="Final" placeholder="000000" aria-label="Search" value="<?php echo isset($Final) ? htmlspecialchars($Final) : ''; ?>">
                             <span id="availability1"></span>
                         </div>
                         <div class="col-md-4">

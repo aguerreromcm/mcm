@@ -450,6 +450,115 @@ class Database
             print_r($arr);
         }
     }
+
+    /**
+     * Ejecuta PKG_ImportaPagoSOF.spImportaPagoSOF (mismo SP que usa VB6 para importación de pagos).
+     * No modificar firma ni lógica; solo invoca el procedimiento existente.
+     *
+     * @param string $fechaPago Fecha de pago (Y-m-d H:i:s)
+     * @param string $referencia Referencia del pago
+     * @param string $monto Monto numérico
+     * @param string $empresa Empresa (ej. EMPFIN)
+     * @param string $cuentaBancaria Código cuenta 2 caracteres
+     * @param string $usuario Usuario que ejecuta
+     * @param string $identificador Identificador de lote
+     * @param int $renExcel Renglon en Excel
+     * @param int $renglon Índice en lote
+     * @param int $noPagos Total pagos en lote
+     * @param int $idImportacion Id importación
+     * @param string $moneda Moneda (MN)
+     * @return array ['success' => bool, 'resultado' => string, 'validacion' => int]
+     */
+    public function spImportaPagoSOF($fechaPago, $referencia, $monto, $empresa, $cuentaBancaria, $usuario, $identificador, $renExcel, $renglon, $noPagos, $idImportacion, $moneda = 'MN')
+    {
+        $periodo = 1;
+        $operacion = 'I';
+        $montoCancelacion = 0;
+        $resultado = '';
+        $validacion = 0;
+
+        $sql = "BEGIN PKG_ImportaPagoSOF.spImportaPagoSOF(:p_fecha, :p_ref, :p_monto, :p_empresa, :p_cta, :p_user, :p_iden, :p_periodo, :p_oper, :p_res, :p_montocan, :p_renexcel, :p_renglon, :p_nopagos, :p_idimp, :p_val, :p_moneda); END;";
+        $stmt = $this->db_activa->prepare($sql);
+        $stmt->bindParam(':p_fecha', $fechaPago, PDO::PARAM_STR);
+        $stmt->bindParam(':p_ref', $referencia, PDO::PARAM_STR);
+        $stmt->bindParam(':p_monto', $monto, PDO::PARAM_STR);
+        $stmt->bindParam(':p_empresa', $empresa, PDO::PARAM_STR);
+        $stmt->bindParam(':p_cta', $cuentaBancaria, PDO::PARAM_STR);
+        $stmt->bindParam(':p_user', $usuario, PDO::PARAM_STR);
+        $stmt->bindParam(':p_iden', $identificador, PDO::PARAM_STR);
+        $stmt->bindParam(':p_periodo', $periodo, PDO::PARAM_STR);
+        $stmt->bindParam(':p_oper', $operacion, PDO::PARAM_STR);
+        $stmt->bindParam(':p_res', $resultado, PDO::PARAM_STR | PDO::PARAM_INPUT_OUTPUT, 100);
+        $stmt->bindParam(':p_montocan', $montoCancelacion, PDO::PARAM_INT);
+        $stmt->bindParam(':p_renexcel', $renExcel, PDO::PARAM_INT);
+        $stmt->bindParam(':p_renglon', $renglon, PDO::PARAM_INT);
+        $stmt->bindParam(':p_nopagos', $noPagos, PDO::PARAM_INT);
+        $stmt->bindParam(':p_idimp', $idImportacion, PDO::PARAM_INT);
+        $stmt->bindParam(':p_val', $validacion, PDO::PARAM_INT | PDO::PARAM_INPUT_OUTPUT);
+        $stmt->bindParam(':p_moneda', $moneda, PDO::PARAM_STR);
+
+        $ok = $stmt->execute();
+        return [
+            'success' => (bool) $ok,
+            'resultado' => $resultado,
+            'validacion' => (int) $validacion,
+        ];
+    }
+
+    /**
+     * Ejecuta el SP de prueba (no modifica tablas). Misma firma que spImportaPagoSOF.
+     * SOLO PRUEBAS: usar cuando APLICAR_PAGOS_SOLO_FLUJO = true.
+     *
+     * @param string $fechaPago
+     * @param string $referencia
+     * @param string $monto
+     * @param string $empresa
+     * @param string $cuentaBancaria
+     * @param string $usuario
+     * @param string $identificador
+     * @param int $renExcel
+     * @param int $renglon
+     * @param int $noPagos
+     * @param int $idImportacion
+     * @param string $moneda
+     * @return array ['success' => bool, 'resultado' => string, 'validacion' => int]
+     */
+    public function spImportaPagoSOFPrueba($fechaPago, $referencia, $monto, $empresa, $cuentaBancaria, $usuario, $identificador, $renExcel, $renglon, $noPagos, $idImportacion, $moneda = 'MN')
+    {
+        $periodo = 1;
+        $operacion = 'I';
+        $montoCancelacion = 0;
+        $resultado = '';
+        $validacionStr = '0';
+
+        $sql = "BEGIN PKG_ImportaPagoSOF_PRUEBA.spImportaPagoSOF(:p_fecha, :p_ref, :p_monto, :p_empresa, :p_cta, :p_user, :p_iden, :p_periodo, :p_oper, :p_res, :p_montocan, :p_renexcel, :p_renglon, :p_nopagos, :p_idimp, :p_val, :p_moneda); END;";
+        $stmt = $this->db_activa->prepare($sql);
+        $stmt->bindParam(':p_fecha', $fechaPago, PDO::PARAM_STR);
+        $stmt->bindParam(':p_ref', $referencia, PDO::PARAM_STR);
+        $stmt->bindParam(':p_monto', $monto, PDO::PARAM_STR);
+        $stmt->bindParam(':p_empresa', $empresa, PDO::PARAM_STR);
+        $stmt->bindParam(':p_cta', $cuentaBancaria, PDO::PARAM_STR);
+        $stmt->bindParam(':p_user', $usuario, PDO::PARAM_STR);
+        $stmt->bindParam(':p_iden', $identificador, PDO::PARAM_STR);
+        $stmt->bindParam(':p_periodo', $periodo, PDO::PARAM_STR);
+        $stmt->bindParam(':p_oper', $operacion, PDO::PARAM_STR);
+        $stmt->bindParam(':p_res', $resultado, PDO::PARAM_STR | PDO::PARAM_INPUT_OUTPUT, 500);
+        $stmt->bindParam(':p_montocan', $montoCancelacion, PDO::PARAM_INT);
+        $stmt->bindParam(':p_renexcel', $renExcel, PDO::PARAM_INT);
+        $stmt->bindParam(':p_renglon', $renglon, PDO::PARAM_INT);
+        $stmt->bindParam(':p_nopagos', $noPagos, PDO::PARAM_INT);
+        $stmt->bindParam(':p_idimp', $idImportacion, PDO::PARAM_INT);
+        $stmt->bindParam(':p_val', $validacionStr, PDO::PARAM_STR | PDO::PARAM_INPUT_OUTPUT, 22);
+        $stmt->bindParam(':p_moneda', $moneda, PDO::PARAM_STR);
+
+        $ok = $stmt->execute();
+        return [
+            'success' => (bool) $ok,
+            'resultado' => $resultado !== '' ? $resultado : 'OK PRUEBA (sin cambios en BD)',
+            'validacion' => (int) $validacionStr,
+        ];
+    }
+
     public function queryProcedureDeletePago($cdgns_, $fecha_, $user_, $secuencia_)
     {
 

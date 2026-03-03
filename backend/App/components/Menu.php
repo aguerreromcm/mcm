@@ -151,6 +151,7 @@ class Menu
     private function opcionesOperaciones()
     {
         return [
+            $this->enlace('Aplicar Pagos', '/Operaciones/AplicarPagos/', ['ADMIN', 'ACALL', 'LAYOU', 'FECR']),
             $this->enlace('Reporte Cliente y Aval Consolidado', '/Operaciones/ReportePC', ['ADMIN', 'PHEE', 'MCDP', 'FECR', 'ORHM']),
         ];
     }

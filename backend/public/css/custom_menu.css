@@ -15,3 +15,20 @@
   padding: 0;
 }
 
+/* Botón Exportar a Excel (Layout Contable y similares): aspecto rectangular, sin forzar círculo */
+.btn-success.layout-exportar-excel,
+#export_excel.layout-exportar-excel,
+button#export_excel.layout-exportar-excel {
+  border-radius: 4px !important;
+  padding: 8px 16px !important;
+  min-width: auto !important;
+  width: auto !important;
+  height: auto !important;
+  display: inline-flex !important;
+  align-items: center;
+}
+.btn-success.layout-exportar-excel i,
+#export_excel.layout-exportar-excel i {
+  margin-right: 6px;
+}
+
