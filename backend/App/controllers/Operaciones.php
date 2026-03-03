@@ -310,7 +310,8 @@ class Operaciones extends Controller
                         url: "/Operaciones/ProcesarAplicarPagos/",
                         type: "POST",
                         data: { fecha: fecha, ejecutar: ejecutar ? 1 : 0 },
-                        dataType: "json"
+                        dataType: "json",
+                        timeout: 3600000
                     }).done(function (respuesta) {
                         swal.close();
                         if (!respuesta || !respuesta.success) {
@@ -373,7 +374,9 @@ class Operaciones extends Controller
                     }).fail(function (xhr, textStatus, errorThrown) {
                         swal.close();
                         var msg = "Ocurrió un error al procesar la solicitud.";
-                        if (xhr.responseJSON) {
+                        if (textStatus === "timeout") {
+                            msg = "La solicitud tardó demasiado (timeout). El proceso puede seguir ejecutándose en el servidor. Revise PAGOS_PROCESADOS o intente de nuevo.";
+                        } else if (xhr.responseJSON) {
                             if (xhr.responseJSON.mensaje) msg = xhr.responseJSON.mensaje;
                             if (xhr.responseJSON.error) msg += " Detalle: " + xhr.responseJSON.error;
                         } else if (xhr.responseText && xhr.responseText.length < 500) msg = xhr.responseText;
@@ -401,6 +404,7 @@ class Operaciones extends Controller
      */
     public function ProcesarAplicarPagos()
     {
+        set_time_limit(0);
         try {
             $fecha = isset($_POST['fecha']) ? trim((string) $_POST['fecha']) : '';
             $ejecutar = !empty($_POST['ejecutar']);
