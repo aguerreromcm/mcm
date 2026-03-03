@@ -7,6 +7,7 @@ defined("APPPATH") or die("Access denied");
 use Core\View;
 use Core\Controller;
 use App\models\Operaciones as OperacionesDao;
+use App\services\PagosAplicacionService;
 
 class Operaciones extends Controller
 {
@@ -283,6 +284,145 @@ class Operaciones extends Controller
             'success' => true,
             'mensaje' => 'El proceso de cierre diario se ha iniciado correctamente.'
         ]);
+    }
+
+    ////////////////////////////////////////////////////////////////////
+
+    /**
+     * Operaciones → Aplicar Pagos.
+     * Vista: input fecha única, misma tabla/estilo que Layout Contable, resumen debajo.
+     */
+    public function AplicarPagos()
+    {
+        $extraHeader = '<title>Aplicar Pagos</title><link rel="shortcut icon" href="/img/logo.png">';
+        $extraFooter = <<<HTML
+            <script>
+                {$this->mensajes}
+                {$this->confirmarMovimiento}
+                const ejecutarAplicarPagos = (ejecutar) => {
+                    const fecha = document.getElementById("fechaAplicar").value;
+                    if (!fecha) {
+                        showError("Seleccione una fecha.");
+                        return;
+                    }
+                    swal({ text: "Procesando la solicitud, espere un momento...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
+                    $.ajax({
+                        url: "/Operaciones/ProcesarAplicarPagos/",
+                        type: "POST",
+                        data: { fecha: fecha, ejecutar: ejecutar ? 1 : 0 },
+                        dataType: "json"
+                    }).done(function (respuesta) {
+                        swal.close();
+                        if (!respuesta || !respuesta.success) {
+                            var msg = (respuesta && respuesta.mensaje) ? respuesta.mensaje : "Error en la respuesta.";
+                            if (respuesta && respuesta.error && respuesta.error.length > 0) msg += " Detalle: " + respuesta.error;
+                            showError(msg);
+                            return;
+                        }
+                        const d = respuesta.datos || {};
+                        const resumen = d.resumen || {};
+                        const filas = d.filas || [];
+                        const totalReg = resumen.totalRegistros != null ? resumen.totalRegistros : filas.length;
+                        const totalImp = resumen.totalImporte != null ? Number(resumen.totalImporte) : 0;
+                        const yaProcesado = !!d.yaProcesado;
+                        const pendientes = yaProcesado ? 0 : totalReg;
+                        const aplicados = yaProcesado ? totalReg : 0;
+                        const importePend = yaProcesado ? 0 : totalImp;
+                        const importeApl = yaProcesado ? totalImp : 0;
+                        document.getElementById("totalPagosPendientes").textContent = pendientes;
+                        document.getElementById("importePendientes").textContent = "$ " + importePend.toLocaleString("es-MX", { minimumFractionDigits: 2 });
+                        document.getElementById("totalPagosAplicados").textContent = aplicados;
+                        document.getElementById("importeAplicados").textContent = "$ " + importeApl.toLocaleString("es-MX", { minimumFractionDigits: 2 });
+                        document.getElementById("totalPagos").textContent = totalReg;
+                        document.getElementById("importeTotal").textContent = "$ " + totalImp.toLocaleString("es-MX", { minimumFractionDigits: 2 });
+                        document.getElementById("estadoAplicar").textContent = d.modoPrueba ? "Modo prueba (sin cambios en BD)" : (resumen.estado || (yaProcesado ? "Procesado" : "Pendiente"));
+                        document.getElementById("fechaAplicacion").textContent = resumen.fechaEjecucion || "-";
+                        var tabla = $("#tablaAplicarPagos");
+                        if ($.fn.DataTable && $.fn.DataTable.isDataTable(tabla)) {
+                            tabla.DataTable().destroy();
+                            tabla.find("tbody").empty();
+                        }
+                        var tbody = document.getElementById("tablaAplicarPagosBody");
+                        tbody.innerHTML = "";
+                        filas.forEach(function (f) {
+                            var tr = document.createElement("tr");
+                            var monto = typeof f.MONTO === "number" ? f.MONTO : parseFloat(f.MONTO) || 0;
+                            tr.innerHTML = "<td>" + (f.FECHA || "-") + "</td><td>" + (f.REFERENCIA || "-") + "</td><td>$ " + monto.toLocaleString("es-MX", { minimumFractionDigits: 2 }) + "</td><td>" + (f.MONEDA || "MN") + "</td>";
+                            tbody.appendChild(tr);
+                        });
+                        if ($.fn.DataTable) {
+                            tabla.DataTable({
+                                lengthMenu: [[20, 50, -1], [20, 50, "Todos"]],
+                                pageLength: 20,
+                                order: false,
+                                language: {
+                                    emptyTable: "No hay datos disponibles",
+                                    paginate: { previous: "Anterior", next: "Siguiente" },
+                                    info: "Mostrando _START_ a _END_ de _TOTAL_ registros",
+                                    infoEmpty: "Sin registros",
+                                    zeroRecords: "No se encontraron registros",
+                                    lengthMenu: "Mostrar _MENU_ registros",
+                                    search: "Buscar:"
+                                }
+                            });
+                        }
+                        if (ejecutar && !d.yaProcesado) showSuccess(respuesta.mensaje);
+                    }).fail(function (xhr, textStatus, errorThrown) {
+                        swal.close();
+                        var msg = "Ocurrió un error al procesar la solicitud.";
+                        if (xhr.responseJSON) {
+                            if (xhr.responseJSON.mensaje) msg = xhr.responseJSON.mensaje;
+                            if (xhr.responseJSON.error) msg += " Detalle: " + xhr.responseJSON.error;
+                        } else if (xhr.responseText && xhr.responseText.length < 500) msg = xhr.responseText;
+                        showError(msg);
+                    });
+                };
+                document.addEventListener("DOMContentLoaded", function () {
+                    document.getElementById("fechaAplicar").max = new Date().toISOString().split("T")[0];
+                    document.getElementById("btnConsultarAplicar").onclick = function () { ejecutarAplicarPagos(false); };
+                    document.getElementById("btnAplicarPagos").onclick = function () {
+                        confirmarMovimiento("Aplicar pagos", "¿Ejecutar aplicación de pagos para la fecha seleccionada? No podrá reprocesar la misma fecha.").then(function (ok) { if (ok) ejecutarAplicarPagos(true); });
+                    };
+                });
+            </script>
+        HTML;
+
+        View::set('header', $this->_contenedor->header($extraHeader));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::set('fechaActual', date('Y-m-d'));
+        View::render('operaciones_aplicar_pagos');
+    }
+
+    /**
+     * POST: fecha, ejecutar (0|1). Valida y opcionalmente ejecuta; devuelve JSON con resumen y filas.
+     */
+    public function ProcesarAplicarPagos()
+    {
+        try {
+            $fecha = isset($_POST['fecha']) ? trim((string) $_POST['fecha']) : '';
+            $ejecutar = !empty($_POST['ejecutar']);
+            $usuario = isset($this->__usuario) ? (string) $this->__usuario : '';
+            $respuesta = PagosAplicacionService::procesarOResumen($fecha, $usuario, $ejecutar);
+        } catch (\Throwable $e) {
+            $respuesta = [
+                'success' => false,
+                'mensaje' => 'Error al procesar la solicitud.',
+                'error' => $e->getMessage(),
+            ];
+        }
+
+        // Enviar solo JSON: descartar cualquier salida previa y responder limpio
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        $json = json_encode($respuesta, JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            $json = '{"success":false,"mensaje":"Error al generar la respuesta."}';
+        }
+        echo $json;
+        exit;
     }
 
     ////////////////////////////////////////////////////////////////////
