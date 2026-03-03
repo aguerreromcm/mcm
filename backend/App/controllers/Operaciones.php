@@ -324,17 +324,18 @@ class Operaciones extends Controller
                         const filas = d.filas || [];
                         const totalReg = resumen.totalRegistros != null ? resumen.totalRegistros : filas.length;
                         const totalImp = resumen.totalImporte != null ? Number(resumen.totalImporte) : 0;
-                        const pendientes = resumen.totalPendientes != null ? resumen.totalPendientes : (d.yaProcesado ? 0 : totalReg);
-                        const aplicados = resumen.totalAplicados != null ? resumen.totalAplicados : (d.yaProcesado ? totalReg : 0);
-                        const importePend = resumen.importePendientes != null ? Number(resumen.importePendientes) : (d.yaProcesado ? 0 : totalImp);
-                        const importeApl = resumen.importeAplicados != null ? Number(resumen.importeAplicados) : (d.yaProcesado ? totalImp : 0);
+                        const yaProcesado = !!d.yaProcesado;
+                        const pendientes = resumen.totalPendientes != null ? resumen.totalPendientes : (yaProcesado ? 0 : totalReg);
+                        const aplicados = resumen.totalAplicados != null ? resumen.totalAplicados : (yaProcesado ? totalReg : 0);
+                        const importePend = resumen.importePendientes != null ? Number(resumen.importePendientes) : (yaProcesado ? 0 : totalImp);
+                        const importeApl = resumen.importeAplicados != null ? Number(resumen.importeAplicados) : (yaProcesado ? totalImp : 0);
                         document.getElementById("totalPagosPendientes").textContent = pendientes;
                         document.getElementById("importePendientes").textContent = "$ " + importePend.toLocaleString("es-MX", { minimumFractionDigits: 2 });
                         document.getElementById("totalPagosAplicados").textContent = aplicados;
                         document.getElementById("importeAplicados").textContent = "$ " + importeApl.toLocaleString("es-MX", { minimumFractionDigits: 2 });
                         document.getElementById("totalPagos").textContent = totalReg;
                         document.getElementById("importeTotal").textContent = "$ " + totalImp.toLocaleString("es-MX", { minimumFractionDigits: 2 });
-                        document.getElementById("estadoAplicar").textContent = d.modoPrueba ? "Modo prueba (sin cambios en BD)" : (resumen.estado || (aplicados > 0 ? "Parcial / Procesado" : "Pendiente"));
+                        document.getElementById("estadoAplicar").textContent = d.modoPrueba ? "Modo prueba (sin cambios en BD)" : (resumen.estado || (yaProcesado ? "Procesado" : "Pendiente"));
                         document.getElementById("fechaAplicacion").textContent = resumen.fechaEjecucion || "-";
                         var tabla = $("#tablaAplicarPagos");
                         if ($.fn.DataTable && $.fn.DataTable.isDataTable(tabla)) {
@@ -346,9 +347,10 @@ class Operaciones extends Controller
                         filas.forEach(function (f) {
                             var tr = document.createElement("tr");
                             var monto = typeof f.MONTO === "number" ? f.MONTO : parseFloat(f.MONTO) || 0;
-                            var estadoCel = f.aplicado ? "<span class=\"label label-success\">Aplicado</span>" : "<span class=\"label label-warning\">Pendiente</span>";
-                            tr.innerHTML = "<td>" + (f.FECHA || "-") + "</td><td>" + (f.REFERENCIA || "-") + "</td><td>$ " + monto.toLocaleString("es-MX", { minimumFractionDigits: 2 }) + "</td><td>" + (f.MONEDA || "MN") + "</td><td>" + estadoCel + "</td>";
-                            if (f.aplicado) tr.style.background = "rgba(0,128,0,0.08)";
+                            var aplicado = f.F_IMPORTACION && f.F_IMPORTACION !== null && String(f.F_IMPORTACION).trim() !== "";
+                            var estado = aplicado ? "Aplicado" : "Pendiente";
+                            var estadoClase = aplicado ? "label-success" : "label-warning";
+                            tr.innerHTML = "<td>" + (f.FECHA || "-") + "</td><td>" + (f.REFERENCIA || "-") + "</td><td>$ " + monto.toLocaleString("es-MX", { minimumFractionDigits: 2 }) + "</td><td>" + (f.MONEDA || "MN") + "</td><td><span class=\"label " + estadoClase + "\" style=\"border-radius: 4px; padding: 4px 8px;\">" + estado + "</span></td>";
                             tbody.appendChild(tr);
                         });
                         if ($.fn.DataTable) {

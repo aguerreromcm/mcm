@@ -45,89 +45,65 @@ class PagosAplicacionService
             ], 'Sin datos');
         }
 
-        $clavesAplicadas = $repo->obtenerClavesAplicadas($fecha);
-        $setClaves = array_flip($clavesAplicadas);
-
-        $ya = $repo->obtenerProcesado($fecha);
-        $fechaEjec = '';
-        if ($ya !== null && isset($ya['FECHA_EJECUCION'])) {
-            $fe = $ya['FECHA_EJECUCION'];
-            if (is_object($fe) && method_exists($fe, 'format')) {
-                $fechaEjec = $fe->format('Y-m-d H:i:s');
-            } else {
-                $fechaEjec = (string) $fe;
-            }
-        }
-
-        foreach ($filas as $i => $f) {
-            $ref = isset($f['REFERENCIA']) ? trim((string) $f['REFERENCIA']) : '';
-            $monto = isset($f['MONTO']) ? (float) $f['MONTO'] : 0;
-            $fec = isset($f['FECHA']) ? (string) $f['FECHA'] : $fecha;
-            $fecPart = strlen($fec) >= 10 ? substr($fec, 0, 10) : $fecha;
-            $key = $ref . '|' . $monto . '|' . $fecPart;
-            $filas[$i]['aplicado'] = isset($setClaves[$key]);
-        }
-
-        $totalImporte = 0;
-        $totalAplicados = 0;
-        $totalPendientes = 0;
-        $importeAplicados = 0;
-        $importePendientes = 0;
+        $pendientes = [];
+        $importePend = 0;
+        $importeApl = 0;
         foreach ($filas as $f) {
             $m = (float) ($f['MONTO'] ?? 0);
-            $totalImporte += $m;
-            if (!empty($f['aplicado'])) {
-                $totalAplicados++;
-                $importeAplicados += $m;
+            if (isset($f['F_IMPORTACION']) && $f['F_IMPORTACION'] !== null && $f['F_IMPORTACION'] !== '') {
+                $importeApl += $m;
             } else {
-                $totalPendientes++;
-                $importePendientes += $m;
+                $pendientes[] = $f;
+                $importePend += $m;
             }
+        }
+        $totalImporte = $importePend + $importeApl;
+        $totalAplicados = count($filas) - count($pendientes);
+
+        $ya = $repo->obtenerProcesado($fecha);
+        $fechaEjec = '-';
+        if ($ya !== null && isset($ya['FECHA_EJECUCION'])) {
+            $fechaEjec = $ya['FECHA_EJECUCION'];
+            if (is_object($fechaEjec) && method_exists($fechaEjec, 'format')) {
+                $fechaEjec = $fechaEjec->format('Y-m-d H:i:s');
+            } else {
+                $fechaEjec = (string) $fechaEjec;
+            }
+        }
+
+        $resumenBase = [
+            'totalRegistros' => count($filas),
+            'totalImporte' => round($totalImporte, 2),
+            'totalPendientes' => count($pendientes),
+            'totalAplicados' => $totalAplicados,
+            'importePendientes' => round($importePend, 2),
+            'importeAplicados' => round($totalImporte - $importePend, 2),
+            'fechaEjecucion' => $fechaEjec,
+            'estado' => $totalAplicados > 0 ? 'Parcial' : '',
+            'mensaje' => null,
+        ];
+        if ($ya !== null) {
+            $resumenBase['usuario'] = $ya['USUARIO'] ?? '';
+            $resumenBase['estado'] = $ya['ESTADO'] ?? $resumenBase['estado'];
         }
 
         if (!$ejecutar) {
-            $resumen = [
-                'totalRegistros' => count($filas),
-                'totalImporte' => round($totalImporte, 2),
-                'totalAplicados' => $totalAplicados,
-                'totalPendientes' => $totalPendientes,
-                'importeAplicados' => round($importeAplicados, 2),
-                'importePendientes' => round($importePendientes, 2),
-            ];
-            if ($ya !== null) {
-                $resumen['usuario'] = $ya['USUARIO'] ?? '';
-                $resumen['fechaEjecucion'] = $fechaEjec;
-                $resumen['estado'] = $ya['ESTADO'] ?? '';
-                $resumen['mensaje'] = $ya['MENSAJE'] ?? null;
-            }
             return Model::Responde(true, 'Datos listos para procesar.', [
-                'yaProcesado' => $ya !== null,
+                'yaProcesado' => count($pendientes) === 0,
                 'filas' => $filas,
-                'resumen' => $resumen,
+                'resumen' => $resumenBase,
             ]);
         }
 
-        $filasPendientes = array_values(array_filter($filas, function ($f) {
-            return empty($f['aplicado']);
-        }));
-
-        if (empty($filasPendientes)) {
-            return Model::Responde(true, 'No hay pagos pendientes para aplicar en esta fecha.', [
-                'yaProcesado' => $ya !== null,
+        if (count($pendientes) === 0) {
+            return Model::Responde(true, 'No hay pagos pendientes para esta fecha.', [
+                'yaProcesado' => true,
                 'filas' => $filas,
-                'resumen' => [
-                    'totalRegistros' => count($filas),
-                    'totalImporte' => round($totalImporte, 2),
-                    'totalAplicados' => $totalAplicados,
-                    'totalPendientes' => 0,
-                    'importeAplicados' => round($importeAplicados, 2),
-                    'importePendientes' => 0,
-                    'fechaEjecucion' => $fechaEjec,
-                ],
+                'resumen' => $resumenBase,
             ]);
         }
 
-        return self::ejecutarAplicacion($fecha, $usuario, $filasPendientes, $repo);
+        return self::ejecutarAplicacion($fecha, $usuario, $pendientes, $repo);
     }
 
     /**
@@ -149,6 +125,10 @@ class PagosAplicacionService
         if ($db->db_activa === null) {
             return Model::Responde(false, 'No hay conexión a base de datos.', null, 'Conexión nula');
         }
+
+        $config = App::getConfig();
+        $valorConfig = $config['APLICAR_PAGOS_SOLO_FLUJO'] ?? (isset($config['aplicar_pagos']) && is_array($config['aplicar_pagos']) ? ($config['aplicar_pagos']['APLICAR_PAGOS_SOLO_FLUJO'] ?? null) : null);
+        $soloFlujo = $valorConfig !== null && (filter_var($valorConfig, FILTER_VALIDATE_BOOLEAN) || $valorConfig === 'true' || $valorConfig === '1');
 
         $identificador = date('YmdHis') . '_' . substr(str_replace(['-', ' ', ':'], '', microtime(false)), -4) . '_' . $usuario;
         $idImportacion = (int) time();
@@ -206,15 +186,22 @@ class PagosAplicacionService
                 if ((int) ($res['validacion'] ?? -1) !== 1) {
                     throw new \RuntimeException('Validación del SP en renglón ' . $renglon1 . ': ' . ($res['resultado'] ?? 'código ' . ($res['validacion'] ?? '')));
                 }
-            }
 
-            $config = App::getConfig();
-            $valor = $config['APLICAR_PAGOS_SOLO_FLUJO'] ?? (isset($config['aplicar_pagos']) && is_array($config['aplicar_pagos']) ? ($config['aplicar_pagos']['APLICAR_PAGOS_SOLO_FLUJO'] ?? null) : null);
-            $soloFlujo = $valor !== null && (filter_var($valor, FILTER_VALIDATE_BOOLEAN) || $valor === 'true' || $valor === '1');
+                if (!$soloFlujo && isset($f['CDGEM'], $f['CDGNS'], $f['CICLO'], $f['SECUENCIA'])) {
+                    $repo->actualizarFImportacion(
+                        $f['CDGEM'],
+                        $f['CDGNS'],
+                        $f['CICLO'],
+                        $fechaPago,
+                        $f['SECUENCIA'],
+                        $db
+                    );
+                }
+            }
 
             if (!$soloFlujo) {
                 $detalleJson = json_encode($detalle, JSON_UNESCAPED_UNICODE);
-                $okInsert = $repo->insertarOActualizarProcesado(
+                $okInsert = $repo->insertarProcesado(
                     $fecha,
                     $noPagos,
                     round($totalImporte, 2),
@@ -236,59 +223,18 @@ class PagosAplicacionService
                 ? 'Flujo de prueba completado (sin cambios en BD ni registro en PAGOS_PROCESADOS).'
                 : 'Pagos aplicados correctamente.';
 
-            $filasCompletas = $filas;
-            if (!$soloFlujo) {
-                $clavesAhora = $repo->obtenerClavesAplicadas($fecha);
-                $setAhora = array_flip($clavesAhora);
-                $todas = $repo->getDatosLayoutPorFecha($fecha);
-                foreach ($todas as $i => $f) {
-                    $ref = isset($f['REFERENCIA']) ? trim((string) $f['REFERENCIA']) : '';
-                    $monto = isset($f['MONTO']) ? (float) $f['MONTO'] : 0;
-                    $fec = isset($f['FECHA']) ? (string) $f['FECHA'] : $fecha;
-                    $fecPart = strlen($fec) >= 10 ? substr($fec, 0, 10) : $fecha;
-                    $key = $ref . '|' . $monto . '|' . $fecPart;
-                    $todas[$i]['aplicado'] = isset($setAhora[$key]);
-                }
-                $filasCompletas = $todas;
-            } else {
-                foreach ($filasCompletas as $i => $f) {
-                    $filasCompletas[$i]['aplicado'] = true;
-                }
-            }
-
-            $totalApl = 0;
-            $totalPen = 0;
-            $impApl = 0;
-            $impPen = 0;
-            $impTotal = 0;
-            foreach ($filasCompletas as $f) {
-                $m = (float) ($f['MONTO'] ?? 0);
-                $impTotal += $m;
-                if (!empty($f['aplicado'])) {
-                    $totalApl++;
-                    $impApl += $m;
-                } else {
-                    $totalPen++;
-                    $impPen += $m;
-                }
-            }
-
             return Model::Responde(true, $mensajeExito, [
                 'yaProcesado' => false,
                 'modoPrueba'  => $soloFlujo,
                 'resumen' => [
-                    'totalRegistros' => count($filasCompletas),
-                    'totalImporte' => round($impTotal, 2),
-                    'totalAplicados' => $totalApl,
-                    'totalPendientes' => $totalPen,
-                    'importeAplicados' => round($impApl, 2),
-                    'importePendientes' => round($impPen, 2),
+                    'totalRegistros' => $noPagos,
+                    'totalImporte' => round($totalImporte, 2),
                     'usuario' => $usuario,
                     'fechaEjecucion' => date('Y-m-d H:i:s'),
                     'estado' => 'OK',
                     'mensaje' => null,
                 ],
-                'filas' => $filasCompletas,
+                'filas' => $filas,
                 'detalle' => $detalle,
             ]);
         } catch (\Throwable $e) {

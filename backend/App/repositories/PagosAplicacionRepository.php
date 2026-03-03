@@ -37,10 +37,15 @@ class PagosAplicacionRepository
         if ($fecha === '') {
             return [];
         }
-        // Misma consulta que Layout Contable (PagosDao::GeneraLayoutContable)
+        // Misma consulta que Layout Contable + clave para UPDATE y F_IMPORTACION (por pago).
         $query = <<<sql
 	SELECT
-		FECHA,
+		PGD.CDGEM,
+		PGD.CDGNS,
+		PGD.CICLO,
+		PGD.SECUENCIA,
+		PGD.FECHA,
+		PGD.F_IMPORTACION,
 		CASE
 			WHEN (PGD.TIPO = 'P' OR PGD.TIPO = 'X') THEN 'P' || PRN.CDGNS || PRN.CDGTPC || FN_DV('P' || PRN.CDGNS || PRN.CDGTPC)
 			WHEN PGD.TIPO = 'G' THEN '0' || PRN.CDGNS || PRN.CDGTPC || FN_DV('0' || PRN.CDGNS || PRN.CDGTPC)
@@ -69,7 +74,7 @@ sql;
             if (!is_array($filas)) {
                 return [];
             }
-            // Normalizar para JSON (Oracle puede devolver FECHA como objeto)
+            // Normalizar para JSON (Oracle puede devolver FECHA/F_IMPORTACION como objeto)
             foreach ($filas as $i => $row) {
                 if (isset($row['FECHA'])) {
                     if (is_object($row['FECHA']) && method_exists($row['FECHA'], 'format')) {
@@ -77,6 +82,15 @@ sql;
                     } elseif (is_object($row['FECHA'])) {
                         $filas[$i]['FECHA'] = (string) $row['FECHA'];
                     }
+                }
+                if (isset($row['F_IMPORTACION']) && $row['F_IMPORTACION'] !== null) {
+                    if (is_object($row['F_IMPORTACION']) && method_exists($row['F_IMPORTACION'], 'format')) {
+                        $filas[$i]['F_IMPORTACION'] = $row['F_IMPORTACION']->format('Y-m-d H:i:s');
+                    } else {
+                        $filas[$i]['F_IMPORTACION'] = (string) $row['F_IMPORTACION'];
+                    }
+                } else {
+                    $filas[$i]['F_IMPORTACION'] = null;
                 }
                 if (isset($row['MONTO'])) {
                     $filas[$i]['MONTO'] = (float) $row['MONTO'];
@@ -106,7 +120,8 @@ sql;
                 return null;
             }
             $sql = "SELECT ID, FECHA_PROCESO, TOTAL_REGISTROS, TOTAL_IMPORTE, USUARIO, FECHA_EJECUCION, ESTADO, MENSAJE, DETALLE_JSON
-                    FROM PAGOS_PROCESADOS WHERE FECHA_PROCESO = TO_DATE(:fecha, 'YYYY-MM-DD')";
+                    FROM (SELECT * FROM PAGOS_PROCESADOS WHERE FECHA_PROCESO = TO_DATE(:fecha, 'YYYY-MM-DD') ORDER BY FECHA_EJECUCION DESC)
+                    WHERE ROWNUM = 1";
             $stmt = $db->db_activa->prepare($sql);
             $stmt->execute(['fecha' => trim($fecha)]);
             $row = $stmt->fetch(\PDO::FETCH_ASSOC);
@@ -114,76 +129,6 @@ sql;
         } catch (\Throwable $e) {
             return null;
         }
-    }
-
-    /**
-     * Devuelve las claves (referencia|monto|fecha) de pagos ya aplicados para la fecha, según DETALLE_JSON.
-     * Se usa para aplicar solo pendientes: los que no estén en este conjunto.
-     *
-     * @param string $fecha Fecha en Y-m-d
-     * @return array Lista de claves (strings)
-     */
-    public function obtenerClavesAplicadas($fecha)
-    {
-        $row = $this->obtenerProcesado($fecha);
-        if ($row === null || empty($row['DETALLE_JSON'])) {
-            return [];
-        }
-        $detalle = json_decode($row['DETALLE_JSON'], true);
-        if (!is_array($detalle)) {
-            return [];
-        }
-        $claves = [];
-        foreach ($detalle as $d) {
-            $ref = isset($d['referencia']) ? trim((string) $d['referencia']) : '';
-            $monto = isset($d['monto']) ? (float) $d['monto'] : 0;
-            $f = isset($d['fecha']) ? (string) $d['fecha'] : '';
-            $fechaPart = strlen($f) >= 10 ? substr($f, 0, 10) : $fecha;
-            $claves[] = $ref . '|' . $monto . '|' . $fechaPart;
-        }
-        return $claves;
-    }
-
-    /**
-     * Inserta o actualiza PAGOS_PROCESADOS: si ya existe fila para la fecha, merge del detalle y suma de totales.
-     *
-     * @param string $fechaProceso Y-m-d
-     * @param int $totalRegistrosNuevos
-     * @param float $totalImporteNuevos
-     * @param string $usuario
-     * @param string $estado OK|ERROR
-     * @param string|null $mensaje
-     * @param string|null $detalleJsonNuevo JSON del detalle de esta ejecución
-     * @param Database|null $db
-     * @return bool
-     */
-    public function insertarOActualizarProcesado($fechaProceso, $totalRegistrosNuevos, $totalImporteNuevos, $usuario, $estado, $mensaje = null, $detalleJsonNuevo = null, Database $db = null)
-    {
-        if ($db === null) {
-            $db = new Database();
-        }
-        if ($db->db_activa === null) {
-            return false;
-        }
-        $existente = $this->obtenerProcesado($fechaProceso);
-        if ($existente !== null) {
-            $detalleExistente = is_string($existente['DETALLE_JSON']) ? json_decode($existente['DETALLE_JSON'], true) : [];
-            $detalleNuevo = is_string($detalleJsonNuevo) ? json_decode($detalleJsonNuevo, true) : [];
-            $merged = is_array($detalleExistente) && is_array($detalleNuevo)
-                ? array_merge($detalleExistente, $detalleNuevo)
-                : (is_array($detalleNuevo) ? $detalleNuevo : []);
-            $totalReg = (int) ($existente['TOTAL_REGISTROS'] ?? 0) + (int) $totalRegistrosNuevos;
-            $totalImp = (float) ($existente['TOTAL_IMPORTE'] ?? 0) + (float) $totalImporteNuevos;
-            $sql = "UPDATE PAGOS_PROCESADOS SET DETALLE_JSON = :detalle, TOTAL_REGISTROS = :total_reg, TOTAL_IMPORTE = :total_imp, FECHA_EJECUCION = CURRENT_TIMESTAMP WHERE FECHA_PROCESO = TO_DATE(:fecha, 'YYYY-MM-DD')";
-            $stmt = $db->db_activa->prepare($sql);
-            return $stmt->execute([
-                'detalle' => json_encode($merged, JSON_UNESCAPED_UNICODE),
-                'total_reg' => $totalReg,
-                'total_imp' => $totalImp,
-                'fecha' => $fechaProceso,
-            ]);
-        }
-        return $this->insertarProcesado($fechaProceso, $totalRegistrosNuevos, $totalImporteNuevos, $usuario, $estado, $mensaje, $detalleJsonNuevo, $db);
     }
 
     /**
@@ -218,6 +163,43 @@ sql;
             'estado' => $estado,
             'mensaje' => $mensaje,
             'detalle' => $detalleJson,
+        ]);
+    }
+
+    /**
+     * Marca el pago como importado en PAGOSDIA (F_IMPORTACION = SYSTIMESTAMP).
+     * Clave: CDGEM, CDGNS, CICLO, FECHA (solo fecha), SECUENCIA.
+     *
+     * @param string $cdgem
+     * @param string $cdgns
+     * @param string $ciclo
+     * @param string $fecha Fecha en Y-m-d o Y-m-d H:i:s (solo se usa la parte fecha)
+     * @param int|string $secuencia
+     * @param Database|null $db
+     * @return bool
+     */
+    public function actualizarFImportacion($cdgem, $cdgns, $ciclo, $fecha, $secuencia, Database $db = null)
+    {
+        if ($db === null) {
+            $db = new Database();
+        }
+        if ($db->db_activa === null) {
+            return false;
+        }
+        $fechaSolo = substr((string) $fecha, 0, 10);
+        if ($fechaSolo === '' || strlen($fechaSolo) < 10) {
+            return false;
+        }
+        $sql = "UPDATE PAGOSDIA SET F_IMPORTACION = SYSTIMESTAMP
+                WHERE CDGEM = :cdgem AND CDGNS = :cdgns AND CICLO = :ciclo
+                AND TRUNC(FECHA) = TO_DATE(:fecha, 'YYYY-MM-DD') AND SECUENCIA = :secuencia";
+        $stmt = $db->db_activa->prepare($sql);
+        return $stmt->execute([
+            'cdgem' => $cdgem,
+            'cdgns' => $cdgns,
+            'ciclo' => $ciclo,
+            'fecha' => $fechaSolo,
+            'secuencia' => $secuencia,
         ]);
     }
 
