@@ -559,6 +559,34 @@ class Database
         ];
     }
 
+    /**
+     * Ejecuta spRedistribucionPagos (conciliación). Igual que Aplicar Pagos: sin límite de tiempo en PHP.
+     */
+    public function spRedistribucionPagos($empresa, $cdgclns, $ciclo, $tipo, $fecha, $periodo, $secuencia, $monto, $cuenta, $usuario, $identificador)
+    {
+        $sql = "BEGIN spRedistribucionPagos(:empresa, :cdgclns, :ciclo, :tipo, TO_DATE(:fecha, 'YYYY-MM-DD'), :periodo, :secuencia, :monto, :cuenta, :usuario, :identificador); END;";
+        $stmt = $this->db_activa->prepare($sql);
+        $stmt->execute([
+            'empresa' => $empresa, 'cdgclns' => $cdgclns, 'ciclo' => $ciclo, 'tipo' => $tipo,
+            'fecha' => $fecha, 'periodo' => $periodo, 'secuencia' => $secuencia, 'monto' => $monto,
+            'cuenta' => $cuenta, 'usuario' => $usuario, 'identificador' => $identificador,
+        ]);
+    }
+
+    /**
+     * Ejecuta spRedistribucionPagos_PRUEBA (solo flujo). Usar cuando CONCILIACION_SOLO_FLUJO = true.
+     */
+    public function spRedistribucionPagosPrueba($empresa, $cdgclns, $ciclo, $tipo, $fecha, $periodo, $secuencia, $monto, $cuenta, $usuario, $identificador)
+    {
+        $sql = "BEGIN spRedistribucionPagos_PRUEBA(:empresa, :cdgclns, :ciclo, :tipo, TO_DATE(:fecha, 'YYYY-MM-DD'), :periodo, :secuencia, :monto, :cuenta, :usuario, :identificador); END;";
+        $stmt = $this->db_activa->prepare($sql);
+        $stmt->execute([
+            'empresa' => $empresa, 'cdgclns' => $cdgclns, 'ciclo' => $ciclo, 'tipo' => $tipo,
+            'fecha' => $fecha, 'periodo' => $periodo, 'secuencia' => $secuencia, 'monto' => $monto,
+            'cuenta' => $cuenta, 'usuario' => $usuario, 'identificador' => $identificador,
+        ]);
+    }
+
     public function queryProcedureDeletePago($cdgns_, $fecha_, $user_, $secuencia_)
     {
 
