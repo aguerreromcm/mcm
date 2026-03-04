@@ -8,6 +8,7 @@ use Core\View;
 use Core\Controller;
 use App\models\Operaciones as OperacionesDao;
 use App\services\PagosAplicacionService;
+use App\services\ConciliacionService;
 
 class Operaciones extends Controller
 {
@@ -419,6 +420,247 @@ class Operaciones extends Controller
         }
 
         // Enviar solo JSON: descartar cualquier salida previa y responder limpio
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        $json = json_encode($respuesta, JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            $json = '{"success":false,"mensaje":"Error al generar la respuesta."}';
+        }
+        echo $json;
+        exit;
+    }
+
+    /**
+     * Pantalla Conciliación de pagos (réplica VB6: filtros + consulta MP).
+     */
+    public function ConciliacionPagos()
+    {
+        $extraHeader = '<title>Conciliación de pagos</title><link rel="shortcut icon" href="/img/logo.png">';
+        $extraFooter = <<<HTML
+            <script>
+                {$this->mensajes}
+                {$this->confirmarMovimiento}
+                const consultarConciliacion = () => {
+                    const empresa = document.getElementById("empresaConciliacion").value || "";
+                    const fecha = document.getElementById("fechaConciliacion").value || "";
+                    const tipoCliente = document.getElementById("tipoClienteConciliacion").value || "";
+                    const codigo = document.getElementById("codigoConciliacion").value ? document.getElementById("codigoConciliacion").value.trim() : "";
+                    const ciclo = document.getElementById("cicloConciliacion").value ? document.getElementById("cicloConciliacion").value.trim() : "";
+                    const ctaBancaria = document.getElementById("ctaBancariaConciliacion").value ? document.getElementById("ctaBancariaConciliacion").value.trim() : "";
+                    swal({ text: "Consultando, espere un momento...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
+                    $.ajax({
+                        url: "/Operaciones/ConsultarConciliacion/",
+                        type: "POST",
+                        data: { empresa: empresa, fecha: fecha, tipoCliente: tipoCliente, codigo: codigo, ciclo: ciclo, ctaBancaria: ctaBancaria },
+                        dataType: "json",
+                        timeout: 60000
+                    }).done(function (respuesta) {
+                        swal.close();
+                        if (!respuesta || !respuesta.success) {
+                            var msg = (respuesta && respuesta.mensaje) ? respuesta.mensaje : "Error en la respuesta.";
+                            if (respuesta && respuesta.error && respuesta.error.length > 0) msg += " Detalle: " + respuesta.error;
+                            showError(msg);
+                            return;
+                        }
+                        const d = respuesta.datos || {};
+                        const resumen = d.resumen || {};
+                        const filas = d.filas || [];
+                        document.getElementById("totalPagos").textContent = resumen.totalRegistros != null ? resumen.totalRegistros : 0;
+                        document.getElementById("importeTotal").textContent = "$ " + (resumen.totalImporte != null ? Number(resumen.totalImporte) : 0).toLocaleString("es-MX", { minimumFractionDigits: 2 });
+                        document.getElementById("totalPagosConciliados").textContent = resumen.totalConciliados != null ? resumen.totalConciliados : 0;
+                        document.getElementById("importeConciliados").textContent = "$ " + (resumen.importeConciliados != null ? Number(resumen.importeConciliados) : 0).toLocaleString("es-MX", { minimumFractionDigits: 2 });
+                        document.getElementById("totalPagosPendientes").textContent = resumen.totalNoConciliados != null ? resumen.totalNoConciliados : 0;
+                        document.getElementById("importePendientes").textContent = "$ " + (resumen.importeNoConciliados != null ? Number(resumen.importeNoConciliados) : 0).toLocaleString("es-MX", { minimumFractionDigits: 2 });
+                        var tabla = $("#tablaConciliacion");
+                        if ($.fn.DataTable && $.fn.DataTable.isDataTable(tabla)) {
+                            tabla.DataTable().destroy();
+                            tabla.find("tbody").empty();
+                        }
+                        var tbody = document.getElementById("tablaConciliacionBody");
+                        tbody.innerHTML = "";
+                        var payloadParaSp = function(f) {
+                            var tipo = (f.CLNS || "").toString().trim();
+                            if (tipo === "" && f.TIPOCTE) tipo = (f.TIPOCTE + "").toUpperCase().indexOf("GRUPAL") >= 0 ? "G" : "I";
+                            return { CDGEM: f.CDGEM || "", CDGCLNS: f.CDGCLNS || "", CICLO: f.CICLO || "", CLNS: tipo || "I", FREALDEP: f.FREALDEP || "", PERIODO: f.PERIODO != null ? f.PERIODO : 0, SECUENCIA: f.SECUENCIA || "", CANTIDAD: typeof f.CANTIDAD === "number" ? f.CANTIDAD : parseFloat(f.CANTIDAD) || 0, CDGCB: f.CDGCB || "" };
+                        };
+                        filas.forEach(function (f, idx) {
+                            var tr = document.createElement("tr");
+                            var monto = typeof f.CANTIDAD === "number" ? f.CANTIDAD : parseFloat(f.CANTIDAD) || 0;
+                            var conciliado = (f.CONCILIADO || "").toString().toUpperCase() === "C";
+                            var estado = conciliado ? "Conciliado" : "Pendiente";
+                            var estadoClase = conciliado ? "label-success" : "label-warning";
+                            var payload = payloadParaSp(f);
+                            var chk = conciliado ? "" : "<input type=\"checkbox\" class=\"chkPagoConciliacion\" data-fila='" + JSON.stringify(payload).replace(/'/g, "&#39;") + "' />";
+                            tr.innerHTML =
+                                "<td>" + chk + "</td>" +
+                                "<td>" + (idx + 1) + "</td>" +
+                                "<td>" + (f.CDGEM || f.cdgem || "-") + "</td>" +
+                                "<td>" + (f.FREALDEP || f.frealdep || "-") + "</td>" +
+                                "<td>" + (f.REFERENCIA || f.referencia || "-") + "</td>" +
+                                "<td>" + (f.TIPOCTE || f.tipocte || "-") + "</td>" +
+                                "<td>" + (f.CDGCLNS || f.cdgclns || "-") + "</td>" +
+                                "<td>" + (f.CICLO || f.ciclo || "-") + "</td>" +
+                                "<td>" + (f.PERIODO != null ? (f.PERIODO !== undefined ? f.PERIODO : f.periodo) : "-") + "</td>" +
+                                "<td>" + (f.SECUENCIAIM || f.secuenciaim || "-") + "</td>" +
+                                "<td>" + (f.NOMBRE || f.nombre || "-") + "</td>" +
+                                "<td>$ " + monto.toLocaleString("es-MX", { minimumFractionDigits: 2 }) + "</td>" +
+                                "<td>" + (f.CDGCB || f.cdgcb || "-") + "</td>" +
+                                "<td>" + (f.CDGNS || f.cdgns || "-") + "</td>" +
+                                "<td>" + (f.TASA != null ? (f.TASA !== undefined ? f.TASA : f.tasa) : "-") + "</td>" +
+                                "<td>" + (f.SECUENCIA || f.secuencia || "-") + "</td>" +
+                                "<td>" + (f.PLAZO != null ? (f.PLAZO !== undefined ? f.PLAZO : f.plazo) : "-") + "</td>" +
+                                "<td>" + (f.PERIODICIDAD || f.periodicidad || "-") + "</td>" +
+                                "<td><span class=\"label " + estadoClase + "\" style=\"border-radius: 4px; padding: 4px 8px;\">" + estado + "</span></td>";
+                            tbody.appendChild(tr);
+                        });
+                        if ($.fn.DataTable) {
+                            tabla.DataTable({
+                                lengthMenu: [[20, 50, 100, -1], [20, 50, 100, "Todos"]],
+                                pageLength: 20,
+                                order: [[3, "asc"]],
+                                language: {
+                                    emptyTable: "No hay datos disponibles",
+                                    paginate: { previous: "Anterior", next: "Siguiente" },
+                                    info: "Mostrando _START_ a _END_ de _TOTAL_ registros",
+                                    infoEmpty: "Sin registros",
+                                    zeroRecords: "No se encontraron registros",
+                                    lengthMenu: "Mostrar _MENU_ registros",
+                                    search: "Buscar:"
+                                }
+                            });
+                        }
+                    }).fail(function () {
+                        swal.close();
+                        showError("Error de conexión al consultar.");
+                    });
+                };
+                const conciliarPagos = () => {
+                    var checks = document.querySelectorAll("#tablaConciliacionBody .chkPagoConciliacion:checked");
+                    if (!checks || checks.length === 0) {
+                        showError("Seleccione al menos un pago para conciliar.");
+                        return;
+                    }
+                    var pagos = [];
+                    checks.forEach(function (el) {
+                        try {
+                            var data = el.getAttribute("data-fila");
+                            if (data) pagos.push(JSON.parse(data.replace(/&#39;/g, "'")));
+                        } catch (e) {}
+                    });
+                    if (pagos.length === 0) {
+                        showError("No se pudieron leer los datos de los pagos seleccionados.");
+                        return;
+                    }
+                    confirmarMovimiento("Conciliar pagos", "¿Ejecutar conciliación de " + pagos.length + " pago(s) seleccionado(s)?").then(function (ok) {
+                        if (!ok) return;
+                        swal({ text: "Conciliando, espere...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
+                        $.ajax({
+                            url: "/Operaciones/ConciliarPagos/",
+                            type: "POST",
+                            data: { pagos: JSON.stringify(pagos) },
+                            dataType: "json",
+                            timeout: 120000
+                        }).done(function (respuesta) {
+                            swal.close();
+                            if (respuesta && respuesta.success) {
+                                showSuccess(respuesta.mensaje).then(function () {
+                                    consultarConciliacion();
+                                });
+                            } else {
+                                var msg = (respuesta && respuesta.mensaje) ? respuesta.mensaje : "Error al conciliar.";
+                                if (respuesta && respuesta.error) msg += " " + respuesta.error;
+                                showError(msg);
+                            }
+                        }).fail(function (xhr, textStatus, errorThrown) {
+                            swal.close();
+                            var msg = "Error de conexión al conciliar.";
+                            if (textStatus === "timeout") msg = "La solicitud tardó demasiado. Intente de nuevo.";
+                            else if (xhr && xhr.responseJSON) {
+                                if (xhr.responseJSON.mensaje) msg = xhr.responseJSON.mensaje;
+                                if (xhr.responseJSON.error) msg += " " + xhr.responseJSON.error;
+                            } else if (xhr && xhr.responseText && xhr.responseText.length < 500) msg = xhr.responseText;
+                            showError(msg);
+                        });
+                    });
+                };
+                $(document).ready(function () {
+                    document.getElementById("btnConsultarConciliacion").onclick = consultarConciliacion;
+                    document.getElementById("btnConciliarPagos").onclick = conciliarPagos;
+                    $(document).on("change", "#chkTodosConciliacion", function () {
+                        var checked = this.checked;
+                        $("#tablaConciliacionBody .chkPagoConciliacion").each(function () { this.checked = checked; });
+                    });
+                });
+            </script>
+        HTML;
+
+        View::set('header', $this->_contenedor->header($extraHeader));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::set('empresas', ['' => '(Todas)', 'EMPFIN' => 'EMPFIN']);
+        View::render('operaciones_conciliacion_pagos');
+    }
+
+    /**
+     * POST: empresa, fecha, tipoCliente, codigo, ciclo, ctaBancaria. Devuelve JSON con resumen y filas (consulta MP, solo lectura).
+     */
+    public function ConsultarConciliacion()
+    {
+        try {
+            $empresa = isset($_POST['empresa']) ? trim((string) $_POST['empresa']) : '';
+            $fecha = isset($_POST['fecha']) ? trim((string) $_POST['fecha']) : '';
+            $tipoCliente = isset($_POST['tipoCliente']) ? trim((string) $_POST['tipoCliente']) : '';
+            $codigo = isset($_POST['codigo']) ? trim((string) $_POST['codigo']) : '';
+            $ciclo = isset($_POST['ciclo']) ? trim((string) $_POST['ciclo']) : '';
+            $ctaBancaria = isset($_POST['ctaBancaria']) ? trim((string) $_POST['ctaBancaria']) : '';
+            $respuesta = ConciliacionService::buscarPagosConciliacion($empresa, $fecha, $tipoCliente, $codigo, $ciclo, $ctaBancaria);
+        } catch (\Throwable $e) {
+            $respuesta = [
+                'success' => false,
+                'mensaje' => 'Error al consultar la conciliación.',
+                'error' => $e->getMessage(),
+            ];
+        }
+
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        $json = json_encode($respuesta, JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            $json = '{"success":false,"mensaje":"Error al generar la respuesta."}';
+        }
+        echo $json;
+        exit;
+    }
+
+    /**
+     * POST: pagos (JSON array de objetos con CDGEM, CDGCLNS, CICLO, CLNS/TIPOCTE, FREALDEP, PERIODO, SECUENCIA, CANTIDAD, CDGCB).
+     * Ejecuta conciliación vía ConciliacionService; devuelve JSON.
+     */
+    public function ConciliarPagos()
+    {
+        try {
+            $pagos = isset($_POST['pagos']) ? $_POST['pagos'] : '';
+            if (is_string($pagos)) {
+                $pagos = json_decode($pagos, true);
+            }
+            if (!is_array($pagos)) {
+                $pagos = [];
+            }
+            $usuario = isset($this->__usuario) ? (string) $this->__usuario : '';
+            $respuesta = ConciliacionService::conciliarPagos($pagos, $usuario);
+        } catch (\Throwable $e) {
+            $respuesta = [
+                'success' => false,
+                'mensaje' => 'Error al conciliar pagos.',
+                'error' => $e->getMessage(),
+            ];
+        }
+
         while (ob_get_level()) {
             ob_end_clean();
         }

@@ -1,0 +1,2 @@
+Línea 188: la clase MSComctlLib.ProgressBar del control pbarAudSist no era una clase de control cargada.
+Línea 199: la clase MSComctlLib.StatusBar del control sbBarraEstado no era una clase de control cargada.

@@ -1,0 +1,11 @@
+P  20170105    7        16 1 0          POLIZA DE AJUSTES 0501                                                                               11 0 0 
+M  13100102001                               0 1704.14              0          0.0                  INTERESES DEVENGADOS X LIQ. ANTICIPADA 0501                                                               
+M  61010101000                               1 1469.09              461        0.0                  INTERESES DEVENGADOS X LIQ. ANTICIPADA 0501 ASESOR MUÑOZ CABRERA RAUL                                2520 
+M  23040701001                    IVA        1 235.05               0          0.0                  INTERESES DEVENGADOS X LIQ. ANTICIPADA 05012017 16 %                                                      
+M  23041301000                               0 575.00               0          0.0                  DEVOLUCION POR SOLICITUD DEL CLIENTE 0501                                                                 
+M  11051200000                               1 575.00               0          0.0                  DEVOLUCION POR SOLICITUD DEL CLIENTE                                                                      
+M  23041301000                               0 7805.00              0          0.0                  CARGO POR PAGO AL CREDITO DEL CLIENTE                                                                     
+M  13100101001                               1 6504.16              0          0.0                  ABONO POR PAGO AL CREDITO DEL CLIENTE                                                                     
+M  13100102001                               1 1300.84              0          0.0                  ABONO POR PAGO AL CREDITO DEL CLIENTE                                                                     
+M  11051200000                    CANC DEV   0 575.00               0          0.0                  CANCELACION CHEQUE DEV. GL 013100 LOS PINOS                                                               
+M  23041301000                    CANC DEV   1 575.00               0          0.0                  CANCELACION CHEQUE DEV. GL 013100 LOS PINOS                                                               

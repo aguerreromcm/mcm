@@ -559,6 +559,75 @@ class Database
         ];
     }
 
+    /**
+     * Ejecuta spRedistribucionPagos (conciliación de pagos). Misma firma que el SP en Oracle.
+     *
+     * @param string $empresa
+     * @param string $cdgclns
+     * @param string $ciclo
+     * @param string $tipo
+     * @param string $fecha Y-m-d
+     * @param int $periodo
+     * @param string $secuencia
+     * @param float $monto
+     * @param string $cuenta
+     * @param string $usuario
+     * @param string $identificador
+     */
+    public function spRedistribucionPagos($empresa, $cdgclns, $ciclo, $tipo, $fecha, $periodo, $secuencia, $monto, $cuenta, $usuario, $identificador)
+    {
+        $sql = "BEGIN spRedistribucionPagos(:empresa, :cdgclns, :ciclo, :tipo, TO_DATE(:fecha, 'YYYY-MM-DD'), :periodo, :secuencia, :monto, :cuenta, :usuario, :identificador); END;";
+        $stmt = $this->db_activa->prepare($sql);
+        $stmt->execute([
+            'empresa' => $empresa,
+            'cdgclns' => $cdgclns,
+            'ciclo' => $ciclo,
+            'tipo' => $tipo,
+            'fecha' => $fecha,
+            'periodo' => $periodo,
+            'secuencia' => $secuencia,
+            'monto' => $monto,
+            'cuenta' => $cuenta,
+            'usuario' => $usuario,
+            'identificador' => $identificador,
+        ]);
+    }
+
+    /**
+     * Ejecuta spRedistribucionPagos_PRUEBA (solo flujo, no modifica tablas).
+     * SOLO PRUEBAS: usar cuando CONCILIACION_SOLO_FLUJO = true.
+     *
+     * @param string $empresa
+     * @param string $cdgclns
+     * @param string $ciclo
+     * @param string $tipo
+     * @param string $fecha Y-m-d
+     * @param int $periodo
+     * @param string $secuencia
+     * @param float $monto
+     * @param string $cuenta
+     * @param string $usuario
+     * @param string $identificador
+     */
+    public function spRedistribucionPagosPrueba($empresa, $cdgclns, $ciclo, $tipo, $fecha, $periodo, $secuencia, $monto, $cuenta, $usuario, $identificador)
+    {
+        $sql = "BEGIN spRedistribucionPagos_PRUEBA(:empresa, :cdgclns, :ciclo, :tipo, TO_DATE(:fecha, 'YYYY-MM-DD'), :periodo, :secuencia, :monto, :cuenta, :usuario, :identificador); END;";
+        $stmt = $this->db_activa->prepare($sql);
+        $stmt->execute([
+            'empresa' => $empresa,
+            'cdgclns' => $cdgclns,
+            'ciclo' => $ciclo,
+            'tipo' => $tipo,
+            'fecha' => $fecha,
+            'periodo' => $periodo,
+            'secuencia' => $secuencia,
+            'monto' => $monto,
+            'cuenta' => $cuenta,
+            'usuario' => $usuario,
+            'identificador' => $identificador,
+        ]);
+    }
+
     public function queryProcedureDeletePago($cdgns_, $fecha_, $user_, $secuencia_)
     {
 
