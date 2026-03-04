@@ -562,7 +562,7 @@ class Operaciones extends Controller
                             type: "POST",
                             data: { pagos: JSON.stringify(pagos) },
                             dataType: "json",
-                            timeout: 120000
+                            timeout: 3600000
                         }).done(function (respuesta) {
                             swal.close();
                             if (respuesta && respuesta.success) {
@@ -577,7 +577,7 @@ class Operaciones extends Controller
                         }).fail(function (xhr, textStatus, errorThrown) {
                             swal.close();
                             var msg = "Error de conexión al conciliar.";
-                            if (textStatus === "timeout") msg = "La solicitud tardó demasiado. Intente de nuevo.";
+                            if (textStatus === "timeout") msg = "La solicitud tardó demasiado (timeout). El proceso puede seguir ejecutándose en el servidor. Revise la conciliación o intente de nuevo.";
                             else if (xhr && xhr.responseJSON) {
                                 if (xhr.responseJSON.mensaje) msg = xhr.responseJSON.mensaje;
                                 if (xhr.responseJSON.error) msg += " " + xhr.responseJSON.error;
@@ -643,6 +643,7 @@ class Operaciones extends Controller
      */
     public function ConciliarPagos()
     {
+        set_time_limit(0);
         try {
             $pagos = isset($_POST['pagos']) ? $_POST['pagos'] : '';
             if (is_string($pagos)) {
