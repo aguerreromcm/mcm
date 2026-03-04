@@ -473,25 +473,27 @@ class Herramientas extends Controller
                 }
 
                 $(document).ready(function(){
-
-                    $("#" + idTablaAuditoria).DataTable({
-                        lengthMenu: [[25, 50, 100, -1], [25, 50, 100, "Todos"]],
-                        order: [[1, "asc"]],
-                        columnDefs: [
-                            { orderable: false, targets: [0, 6] },
-                            { targets: 0, createdCell: function(td, cellData) { $(td).html(cellData || ''); } },
-                            { targets: 6, createdCell: function(td, cellData) { $(td).html(cellData || ''); } }
-                        ],
-                        language: {
-                            emptyTable: "Aplique filtros y pulse Consultar para buscar devengos faltantes.",
-                            paginate: { previous: "Anterior", next: "Siguiente" },
-                            info: "Mostrando de _START_ a _END_ de _TOTAL_ registros",
-                            infoEmpty: "Mostrando 0 a 0 de 0 registros",
-                            zeroRecords: "No se encontraron registros",
-                            lengthMenu: "Mostrar _MENU_ registros",
-                            search: "Buscar:"
-                        }
-                    });
+                    // Evitar doble inicialización: la vista ya puede haber inicializado la DataTable
+                    if (!$.fn.DataTable.isDataTable("#" + idTablaAuditoria)) {
+                        $("#" + idTablaAuditoria).DataTable({
+                            lengthMenu: [[25, 50, 100, -1], [25, 50, 100, "Todos"]],
+                            order: [[1, "asc"]],
+                            columnDefs: [
+                                { orderable: false, targets: [0, 6] },
+                                { targets: 0, createdCell: function(td, cellData) { $(td).html(cellData || ''); } },
+                                { targets: 6, createdCell: function(td, cellData) { $(td).html(cellData || ''); } }
+                            ],
+                            language: {
+                                emptyTable: "Aplique filtros y pulse Consultar para buscar devengos faltantes.",
+                                paginate: { previous: "Anterior", next: "Siguiente" },
+                                info: "Mostrando de _START_ a _END_ de _TOTAL_ registros",
+                                infoEmpty: "Mostrando 0 a 0 de 0 registros",
+                                zeroRecords: "No se encontraron registros",
+                                lengthMenu: "Mostrar _MENU_ registros",
+                                search: "Buscar:"
+                            }
+                        });
+                    }
 
                     $("#btn_consultar").click(consultarDevengosFaltantes);
                     $("#btn_masivo").click(procesarMasivo);

@@ -9,32 +9,13 @@
 
         <div class="card card-danger col-md-12">
             <div class="card-header">
-                <h5 class="card-title">Valores del filtro</h5>
+                <h5 class="card-title">Criterios de búsqueda</h5>
             </div>
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-2">
-                        <label for="empresaConciliacion">Empresa</label>
-                        <select class="form-control" id="empresaConciliacion" name="empresaConciliacion">
-                            <?php
-                            $empresas = isset($empresas) ? $empresas : ['' => '(Todas)', 'EMPFIN' => 'EMPFIN'];
-                            foreach ($empresas as $val => $lab) {
-                                echo '<option value="' . htmlspecialchars($val) . '">' . htmlspecialchars($lab) . '</option>';
-                            }
-                            ?>
-                        </select>
-                    </div>
-                    <div class="col-md-2">
                         <label for="fechaConciliacion">Fecha de pago</label>
                         <input class="form-control" type="date" id="fechaConciliacion" name="fechaConciliacion" value="" aria-label="Fecha de pago">
-                    </div>
-                    <div class="col-md-2">
-                        <label for="tipoClienteConciliacion">Tipo de cliente</label>
-                        <select class="form-control" id="tipoClienteConciliacion" name="tipoClienteConciliacion">
-                            <option value="">(Todos)</option>
-                            <option value="I">Individual</option>
-                            <option value="G">Grupal</option>
-                        </select>
                     </div>
                     <div class="col-md-2">
                         <label for="codigoConciliacion">Crédito</label>
@@ -48,7 +29,8 @@
                         <label for="ctaBancariaConciliacion">Cta. bancaria</label>
                         <input class="form-control" type="text" id="ctaBancariaConciliacion" name="ctaBancariaConciliacion" value="" placeholder="00" aria-label="Cuenta bancaria">
                     </div>
-                    <div class="col-md-2" style="display: flex; align-items: flex-end;">
+                    <div class="col-md-2">
+                        <label for="btnConsultarConciliacion" style="display: block; height: 20px; margin-bottom: 5px;">&nbsp;</label>
                         <button type="button" class="btn btn-primary" id="btnConsultarConciliacion">Buscar</button>
                     </div>
                 </div>

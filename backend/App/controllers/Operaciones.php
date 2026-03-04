@@ -444,9 +444,7 @@ class Operaciones extends Controller
                 {$this->mensajes}
                 {$this->confirmarMovimiento}
                 const consultarConciliacion = () => {
-                    const empresa = document.getElementById("empresaConciliacion").value || "";
                     const fecha = document.getElementById("fechaConciliacion").value || "";
-                    const tipoCliente = document.getElementById("tipoClienteConciliacion").value || "";
                     const codigo = document.getElementById("codigoConciliacion").value ? document.getElementById("codigoConciliacion").value.trim() : "";
                     const ciclo = document.getElementById("cicloConciliacion").value ? document.getElementById("cicloConciliacion").value.trim() : "";
                     const ctaBancaria = document.getElementById("ctaBancariaConciliacion").value ? document.getElementById("ctaBancariaConciliacion").value.trim() : "";
@@ -454,7 +452,7 @@ class Operaciones extends Controller
                     $.ajax({
                         url: "/Operaciones/ConsultarConciliacion/",
                         type: "POST",
-                        data: { empresa: empresa, fecha: fecha, tipoCliente: tipoCliente, codigo: codigo, ciclo: ciclo, ctaBancaria: ctaBancaria },
+                        data: { fecha: fecha, codigo: codigo, ciclo: ciclo, ctaBancaria: ctaBancaria },
                         dataType: "json",
                         timeout: 60000
                     }).done(function (respuesta) {
@@ -599,7 +597,6 @@ class Operaciones extends Controller
 
         View::set('header', $this->_contenedor->header($extraHeader));
         View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::set('empresas', ['' => '(Todas)', 'EMPFIN' => 'EMPFIN']);
         View::render('operaciones_conciliacion_pagos');
     }
 
@@ -609,9 +606,9 @@ class Operaciones extends Controller
     public function ConsultarConciliacion()
     {
         try {
-            $empresa = isset($_POST['empresa']) ? trim((string) $_POST['empresa']) : '';
+            $empresa = 'EMPFIN';
+            $tipoCliente = '';
             $fecha = isset($_POST['fecha']) ? trim((string) $_POST['fecha']) : '';
-            $tipoCliente = isset($_POST['tipoCliente']) ? trim((string) $_POST['tipoCliente']) : '';
             $codigo = isset($_POST['codigo']) ? trim((string) $_POST['codigo']) : '';
             $ciclo = isset($_POST['ciclo']) ? trim((string) $_POST['ciclo']) : '';
             $ctaBancaria = isset($_POST['ctaBancaria']) ? trim((string) $_POST['ctaBancaria']) : '';

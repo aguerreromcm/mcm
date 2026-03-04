@@ -35,15 +35,17 @@ class ConciliacionService
         $tipoCliente = trim((string) $tipoCliente);
         $ctaBancaria = trim((string) $ctaBancaria);
 
-        $tieneAlguno = $empresa !== '' || $fechaPago !== '' || $codigo !== '' || $ciclo !== '' || $tipoCliente !== '' || $ctaBancaria !== '';
+        $tieneAlguno = $fechaPago !== '' || $codigo !== '' || $ciclo !== '' || $ctaBancaria !== '';
         if (!$tieneAlguno) {
             return Model::Responde(
                 false,
-                'Debe indicar al menos un filtro (Empresa, Fecha, Crédito, Ciclo, Tipo de cliente o Cta. bancaria).',
+                'Debe indicar al menos un filtro (Fecha, Crédito, Ciclo o Cta. bancaria).',
                 null,
                 'Filtros insuficientes'
             );
         }
+
+        $empresa = ($empresa !== '' && strtoupper($empresa) !== '(TODAS)') ? trim($empresa) : ConciliacionRepository::EMPRESA_DEFAULT;
 
         $filas = $repo->getPagosPorConciliarMP($empresa, $fechaPago, $tipoCliente, $codigo, $ciclo, $ctaBancaria);
 
