@@ -235,22 +235,113 @@ class JobsCredito extends Job
         HTML;
     }
 
-    public function CierreDiario($fecha)
+    /**
+     * Ejecuta el cierre diario (como en VB6): SP cierre, devengo, alertas PLD y finalización (bitácora + correo).
+     *
+     * @param string $fecha Fecha en Y-m-d o DD/MM/YYYY (fecha de cierre)
+     * @param int $regenerar 0 = normal, 1 = limpiar y regenerar (admin)
+     * @param string $usuario Usuario que ejecuta (para SPGENDEVENGODIARIO y PLD)
+     */
+    public function CierreDiario($fecha, $regenerar = 0, $usuario = '')
     {
         self::SaveLog('Iniciando ejecución del cierre diario');
 
-        $parametro = null;
-        if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $fecha)) $parametro = "TO_DATE(:fecha, 'DD/MM/YYYY')";
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) $parametro = "TO_DATE(:fecha, 'YYYY-MM-DD')";
+        $fechaNorm = null;
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+            $fechaNorm = $fecha;
+        } elseif (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $fecha)) {
+            $d = \DateTime::createFromFormat('d/m/Y', $fecha);
+            $fechaNorm = $d ? $d->format('Y-m-d') : null;
+        }
+        if ($fechaNorm === null) {
+            self::SaveLog("Error: Fecha no válida ({$fecha}).");
+            if (!defined('APPPATH')) {
+                define('PROJECTPATH', dirname(dirname(__DIR__)));
+                define('APPPATH', PROJECTPATH . '/App');
+                spl_autoload_register(function ($class) {
+                    $filename = PROJECTPATH . '/' . str_replace('\\', '/', $class) . '.php';
+                    if (is_file($filename)) {
+                        include_once $filename;
+                    }
+                });
+            }
+            $repo = new \App\repositories\CierreDiaRepository();
+            $repo->registrarFinUltimoAbierto();
+            return;
+        }
 
-        if ($parametro === null) return self::SaveLog("Error: El parámetro de fecha solicitado no es válido. ({$fecha})");
+        if (!defined('APPPATH')) {
+            define('PROJECTPATH', dirname(dirname(__DIR__)));
+            define('APPPATH', PROJECTPATH . '/App');
+            spl_autoload_register(function ($class) {
+                $filename = PROJECTPATH . '/' . str_replace('\\', '/', $class) . '.php';
+                if (is_file($filename)) {
+                    include_once $filename;
+                }
+            });
+        }
 
-        // $sp = "SP_CIERRE_DIA({$fecha}, '1')";
-        // $params = ['fecha' => $fecha];
-        // $resultado = JobsDao::EjecutaSP($sp, $params);
+        $repo = new \App\repositories\CierreDiaRepository();
+        $usuario = trim((string) $usuario);
 
-        // if (!$resultado['success']) self::SaveLog($resultado);
-        // else self::SaveLog($resultado);
+        $config = \Core\App::getConfig();
+        $configCierre = isset($config['cierre_dia']) ? $config['cierre_dia'] : [];
+        if (!is_array($configCierre) && function_exists('parse_ini_file')) {
+            $ini = @parse_ini_file(PROJECTPATH . '/App/config/configuracion.ini', true);
+            $configCierre = isset($ini['cierre_dia']) ? $ini['cierre_dia'] : [];
+        }
+        $soloFlujo = !empty($configCierre['CIERRE_DIA_SOLO_FLUJO']) && (
+            filter_var($configCierre['CIERRE_DIA_SOLO_FLUJO'], FILTER_VALIDATE_BOOLEAN) ||
+            $configCierre['CIERRE_DIA_SOLO_FLUJO'] === 'true' ||
+            $configCierre['CIERRE_DIA_SOLO_FLUJO'] === '1'
+        );
+        if ($soloFlujo) {
+            self::SaveLog('Modo solo flujo (CIERRE_DIA_SOLO_FLUJO=true): no se modifican datos ni se ejecutan SPs. Se envía correo a CORREOS_DESARROLLO.');
+            $this->finalizarCierreApp($fechaNorm, 1);
+            return;
+        }
+
+        try {
+            $repo->ejecutarSpCierreDia($fechaNorm, $regenerar);
+            self::SaveLog('SP de cierre ejecutado correctamente.');
+
+            $fechaDevengo = date('Y-m-d', strtotime($fechaNorm . ' +1 day'));
+            try {
+                $repo->ejecutarSpGenDevengoDiario($fechaDevengo, $usuario);
+                self::SaveLog('SPGENDEVENGODIARIO ejecutado correctamente.');
+            } catch (\Throwable $e) {
+                self::SaveLog('Advertencia SPGENDEVENGODIARIO: ' . $e->getMessage());
+            }
+
+            try {
+                $repo->ejecutarSpGenAlertarRelPld($fechaNorm, $usuario);
+                self::SaveLog('SPGENALERTARELPLD ejecutado.');
+            } catch (\Throwable $e) {
+                self::SaveLog('Advertencia SPGENALERTARELPLD: ' . $e->getMessage());
+            }
+            try {
+                $repo->ejecutarSpGenAlertaInuPld($fechaNorm, $usuario);
+                self::SaveLog('SPGENALERTAINUPLD ejecutado.');
+            } catch (\Throwable $e) {
+                self::SaveLog('Advertencia SPGENALERTAINUPLD: ' . $e->getMessage());
+            }
+
+            $this->finalizarCierreApp($fechaNorm, 1);
+        } catch (\Throwable $e) {
+            self::SaveLog('Error en cierre: ' . $e->getMessage());
+            $this->finalizarCierreApp($fechaNorm, 0);
+        }
+    }
+
+    /**
+     * Llama a CierreDiaService::finalizarCierre (registrar fin, enviar correo).
+     */
+    private function finalizarCierreApp($fechaCierre, $exito)
+    {
+        if (!class_exists(\App\services\CierreDiaService::class)) {
+            return;
+        }
+        \App\services\CierreDiaService::finalizarCierre($fechaCierre, $exito);
     }
 }
 
@@ -265,7 +356,9 @@ if (isset($argv[1])) {
             $jobs->SolicitudesFinalizadas();
             break;
         case 'CierreDiario':
-            $jobs->CierreDiario($argv[2]);
+            $regenerar = isset($argv[3]) ? (int) $argv[3] : 0;
+            $usuario = isset($argv[4]) ? $argv[4] : '';
+            $jobs->CierreDiario($argv[2], $regenerar, $usuario);
             break;
         case 'help':
             echo 'JobCheques: Actualiza los cheques de los créditos autorizados\n';

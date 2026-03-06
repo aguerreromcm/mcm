@@ -4,85 +4,74 @@
     <div class="panel">
         <div class="panel-header" style="padding: 10px;">
             <div class="x_title">
-                <label style="font-size: large;">Control de Garantías</label>
+                <label style="font-size: large;">Cierre de día</label>
                 <div class="clearfix"></div>
             </div>
+            <p class="text-muted" style="margin-bottom: 15px;">
+                Ejecuta el cierre del día seleccionado (esa fecha es la que se cerrará). El primer día hábil de la semana se cierran los días del fin de semana.
+            </p>
             <div class="card">
-                <div class="card-header" style="margin: 20px 0;">
-                    <span class="card-title">Ingrese la fecha de calculo para el cierre</span>
-                </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-2">
+                        <div class="col-md-12">
                             <div class="form-group">
-                                <label for="fecha">Fecha:</label>
-                                <input type="date" id="fecha" class="form-control" style="font-size: 24px;" min="<?= date('Y-m-d', strtotime('-30 days')) ?>" max="<?= date('Y-m-d', strtotime('1 days')) ?>" value="<?= date('Y-m-d') ?>">
+                                <label for="fecha">Fecha de cierre:</label>
+                            </div>
+                            <div class="form-group" style="display: flex; align-items: center; flex-wrap: wrap; gap: 10px;">
+                                <input type="date" id="fecha" class="form-control" style="font-size: 24px; width: auto; max-width: 200px;" min="<?= date('Y-m-d', strtotime('-30 days')) ?>" max="<?= date('Y-m-d', strtotime('1 days')) ?>" value="<?= date('Y-m-d', strtotime('-1 day')) ?>">
+                                <button type="button" class="btn btn-primary" id="procesar">Generar</button>
                             </div>
                         </div>
-                        <div class="col-md-4">
-                            <div class="form-group" style="margin: 0; min-height: 68px; display: flex; align-items: center; justify-content: space-between;">
-                                <button type="button" class="btn btn-primary" style="margin: 0;" id="procesar">Generar Cierre</button>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="alert alert-danger" role="alert" style="text-align: center; padding: 4px; margin: 0; display: none;" id="alertaEjecucion">
-                                <label id="tiempoEstimado" style="margin: 0;"></label>
+                    </div>
+                    <div class="row" style="margin-top: 10px;">
+                        <div class="col-md-12">
+                            <div class="alert alert-warning" role="alert" style="text-align: left; padding: 10px; margin: 0; display: none;" id="alertaEjecucion">
+                                <strong>El cierre se está ejecutando.</strong><br>
+                                <span id="tiempoEstimado"></span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-        <hr>
-        <div class=" panel-body resultado conDatos" style="margin-top:  20px;">
-            <div class="botones" style="display: flex; align-items: center; justify-content: space-between;">
-                <div style="text-align: center; margin-bottom: 20px;">
-                    <label style="font-size: large;">Destinatarios para notificación de resultado.</label>
+            <div class="card" style="margin-top: 15px;">
+                <div class="card-header">
+                    <span class="card-title">Últimos 5 cierres</span>
                 </div>
-                <button type="button" class="btn btn-primary" id="agregar">
-                    <span class="glyphicon glyphicon-plus">&nbsp;</span>Agrega Correo
-                </button>
-            </div>
-            <hr>
-            <div class="row">
-                <table class="table table-striped table-bordered table-hover" id="correos">
-                    <thead>
-                        <tr>
-                            <th>Nombre</th>
-                            <th>Area</th>
-                            <th>Correo</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    </tbody>
-                </table>
+                <div class="card-body">
+                    <table class="table table-striped table-bordered table-condensed">
+                        <thead>
+                            <tr>
+                                <th>Fecha cierre</th>
+                                <th>Inicio</th>
+                                <th>Fin</th>
+                                <th>Usuario</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php
+                            $listaCierres = isset($listaCierres) ? $listaCierres : [];
+                            if (empty($listaCierres)) {
+                                echo '<tr><td colspan="5">No hay cierres registrados.</td></tr>';
+                            } else {
+                                foreach ($listaCierres as $c) {
+                                    $estado = !empty($c['EXITO']) ? 'OK' : 'Error';
+                                    echo '<tr>';
+                                    echo '<td>' . htmlspecialchars($c['FECHA_CALCULO'] ?? '-') . '</td>';
+                                    echo '<td>' . htmlspecialchars($c['INICIO'] ?? '-') . '</td>';
+                                    echo '<td>' . htmlspecialchars($c['FIN'] ?? '-') . '</td>';
+                                    echo '<td>' . htmlspecialchars($c['USUARIO'] ?? '-') . '</td>';
+                                    echo '<td>' . htmlspecialchars($estado) . '</td>';
+                                    echo '</tr>';
+                                }
+                            }
+                            ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 </div>
-
-
-<div class="modal fade" id="modalAgregaCorreo" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <button type="button" class="close" data-dismiss="modal">&times;</button>
-                <center>
-                    <h2 class="modal-title" id="modalCDCLabel">Añadir destinatario</h2>
-                </center>
-            </div>
-            <div class="modal-body">
-                <div class="container-fluid">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="agregaCorreo">Agregar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 
 <?= $footer; ?>

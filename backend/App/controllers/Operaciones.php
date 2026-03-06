@@ -9,6 +9,7 @@ use Core\Controller;
 use App\models\Operaciones as OperacionesDao;
 use App\services\PagosAplicacionService;
 use App\services\ConciliacionService;
+use App\services\CierreDiaService;
 
 class Operaciones extends Controller
 {
@@ -24,21 +25,26 @@ class Operaciones extends Controller
 
     function CierreDiario()
     {
-        $tiempoEstimado = OperacionesDao::TiempoEstimadoCierreDiario();
-        $estimado = $tiempoEstimado['success'] ? $tiempoEstimado['datos']['ESTIMADO'] : 0;
+        $datosPantalla = CierreDiaService::obtenerDatosPantalla();
+        $datos = $datosPantalla['success'] && isset($datosPantalla['datos']) ? $datosPantalla['datos'] : [];
+        $listaCierres = isset($datos['ultimos5']) ? $datos['ultimos5'] : [];
+        $ejecutando = !empty($datos['ejecutando']) ? 1 : 0;
+        $inicioEjecucion = isset($datos['inicio']) ? $datos['inicio'] : '';
+        $usuarioEjecucion = isset($datos['usuario']) ? $datos['usuario'] : '';
+        $estimado = isset($datos['tiempoEstimado']) ? (int) $datos['tiempoEstimado'] : 0;
+        $perfil = isset($this->__perfil) ? (string) $this->__perfil : '';
 
-        $ejecucionActiva = OperacionesDao::ValidaCierreEnEjecucion();
-        $ejecutando = $ejecucionActiva['success'] && isset($ejecucionActiva['datos']) ? 1 : 0;
-        $inicioEjecucion = $ejecutando ? $ejecucionActiva['datos']['INICIO'] : null;
-        $usuarioEjecucion = $ejecutando ? $ejecucionActiva['datos']['USUARIO'] : null;
+        $ini = @parse_ini_file(dirname(__DIR__) . '/config/configuracion.ini', true);
+        $configCierre = isset($ini['cierre_dia']) && is_array($ini['cierre_dia']) ? $ini['cierre_dia'] : [];
+        $val = isset($configCierre['CIERRE_DIA_SOLO_FLUJO']) ? trim((string) $configCierre['CIERRE_DIA_SOLO_FLUJO']) : '';
+        $soloFlujo = $val !== '' && (filter_var($val, FILTER_VALIDATE_BOOLEAN) || strtolower($val) === 'true' || $val === '1');
+        View::set('soloFlujo', $soloFlujo);
 
         $extraFooter = <<<HTML
             <script>
                 {$this->mensajes}
-                {$this->configuraTabla}
                 {$this->consultaServidor}
                 {$this->confirmarMovimiento}
-                const tabla = "correos"
                 const estimado = $estimado
                 let ejecutando = $ejecutando
                 let inicioEjecucion = "$inicioEjecucion"
@@ -52,73 +58,55 @@ class Operaciones extends Controller
                         "¿Está seguro de querer procesar el cierre del día\\n" + diaMsg() + "?"
                     ).then((continuar) => {
                         if (!continuar) return
-
                         validacionPreviaCierre()
                     })
                 }
 
                 const validacionPreviaCierre = () => {
                     const fecha = $("#fecha").val()
-
+                    if (!fecha) { showError("Seleccione la fecha de cierre."); return }
                     consultaServidor("/operaciones/ValidacionPreviaCierre", { fecha }, (respuesta) => {
                         if (!respuesta.success) {
-                            if (respuesta.datos.USUARIO) {
-                                const mensaje = document.createElement("div")
-                                mensaje.innerHTML = "<p>Ya hay un proceso de cierre diario en ejecución iniciado por el usuario <b>" + respuesta.datos.USUARIO + "</b>.</p>"
-
-                                confirmarMovimiento(
-                                    "Cierre diario",
-                                    null,
-                                    mensaje
-                                ).then((continuar) => {
-                                    if (!continuar) return
-
-                                    procesaCierreDiario()
-                                })
-                                return
-                            }
-                            return showError(respuesta.mensaje)
+                            showError(respuesta.mensaje || "Ya hay un proceso de cierre en ejecución.")
+                            return
                         }
-
-                        if (respuesta.datos.TOTAL > 0) {
-                            const mensaje = document.createElement("div")
-                            mensaje.innerHTML = "<p>El cierre diario del día <b>" + diaMsg() + "</b> ya fue procesado generando <b>" + respuesta.datos.TOTAL + "</b> registros.</p>"
-                            mensaje.innerHTML += `
-                                <br>
-                                <p>Si continua, se eliminarán los registros y se crearan nuevos.</p>
-                                <p><b>Una vez iniciado el proceso, no se podrá recuperar la información eliminada.</b></p>
-                                <br>
-                                <h2 style="color: red;">¿Seguro que desea continuar?</h2>
-                            `
-
-                            confirmarMovimiento(
-                                "Cierre diario",
-                                null,
-                                mensaje
-                            ).then((continuar) => {
-                                if (!continuar) return
-
-                                procesaCierreDiario()
+                        var d = respuesta.datos || {}
+                        if (d.yaEjecutado && !d.puedeRegenerar) {
+                            showError("El cierre de ese día ya fue ejecutado. Solo un administrador puede regenerar el cierre de los últimos 3 días.")
+                            return
+                        }
+                        if (d.yaEjecutado && d.puedeRegenerar) {
+                            confirmarMovimiento("Regenerar cierre", "El cierre del día ya fue procesado. ¿Desea regenerar? Se eliminarán los registros y se crearán nuevos. Esta acción no se puede deshacer.", null).then((ok) => {
+                                if (!ok) return
+                                pedirPasswordYProcesar(true)
                             })
                             return
                         }
-
-                        procesaCierreDiario()
+                        procesaCierreDiario(false)
                     })
                 }
 
-                const procesaCierreDiario = () => {
-                    const fecha = $("#fecha").val()
+                const pedirPasswordYProcesar = (regenerar) => {
+                    var pass = prompt("Ingrese su contraseña para confirmar la regeneración del cierre:")
+                    if (pass === null || pass === "") return
+                    $.post("/operaciones/ValidarPasswordCierreDiario", { usuario: "{$this->__usuario}", password: pass }, null, "json").done(function (r) {
+                        if (r && r.success) procesaCierreDiario(regenerar)
+                        else showError(r && r.mensaje ? r.mensaje : "Contraseña incorrecta.")
+                    }).fail(function () { showError("Error al validar la contraseña.") })
+                }
 
-                    consultaServidor("/operaciones/ProcesaCierreDiario", { fecha, usuario: "{$this->__usuario}" }, (respuesta) => {
+                const procesaCierreDiario = (regenerar) => {
+                    var payload = { fecha: $("#fecha").val(), usuario: "{$this->__usuario}" }
+                    if (regenerar) payload.regenerar = "1"
+                    consultaServidor("/operaciones/ProcesaCierreDiario", payload, (respuesta) => {
                         if (!respuesta.success) return showError(respuesta.mensaje)
-
-                        const mensaje = "El proceso de cierre diario ha sido iniciado, al finalizar, se le notificara a los destinatarios registrados."
+                        const mensaje = "El proceso de cierre diario ha sido iniciado. Al finalizar se enviará el resumen por correo."
                         showSuccess(mensaje).then(() => {
                             ejecutando = true
                             inicioEjecucion = fechaActualFormateada()
                             usuarioEjecucion = "{$this->__usuario}"
-                            validaEjecucionActiva()
+                    $("#procesar").attr("disabled", true)
+                    validaEjecucionActiva()
                         })
                     })
                 }
@@ -229,12 +217,6 @@ class Operaciones extends Controller
 
                 $(document).ready(() => {
                     $("#procesar").click(() => iniciaCierreDiario())
-
-                    $("#agregar").click(() => {
-                        $("#modalAgregaCorreo").modal("show")
-                    })
-                    
-                    configuraTabla(tabla)
                     validaEjecucionActiva()
                 })
             </script>
@@ -242,49 +224,102 @@ class Operaciones extends Controller
 
         View::set('header', $this->_contenedor->header(self::GetExtraHeader('Cierre diario')));
         View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::set('listaCierres', $listaCierres);
         View::render('operaciones_cierre_diario');
     }
 
     function ValidaCierreEnEjecucion()
     {
-        echo json_encode(OperacionesDao::ValidaCierreEnEjecucion());
+        $this->limpiaSalidaParaJson();
+        $resp = CierreDiaService::validaCierreEnEjecucion();
+        if (ob_get_level()) ob_end_clean();
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($resp);
+        exit;
     }
 
     function ValidacionPreviaCierre()
     {
-        $activo = OperacionesDao::ValidaCierreEnEjecucion($_POST);
-        if ($activo['success'] && isset($activo['datos'])) {
-            echo json_encode([
-                'success' => false,
-                'mensaje' => "Ya hay un proceso de cierre diario en ejecución, no es posible iniciar otro.",
-                'datos' => $activo['datos']
-            ]);
-            return;
+        $this->limpiaSalidaParaJson();
+        try {
+            $fecha = isset($_POST['fecha']) ? trim((string) $_POST['fecha']) : '';
+            $perfil = isset($this->__perfil) ? (string) $this->__perfil : '';
+            // Como en VB6: la fecha seleccionada en el calendario es la fecha de cierre
+            $fechaCierre = $fecha !== '' ? date('Y-m-d', strtotime($fecha)) : '';
+            $resp = CierreDiaService::validacionPrevia($fechaCierre, $perfil);
+        } catch (\Throwable $e) {
+            $resp = \Core\Model::Responde(false, 'Error al validar: ' . $e->getMessage(), null, $e->getMessage());
         }
+        if (ob_get_level()) ob_end_clean();
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($resp);
+        exit;
+    }
 
-        echo json_encode(OperacionesDao::ValidacionPreviaCierre($_POST));
+    /**
+     * POST: usuario, password. Valida contraseña del usuario para permitir regenerar cierre (doble verificación).
+     */
+    function ValidarPasswordCierreDiario()
+    {
+        $this->limpiaSalidaParaJson();
+        $usuario = isset($_POST['usuario']) ? trim((string) $_POST['usuario']) : '';
+        $password = isset($_POST['password']) ? (string) $_POST['password'] : '';
+        $ok = \App\models\Login::ValidaPassword($usuario, $password);
+        if (ob_get_level()) ob_end_clean();
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => $ok, 'mensaje' => $ok ? 'Contraseña correcta.' : 'Contraseña incorrecta.']);
+        exit;
+    }
+
+    /**
+     * Descarta cualquier salida previa (p. ej. echo de Database::muestraError) para que la respuesta sea JSON válido.
+     */
+    private function limpiaSalidaParaJson()
+    {
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        ob_start();
     }
 
     function ProcesaCierreDiario()
     {
-        $fecha = $_POST['fecha'] ?? null;
-        if (!$fecha) {
-            echo json_encode([
-                'success' => false,
-                'mensaje' => 'No se ha indicado la fecha para el cierre diario.'
-            ]);
-            return;
+        $this->limpiaSalidaParaJson();
+        set_time_limit(3600);
+        try {
+            $fecha = isset($_POST['fecha']) ? trim((string) $_POST['fecha']) : '';
+            $usuario = isset($this->__usuario) ? (string) $this->__usuario : '';
+            $regenerar = !empty($_POST['regenerar']) ? 1 : 0;
+
+            if ($fecha === '') {
+                if (ob_get_level()) ob_end_clean();
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'mensaje' => 'No se ha indicado la fecha para el cierre diario.']);
+                exit;
+            }
+
+            // Como en VB6: la fecha seleccionada es la fecha de cierre
+            $fechaCierre = date('Y-m-d', strtotime($fecha));
+            $resp = CierreDiaService::registrarInicioYResponder($fechaCierre, $usuario, $regenerar);
+            if (!$resp['success']) {
+                if (ob_get_level()) ob_end_clean();
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode($resp);
+                exit;
+            }
+
+            $resp = CierreDiaService::ejecutarCierreDiario($fechaCierre, $usuario, $regenerar);
+
+            if (ob_get_level()) ob_end_clean();
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($resp);
+            exit;
+        } catch (\Throwable $e) {
+            if (ob_get_level()) ob_end_clean();
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(\Core\Model::Responde(false, 'Error al procesar: ' . $e->getMessage(), null, $e->getMessage()));
+            exit;
         }
-
-        OperacionesDao::RegistraInicioCierreDiario($_POST);
-        $cmd = "C:/xampp/php/php.exe " . dirname(__DIR__) . "/../Jobs/controllers/JobsCredito.php CierreDiario $fecha";
-        $cmd = str_replace("\\", "/", $cmd);
-
-        pclose(popen("start /B " . $cmd, "r"));
-        echo json_encode([
-            'success' => true,
-            'mensaje' => 'El proceso de cierre diario se ha iniciado correctamente.'
-        ]);
     }
 
     ////////////////////////////////////////////////////////////////////

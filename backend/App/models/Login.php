@@ -90,4 +90,34 @@ sql;
 
         return $mysqli->queryAll($query);
     }
+
+    /**
+     * Valida usuario y contraseña (doble verificación, ej. regenerar cierre diario).
+     *
+     * @param string $usuario Código de usuario
+     * @param string $password Contraseña en texto plano (se codifica con CODIFICA en BD)
+     * @return bool
+     */
+    public static function ValidaPassword($usuario, $password)
+    {
+        if (trim((string) $usuario) === '' || trim((string) $password) === '') {
+            return false;
+        }
+        $query = <<<SQL
+            SELECT COUNT(*) AS OK
+            FROM PE
+            WHERE PE.CDGEM = 'EMPFIN'
+            AND PE.ACTIVO = 'S'
+            AND (PE.BLOQUEO = 'N' OR PE.BLOQUEO IS NULL)
+            AND PE.CODIGO = :usuario
+            AND PE.CLAVE = CODIFICA(:password)
+        SQL;
+        try {
+            $mysqli = new Database();
+            $r = $mysqli->queryOne($query, [':usuario' => $usuario, ':password' => $password]);
+            return $r && isset($r['OK']) && (int) $r['OK'] > 0;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
 }

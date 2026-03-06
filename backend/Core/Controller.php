@@ -54,26 +54,20 @@ class Controller
                 type: metodo,
                 url: url,
                 data: datos,
+                dataType: tipo === "JSON" ? "json" : (tipo === "blob" ? "blob" : undefined),
                 success: (res) => {
-                    if (tipo === "JSON") {
-                        try {
-                            res = JSON.parse(res)
-                        } catch (error) {
-                            console.error(error)
-                            res =  {
-                                success: false,
-                                mensaje: "Ocurrió un error al procesar la respuesta del servidor."
-                            }
-                        }
+                    if (tipo === "JSON" && typeof res === "string") {
+                        try { res = JSON.parse(res) } catch (e) { res = { success: false, mensaje: "La respuesta del servidor no es JSON válido." } }
                     }
-                    if (tipo === "blob") res = new Blob([res], { type: "application/pdf" })
+                    if (tipo === "blob" && !(res instanceof Blob)) res = new Blob([res], { type: "application/pdf" })
 
                     swal.close()
                     fncOK(res)
                 },
-                error: (error) => {
-                    console.error(error)
-                    showError("Ocurrió un error al procesar la solicitud.")
+                error: (xhr, textStatus, errorThrown) => {
+                    console.error("consultaServidor error:", textStatus, errorThrown, xhr.responseText)
+                    const msg = textStatus === "parsererror" ? "La respuesta del servidor no es JSON válido. Revise que no haya errores en el servidor." : "Ocurrió un error al procesar la solicitud."
+                    showError(msg)
                 }
             }
 
