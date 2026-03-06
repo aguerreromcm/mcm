@@ -149,15 +149,15 @@ class AuditoriaDevengo extends Model
     public static function ObtenerFechaLiquida($db, $credito, $ciclo)
     {
         $qry = <<<SQL
-            SELECT MAX(FECHA_LIQUIDA) AS FECHA_LIQUIDA
+            SELECT TO_CHAR(MAX(FECHA_LIQUIDA), 'YYYY-MM-DD') AS FECHA_LIQUIDA
             FROM TBL_CIERRE_DIA
             WHERE CDGCLNS = :credito AND CICLO = :ciclo AND FECHA_LIQUIDA IS NOT NULL
         SQL;
         $prm = ['credito' => $credito, 'ciclo' => $ciclo];
         $res = $db->queryOne($qry, $prm);
 
-        if ($res && isset($res['FECHA_LIQUIDA']) && $res['FECHA_LIQUIDA'] !== null) {
-            return date('Y-m-d', strtotime($res['FECHA_LIQUIDA']));
+        if ($res && !empty($res['FECHA_LIQUIDA'])) {
+            return trim((string) $res['FECHA_LIQUIDA']);
         }
 
         return date('Y-m-d');

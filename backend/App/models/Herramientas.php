@@ -78,7 +78,8 @@ class Herramientas extends Model
      * Devengos faltantes en una sola consulta.
      * Estructura: PARAMETROS → DATOS_CREDITO → DATOS_CALCULO → CALENDARIO (recursivo) → PROYECCION.
      * Devuelve solo los que no existen en ESIACOM.DEVENGO_DIARIO, con todos los campos para INSERT.
-     * Exclusión por FECHA_LIQUIDA (TBL_CIERRE_DIA). No se llama a EnriquecerFilasConDatosInsertar.
+     * FECHA_LIQUIDA se usa como fecha tope si existe para el crédito/ciclo.
+     * No se llama a EnriquecerFilasConDatosInsertar.
      *
      * @param array $datos ['credito','ciclo','fecha_corte']
      * @return array { success, mensaje, datos }
@@ -139,22 +140,38 @@ DATOS_CALCULO AS (
         ROUND(DC.DEVENGO_TOTAL / NULLIF(DC.FACTOR_DIAS * DC.PLAZO, 0), 2) AS DEVENGO_DIARIO
     FROM DATOS_CREDITO DC
 ),
-CALENDARIO (FECHA_CALC, CREDITO, CICLO, DEVENGO_DIARIO, FIN) AS (
-    SELECT DC.INICIO + 1, DC.CREDITO, DC.CICLO, DC.DEVENGO_DIARIO, DC.FIN
+CORTE_LIQUIDA AS (
+    SELECT
+        CDGCLNS AS CREDITO,
+        CICLO,
+        MAX(TRUNC(FECHA_LIQUIDA)) AS FECHA_LIQUIDA
+    FROM TBL_CIERRE_DIA
+    WHERE FECHA_LIQUIDA IS NOT NULL
+    GROUP BY CDGCLNS, CICLO
+),
+LIMITES AS (
+    SELECT
+        DC.*,
+        LEAST(DC.FIN, NVL(CL.FECHA_LIQUIDA, DC.CORTE), TRUNC(SYSDATE)) AS FECHA_HASTA
     FROM DATOS_CALCULO DC
+    LEFT JOIN CORTE_LIQUIDA CL ON CL.CREDITO = DC.CREDITO AND CL.CICLO = DC.CICLO
+),
+CALENDARIO (FECHA_CALC, CREDITO, CICLO, DEVENGO_DIARIO, FIN, FECHA_HASTA) AS (
+    SELECT L.INICIO + 1, L.CREDITO, L.CICLO, L.DEVENGO_DIARIO, L.FIN, L.FECHA_HASTA
+    FROM LIMITES L
+    WHERE L.INICIO + 1 <= L.FECHA_HASTA
     UNION ALL
-    SELECT C.FECHA_CALC + 1, C.CREDITO, C.CICLO, C.DEVENGO_DIARIO, C.FIN
+    SELECT C.FECHA_CALC + 1, C.CREDITO, C.CICLO, C.DEVENGO_DIARIO, C.FIN, C.FECHA_HASTA
     FROM CALENDARIO C
-    WHERE C.FECHA_CALC + 1 <= LEAST(C.FIN, (SELECT MAX(CORTE) FROM PARAMETROS))
+    WHERE C.FECHA_CALC + 1 <= C.FECHA_HASTA
 ),
 PROYECCION AS (
-    SELECT C.CREDITO, C.CICLO, DC.INICIO, DC.FIN, C.FECHA_CALC, DC.PLAZO, DC.PLAZO_DIAS, DC.PERIODICIDAD, DC.DEVENGO_TOTAL, DC.IVA,
-        CASE WHEN C.FECHA_CALC = DC.FIN THEN 1 ELSE 0 END AS ES_ULTIMO_DIA,
+    SELECT C.CREDITO, C.CICLO, L.INICIO, L.FIN, C.FECHA_CALC, L.PLAZO, L.PLAZO_DIAS, L.PERIODICIDAD, L.DEVENGO_TOTAL, L.IVA,
+        CASE WHEN C.FECHA_CALC = L.FIN THEN 1 ELSE 0 END AS ES_ULTIMO_DIA,
         SUM(C.DEVENGO_DIARIO) OVER (PARTITION BY C.CREDITO, C.CICLO ORDER BY C.FECHA_CALC ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS DEVENGO_ACUMULADO,
         C.DEVENGO_DIARIO
     FROM CALENDARIO C
-    JOIN DATOS_CALCULO DC ON C.CREDITO = DC.CREDITO AND C.CICLO = DC.CICLO
-    WHERE C.FECHA_CALC <= LEAST(NVL(DC.CORTE, DC.FIN), TRUNC(SYSDATE))
+    JOIN LIMITES L ON C.CREDITO = L.CREDITO AND C.CICLO = L.CICLO
 ),
 RESULTADO AS (
     SELECT
@@ -183,10 +200,6 @@ WHERE NOT EXISTS (
     SELECT 1 FROM ESIACOM.DEVENGO_DIARIO DD
     WHERE DD.CDGCLNS = R.CREDITO AND DD.CICLO = R.CICLO AND DD.CDGEM = R.CDGEM
       AND TRUNC(DD.FECHA_CALC) = TO_DATE(R.FECHA_CALC_ISO, 'YYYY-MM-DD')
-)
-AND NOT EXISTS (
-    SELECT 1 FROM TBL_CIERRE_DIA TCD
-    WHERE TCD.CDGCLNS = R.CREDITO AND TCD.CICLO = R.CICLO AND TCD.FECHA_LIQUIDA IS NOT NULL
 )
 ORDER BY R.CREDITO, R.CICLO, R.FECHA_CALC_ISO
 SQL;
@@ -236,13 +249,13 @@ SQL;
             $r = self::ValidarCicloExiste($db, $credito, $ciclo);
             if (!$r['success']) throw new \Exception($r['mensaje']);
 
-            $r = self::ValidarFechaLiquida($db, $credito, $ciclo);
+            $fechaCorte = trim((string) ($fila['FECHA_CALC_ISO'] ?? $fila['FECHA_CALC'] ?? date('Y-m-d')));
+            $r = self::ValidarFechaLiquida($db, $credito, $ciclo, $fechaCorte);
             if (!$r['success']) throw new \Exception($r['mensaje']);
 
             self::ObtenerBloqueo($db, $credito, $ciclo);
 
             $insertados = self::InsertarFilasDevengo($db, [$fila], $usuario);
-            $fechaCorte = trim((string) ($fila['FECHA_CALC_ISO'] ?? $fila['FECHA_CALC'] ?? date('Y-m-d')));
 
             self::InsertarBitacora($db, $credito, $ciclo, $fechaCorte, $tipoEjecucion, $usuario, $perfil, 'OK', null, $ip);
             $db->ConfirmaTransaccion();
@@ -269,7 +282,7 @@ SQL;
             }
             return [
                 'success' => false,
-                'mensaje' => 'Error al procesar el crédito',
+                'mensaje' => $msg !== '' ? $msg : 'Error al procesar el crédito',
                 'insertados' => 0,
                 'credito' => $credito,
                 'ciclo' => $ciclo
@@ -295,17 +308,18 @@ SQL;
                 if ($credito === '' || $ciclo === '') {
                     throw new \Exception("Registro inválido: crédito y ciclo obligatorios.");
                 }
+                $fechaCalc = trim((string) ($fila['FECHA_CALC_ISO'] ?? $fila['FECHA_CALC'] ?? date('Y-m-d')));
                 $key = $credito . '|' . $ciclo;
                 if (!isset($paresValidados[$key])) {
                     $r = self::ValidarCreditoExiste($db, $credito);
                     if (!$r['success']) throw new \Exception("Crédito $credito: " . $r['mensaje']);
                     $r = self::ValidarCicloExiste($db, $credito, $ciclo);
                     if (!$r['success']) throw new \Exception("Crédito $credito ciclo $ciclo: " . $r['mensaje']);
-                    $r = self::ValidarFechaLiquida($db, $credito, $ciclo);
-                    if (!$r['success']) throw new \Exception("Crédito $credito ciclo $ciclo: " . $r['mensaje']);
                     self::ObtenerBloqueo($db, $credito, $ciclo);
                     $paresValidados[$key] = true;
                 }
+                $r = self::ValidarFechaLiquida($db, $credito, $ciclo, $fechaCalc);
+                if (!$r['success']) throw new \Exception("Crédito $credito ciclo $ciclo fecha $fechaCalc: " . $r['mensaje']);
             }
 
             $insertados = self::InsertarFilasDevengo($db, $registros, $usuario);
@@ -336,9 +350,10 @@ SQL;
             ];
         } catch (\Throwable $e) {
             $db->CancelaTransaccion();
+            $msg = $e->getMessage();
             return [
                 'success' => false,
-                'mensaje' => 'Error al procesar los créditos',
+                'mensaje' => $msg !== '' ? $msg : 'Error al procesar los créditos',
                 'insertados' => 0,
                 'credito' => '',
                 'ciclo' => ''
@@ -375,20 +390,36 @@ SQL;
     }
 
     /**
-     * Valida FECHA_LIQUIDA: si existe, no permitir procesar (crédito ya liquidado).
+     * Valida FECHA_LIQUIDA como fecha tope de procesamiento para crédito/ciclo.
      */
-    public static function ValidarFechaLiquida(\Core\Database $db, string $credito, string $ciclo): array
+    public static function ValidarFechaLiquida(\Core\Database $db, string $credito, string $ciclo, ?string $fechaCalc = null): array
     {
         $qry = <<<SQL
-            SELECT MAX(FECHA_LIQUIDA) AS FECHA_LIQUIDA
+            SELECT TO_CHAR(MAX(FECHA_LIQUIDA), 'YYYY-MM-DD') AS FECHA_LIQUIDA
             FROM TBL_CIERRE_DIA
             WHERE CDGCLNS = :credito AND CICLO = :ciclo AND FECHA_LIQUIDA IS NOT NULL
 SQL;
         $res = $db->queryOne($qry, ['credito' => $credito, 'ciclo' => $ciclo]);
-        $fechaLiquida = $res['FECHA_LIQUIDA'] ?? null;
-        if ($fechaLiquida !== null) {
-            return self::Responde(false, 'No se puede procesar: el crédito ya ha sido liquidado (FECHA_LIQUIDA existe).');
+        $fechaLiquida = trim((string) ($res['FECHA_LIQUIDA'] ?? ''));
+        if ($fechaLiquida === '') {
+            return self::Responde(true, 'OK');
         }
+
+        $fechaCalc = trim((string) ($fechaCalc ?? ''));
+        if ($fechaCalc === '') {
+            return self::Responde(true, 'OK');
+        }
+
+        $tsFechaCalc = strtotime($fechaCalc);
+        $tsFechaLimite = strtotime($fechaLiquida);
+        if ($tsFechaCalc === false || $tsFechaLimite === false) {
+            return self::Responde(false, 'No se pudo validar la fecha de proceso contra FECHA_LIQUIDA.');
+        }
+
+        if ($tsFechaCalc > $tsFechaLimite) {
+            return self::Responde(false, 'No se puede procesar una fecha posterior a FECHA_LIQUIDA (' . $fechaLiquida . ').');
+        }
+
         return self::Responde(true, 'OK');
     }
 

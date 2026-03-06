@@ -26,7 +26,7 @@
                                 <th>CREDITO</th>
                                 <th>CICLO</th>
                                 <th>FECHA FALTANTE</th>
-                                <th>FECHA CALC</th>
+                                <th>DEVENGO DIARIO</th>
                                 <th>NOMBRE</th>
                                 <th>Acciones</th>
                             </tr>
@@ -42,14 +42,19 @@
 </div>
 
 <!-- Contenedor global de toasts -->
-<div id="toast-container"></div>
+<div id="toast-container" class="toast-container"></div>
 
 <style>
+#toast-container,
 .toast-container {
     position: fixed;
     top: 20px;
     right: 20px;
-    z-index: 9999;
+    z-index: 100000;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    pointer-events: none;
 }
 
 .toast {
@@ -62,6 +67,9 @@
     opacity: 0;
     transform: translateX(100%);
     transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    pointer-events: auto;
+    white-space: pre-wrap;
 }
 
 .toast.show {
@@ -81,7 +89,13 @@
 
     // Función para mostrar toast profesional
     function showToast(message, type = "success") {
-        const container = document.getElementById("toast-container");
+        let container = document.getElementById("toast-container");
+        if (!container) {
+            container = document.createElement("div");
+            container.id = "toast-container";
+            container.className = "toast-container";
+            document.body.appendChild(container);
+        }
 
         const toast = document.createElement("div");
         toast.classList.add("toast", type);
@@ -95,6 +109,19 @@
             toast.classList.remove("show");
             setTimeout(() => container.removeChild(toast), 300);
         }, 4000);
+    }
+
+    function showError(message) {
+        showToast(message, "error");
+    }
+
+    function showInfo(message) {
+        showToast(message, "warning");
+    }
+
+    function formatDevengoDiario(value) {
+        const number = Number(value);
+        return Number.isFinite(number) ? number.toFixed(2) : "";
     }
 
     $(document).on('click', '#btnConsultar', function (e) {
@@ -310,13 +337,14 @@
                 var rows = datos.map(function(item, idx) {
                     var c = String(item.CREDITO || item.credito || item.CDGNS || "").trim();
                     var ci = String(item.CICLO || item.ciclo || "").trim();
+                    var devDiario = formatDevengoDiario(item.DEV_DIARIO);
                     var btn = '<button type="button" class="btn btn-primary btn-sm btn-procesar" data-index="' + idx + '">Procesar</button>';
                     return [
                         null, // La primera columna se renderiza con la función render
                         c,
                         ci,
                         item.FECHA_FALTANTE || item.FECHA_FALT || "",
-                        item.FECHA_CALC || "",
+                        devDiario,
                         item.NOMBRE || "",
                         btn
                     ];
@@ -352,13 +380,14 @@
         var rows = datos.map(function(item, idx) {
             var c = String(item.CREDITO || item.credito || item.CDGNS || "").trim();
             var ci = String(item.CICLO || item.ciclo || "").trim();
+            var devDiario = formatDevengoDiario(item.DEV_DIARIO);
             var btn = '<button type="button" class="btn btn-primary btn-sm btn-procesar" data-index="' + idx + '">Procesar</button>';
             return [
                 null, // La primera columna se renderiza con la función render
                 c,
                 ci,
                 item.FECHA_FALTANTE || item.FECHA_FALT || "",
-                item.FECHA_CALC || "",
+                devDiario,
                 item.NOMBRE || "",
                 btn
             ];
