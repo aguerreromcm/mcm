@@ -45,6 +45,61 @@
 <div id="toast-container" class="toast-container"></div>
 
 <style>
+#muestra-auditoria-devengo {
+    table-layout: fixed;
+    width: 100% !important;
+}
+
+#muestra-auditoria-devengo th,
+#muestra-auditoria-devengo td {
+    vertical-align: middle !important;
+}
+
+#muestra-auditoria-devengo th:nth-child(1),
+#muestra-auditoria-devengo td:nth-child(1) {
+    width: 42px;
+    text-align: center;
+}
+
+#muestra-auditoria-devengo th:nth-child(2),
+#muestra-auditoria-devengo td:nth-child(2) {
+    width: 90px;
+}
+
+#muestra-auditoria-devengo th:nth-child(3),
+#muestra-auditoria-devengo td:nth-child(3) {
+    width: 70px;
+    text-align: center;
+}
+
+#muestra-auditoria-devengo th:nth-child(4),
+#muestra-auditoria-devengo td:nth-child(4) {
+    width: 125px;
+    text-align: center;
+}
+
+#muestra-auditoria-devengo th:nth-child(5),
+#muestra-auditoria-devengo td:nth-child(5) {
+    width: 120px;
+    text-align: center;
+}
+
+#muestra-auditoria-devengo th:nth-child(6),
+#muestra-auditoria-devengo td:nth-child(6) {
+    width: auto;
+}
+
+#muestra-auditoria-devengo th:nth-child(7),
+#muestra-auditoria-devengo td:nth-child(7) {
+    width: 110px;
+    text-align: center;
+}
+
+#muestra-auditoria-devengo td:nth-child(6) {
+    white-space: normal;
+    word-break: break-word;
+}
+
 #toast-container,
 .toast-container {
     position: fixed;
@@ -222,8 +277,18 @@
         }
     }
     tabla = $("#muestra-auditoria-devengo").DataTable({
+        autoWidth: false,
         lengthMenu: [[25,50,100,-1],[25,50,100,"Todos"]],
         order: [[1, "asc"]],
+        columns: [
+            { width: "42px" },
+            { width: "90px" },
+            { width: "70px" },
+            { width: "125px" },
+            { width: "120px" },
+            { width: null },
+            { width: "110px" }
+        ],
         columnDefs: [
             {
                 targets: 0,
