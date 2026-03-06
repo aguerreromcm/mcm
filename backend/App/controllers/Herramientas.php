@@ -545,6 +545,21 @@ class Herramientas extends Controller
                 'fecha_corte'  => $fechaCorte,
             ];
 
+            $credito = (string) ($datos['credito'] ?? '');
+            $ciclo = (string) ($datos['ciclo'] ?? '');
+            if ($credito === '' && $ciclo === '') {
+                echo json_encode(\Core\Model::Responde(false, 'Captura al menos un filtro: crédito o ciclo.'));
+                return;
+            }
+            if ($credito !== '' && !ctype_digit($credito)) {
+                echo json_encode(\Core\Model::Responde(false, 'El crédito debe contener solo números.'));
+                return;
+            }
+            if ($ciclo !== '' && !ctype_digit($ciclo)) {
+                echo json_encode(\Core\Model::Responde(false, 'El ciclo debe contener solo números.'));
+                return;
+            }
+
             $resp = AuditoriaDevengoService::GetDevengosFaltantes($datos);
             echo json_encode($resp);
         } catch (\Throwable $e) {

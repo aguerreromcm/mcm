@@ -179,6 +179,21 @@
         return Number.isFinite(number) ? number.toFixed(2) : "";
     }
 
+    function esNumeroEntero(texto) {
+        return /^\d+$/.test(texto);
+    }
+
+    function eliminarRegistrosLocales(predicate) {
+        if (!Array.isArray(window._devengosFaltantesDatos)) {
+            return;
+        }
+        window._devengosFaltantesDatos = window._devengosFaltantesDatos.filter(function(item, idx) {
+            return item != null && !predicate(item, idx);
+        });
+        $("#checkAll").prop("checked", false);
+        actualizarTablaLocal();
+    }
+
     $(document).on('click', '#btnConsultar', function (e) {
         e.preventDefault();
         console.log('btnConsultar clicked');
@@ -210,10 +225,12 @@
             return;
         }
         var registros = [];
+        var indicesSeleccionados = [];
         checked.each(function() {
             var idx = $(this).data("index");
             if (typeof idx !== "undefined" && Array.isArray(window._devengosFaltantesDatos) && window._devengosFaltantesDatos[idx]) {
                 registros.push(window._devengosFaltantesDatos[idx]);
+                indicesSeleccionados.push(Number(idx));
             }
         });
         if (!registros.length) {
@@ -239,16 +256,9 @@
                     if (res.success) {
                         if (res.insertados > 0) {
                             showToast(res.mensaje, "success");
-
-                            // Eliminar filas procesadas
-                            if (res.creditosProcesados && Array.isArray(res.creditosProcesados)) {
-                                res.creditosProcesados.forEach(function(item) {
-                                    const fila = document.querySelector(
-                                        `tr[data-credito="${item.credito}"][data-ciclo="${item.ciclo}"]`
-                                    );
-                                    if (fila) fila.remove();
-                                });
-                            }
+                            eliminarRegistrosLocales(function(item, idx) {
+                                return indicesSeleccionados.indexOf(idx) !== -1;
+                            });
                         } else {
                             showToast(res.mensaje, "warning");
                         }
@@ -346,13 +356,9 @@
                     if (res.success) {
                         if (res.insertados > 0) {
                             showToast(res.mensaje, "success");
-
-                            // Eliminar fila del grid usando data attributes
-                            const fila = document.querySelector(
-                                `tr[data-credito="${res.credito}"][data-ciclo="${res.ciclo}"]`
-                            );
-                            if (fila) fila.remove();
-
+                            eliminarRegistrosLocales(function(item, itemIdx) {
+                                return itemIdx === idx;
+                            });
                         } else {
                             showToast(res.mensaje, "warning");
                         }
@@ -372,6 +378,19 @@
         console.log('consultarDevengos called');
         var credito = $("#credito").val() ? $("#credito").val().trim() : "";
         var ciclo = $("#ciclo").val() ? $("#ciclo").val().trim() : "";
+
+        if (!credito && !ciclo) {
+            showToast("Captura al menos un filtro: crédito o ciclo.", "warning");
+            return;
+        }
+        if (credito && !esNumeroEntero(credito)) {
+            showToast("El crédito debe contener solo números.", "warning");
+            return;
+        }
+        if (ciclo && !esNumeroEntero(ciclo)) {
+            showToast("El ciclo debe contener solo números.", "warning");
+            return;
+        }
 
         var data = {};
         if (credito) data.credito = credito;

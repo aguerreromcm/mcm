@@ -90,6 +90,16 @@ class Herramientas extends Model
         $ciclo = !empty(trim((string) ($datos['ciclo'] ?? ''))) ? trim($datos['ciclo']) : null;
         $fechaCorte = !empty(trim((string) ($datos['fecha_corte'] ?? ''))) ? trim($datos['fecha_corte']) : null;
 
+        if ($credito === null && $ciclo === null) {
+            return self::Responde(false, 'Captura al menos un filtro: crédito o ciclo.');
+        }
+        if ($credito !== null && !ctype_digit($credito)) {
+            return self::Responde(false, 'El crédito debe contener solo números.');
+        }
+        if ($ciclo !== null && !ctype_digit($ciclo)) {
+            return self::Responde(false, 'El ciclo debe contener solo números.');
+        }
+
         if ($fechaCorte === null) {
             $fechaCorte = date('Y-m-d');
         }
