@@ -155,6 +155,7 @@ class Menu
             $this->enlace('Conciliación de pagos', '/Operaciones/ConciliacionPagos/', ['ADMIN', 'ACALL', 'LAYOU', 'FECR']),
             $this->enlace('Cierre de día', '/Operaciones/CierreDiario/', ['ADMIN', 'ACALL', 'LAYOU', 'FECR']),
             $this->enlace('Reporte Cliente y Aval Consolidado', '/Operaciones/ReportePC', ['ADMIN', 'PHEE', 'MCDP', 'FECR', 'ORHM']),
+            $this->enlace('Reporte Interés Devengado', '/Operaciones/ReporteInteresDevengado', ['AMGM']),
         ];
     }
 

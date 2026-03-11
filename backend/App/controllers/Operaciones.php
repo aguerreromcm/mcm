@@ -826,8 +826,177 @@ class Operaciones extends Controller
         \PHPSpreadsheet::DescargaExcel('Consolidado Clientes y Avales', 'Reporte', 'Consolidado Clientes y Avales', $columnas, $filas);
     }
 
+    /**
+     * Operaciones → Reporte Interés Devengado.
+     * Filtros: fecha de corte y situación del crédito (Entregado, Liquidado, Ambos).
+     * Vista con tabla y botón de exportar a Excel.
+     */
+    public function ReporteInteresDevengado()
+    {
+        $extraFooter = <<<HTML
+            <script>
+                {$this->mensajes}
+                {$this->consultaServidor}
+                {$this->confirmarMovimiento}
+                {$this->configuraTabla}
+                {$this->descargaExcel}
+                {$this->formatoMoneda}
 
+                const idTablaDevengo = "reporteDevengo"
 
+                const obtenerParametrosDevengo = () => {
+                    const fechaCorte = $("#fechaCorte").val()
+                    const situacion = $("#situacionCredito").val() || "AMBOS"
+                    return { fechaCorte, situacion }
+                }
 
+                const consultarDevengo = () => {
+                    const params = obtenerParametrosDevengo()
+                    if (!params.fechaCorte) {
+                        showError("Seleccione la fecha de corte.")
+                        return
+                    }
 
+                    consultaServidor("/Operaciones/GetReporteInteresDevengado", params, (res) => {
+                        if (!res.success) return resultadoErrorDevengo(res.mensaje)
+                        resultadoOKDevengo(res.datos || [])
+                    })
+                }
+
+                const resultadoErrorDevengo = (mensaje) => {
+                    $(".resultadoDevengo").toggleClass("conDatos", false)
+                    showError(mensaje || "No fue posible obtener el reporte.").then(() => {
+                        actualizaDatosTabla(idTablaDevengo, [])
+                    })
+                }
+
+                const resultadoOKDevengo = (datos) => {
+                    datos = datos.map((item) => {
+                        if (item.INTERES_TOTAL != null) {
+                            item.INTERES_TOTAL = "$ " + formatoMoneda(item.INTERES_TOTAL)
+                        }
+                        if (item.DEVENGO_DIARIO != null) {
+                            item.DEVENGO_DIARIO = "$ " + formatoMoneda(item.DEVENGO_DIARIO)
+                        }
+                        if (item.DEVENGO_TRANSCURRIDO != null) {
+                            item.DEVENGO_TRANSCURRIDO = "$ " + formatoMoneda(item.DEVENGO_TRANSCURRIDO)
+                        }
+                        if (item.DEVENGO_REGISTRADO != null) {
+                            item.DEVENGO_REGISTRADO = "$ " + formatoMoneda(item.DEVENGO_REGISTRADO)
+                        }
+                        if (item.DEVENGO_DIF != null) {
+                            item.DEVENGO_DIF = "$ " + formatoMoneda(item.DEVENGO_DIF)
+                        }
+                        return item
+                    })
+
+                    actualizaDatosTabla(idTablaDevengo, datos)
+                    $(".resultadoDevengo").toggleClass("conDatos", true)
+                }
+
+                const descargarExcelDevengo = () => {
+                    const params = $.param(obtenerParametrosDevengo())
+                    // Descargar en la misma pestaña, sin abrir una nueva ventana
+                    window.location.href = "/Operaciones/GetReporteInteresDevengado_excel/?" + params
+                }
+
+                $(document).ready(() => {
+                    $("#btnConsultarDevengo").click(consultarDevengo)
+                    $("#btnExcelDevengo").click(descargarExcelDevengo)
+
+                    configuraTabla(idTablaDevengo)
+                })
+            </script>
+        HTML;
+
+        View::set('header', $this->_contenedor->header($this->getExtraHeader("Reporte Interés Devengado")));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+
+        View::render('operaciones_reporte_interes_devengado');
+    }
+
+    /**
+     * POST: fechaCorte (YYYY-MM-DD), situacion (E|L|AMBOS).
+     * Devuelve JSON con el dataset del reporte de interés devengado.
+     */
+    public function GetReporteInteresDevengado()
+    {
+        // Asegura que la respuesta sea JSON limpio, como en otros endpoints
+        $this->limpiaSalidaParaJson();
+
+        try {
+            $fechaCorte = isset($_POST['fechaCorte']) ? trim((string) $_POST['fechaCorte']) : '';
+            $situacion = isset($_POST['situacion']) ? strtoupper(trim((string) $_POST['situacion'])) : 'AMBOS';
+
+            if ($fechaCorte === '') {
+                $resp = \Core\Model::Responde(false, 'Debe capturar la fecha de corte.', null);
+            } else {
+                if ($situacion === '') {
+                    $situacion = 'AMBOS';
+                }
+
+                $resp = OperacionesDao::GetReporteInteresDevengado([
+                    'fechaCorte' => $fechaCorte,
+                    'situacion'  => $situacion,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            $resp = \Core\Model::Responde(false, 'Error al obtener el reporte: ' . $e->getMessage(), null, $e->getMessage());
+        }
+
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($resp);
+        exit;
+    }
+
+    /**
+     * Exporta a Excel el mismo dataset del reporte de interés devengado.
+     * Parámetros por GET: fechaCorte, situacion.
+     */
+    public function GetReporteInteresDevengado_excel()
+    {
+        $estilos = \PHPSpreadsheet::GetEstilosExcel();
+        $texto = ['estilo' => $estilos['texto_centrado']];
+        $fecha = ['estilo' => $estilos['fecha']];
+
+        $columnas = [
+            \PHPSpreadsheet::ColumnaExcel('CDGNS', 'Crédito', $texto),
+            \PHPSpreadsheet::ColumnaExcel('CICLO', 'Ciclo', $texto),
+            \PHPSpreadsheet::ColumnaExcel('SITUACION', 'Situación', $texto),
+            \PHPSpreadsheet::ColumnaExcel('INICIO', 'Fecha inicio', $fecha),
+            \PHPSpreadsheet::ColumnaExcel('FIN', 'Fecha fin', $fecha),
+            \PHPSpreadsheet::ColumnaExcel('PLAZO_DIAS', 'Plazo (días)', $texto),
+            \PHPSpreadsheet::ColumnaExcel('DEVENGO_DIARIO', 'Devengo diario', $texto),
+            \PHPSpreadsheet::ColumnaExcel('INTERES_TOTAL', 'Interés total', $texto),
+            \PHPSpreadsheet::ColumnaExcel('DIAS_TRANSCURRIDOS', 'Días transcurridos', $texto),
+            \PHPSpreadsheet::ColumnaExcel('DEVENGO_TRANSCURRIDO', 'Devengo transcurrido', $texto),
+            \PHPSpreadsheet::ColumnaExcel('DIAS_REGISTRADOS', 'Días registrados', $texto),
+            \PHPSpreadsheet::ColumnaExcel('DEVENGO_REGISTRADO', 'Devengo registrado', $texto),
+            \PHPSpreadsheet::ColumnaExcel('DIAS_DIF', 'Días diferencia', $texto),
+            \PHPSpreadsheet::ColumnaExcel('DEVENGO_DIF', 'Devengo diferencia', $texto),
+            \PHPSpreadsheet::ColumnaExcel('FECHA_LIQUIDACION', 'Fecha liquidación', $fecha),
+        ];
+
+        $fechaCorte = isset($_GET['fechaCorte']) ? trim((string) $_GET['fechaCorte']) : '';
+        $situacion = isset($_GET['situacion']) ? strtoupper(trim((string) $_GET['situacion'])) : 'AMBOS';
+
+        if ($fechaCorte === '') {
+            $fechaCorte = date('Y-m-d');
+        }
+        if ($situacion === '') {
+            $situacion = 'AMBOS';
+        }
+
+        $resp = OperacionesDao::GetReporteInteresDevengado([
+            'fechaCorte' => $fechaCorte,
+            'situacion'  => $situacion,
+        ]);
+
+        $filas = ($resp && isset($resp['success']) && $resp['success']) ? ($resp['datos'] ?? []) : [];
+
+        \PHPSpreadsheet::DescargaExcel('Reporte Interes Devengado', 'Reporte', 'Interes Devengado', $columnas, $filas);
+    }
 }
