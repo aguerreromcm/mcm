@@ -23,9 +23,9 @@ $fechaCorte = date('Y-m-d');
                         <div class="col-md-2 col-sm-4">
                             <div class="form-group">
                                 <select class="form-control" id="situacionCredito">
-                                    <option value="AMBOS">Ambos</option>
                                     <option value="E">Entregado</option>
                                     <option value="L">Liquidado</option>
+                                    <option value="*">Ambos</option>
                                 </select>
                                 <span>Situación del crédito</span>
                             </div>
@@ -79,4 +79,3 @@ $fechaCorte = date('Y-m-d');
 </div>
 
 <?= $footer; ?>
-

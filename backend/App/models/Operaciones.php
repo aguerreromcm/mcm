@@ -686,95 +686,86 @@ class Operaciones extends Model
      */
     public static function GetReporteInteresDevengado($datos)
     {
-        $fechaCorte = isset($datos['fechaCorte']) ? $datos['fechaCorte'] : date('Y-m-d');
-        $situacion = isset($datos['situacion']) ? strtoupper($datos['situacion']) : 'AMBOS';
-
-        // Consulta base proporcionada (misma lógica, sin parámetros)
-        $consultaBase = <<<SQL
-WITH CREDITOS AS (
-    SELECT 
-        PRN.CDGNS
-        ,PRN.CICLO
-        ,DECODE(PRN.SITUACION, 'E', 'ENTREGADO', 'L', 'LIQUIDADO', 'OTRO') AS SITUACION
-        ,PRN.INICIO AS INICIO
-        ,DECODE(PRN.PERIODICIDAD, 'S', 7, 'C', 14, 'Q', 15, 'M', 30, 7) * PRN.PLAZO AS PLAZO_DIAS
-        ,NVL(TCD.FECHA_LIQUIDA, TRUNC(TO_DATE(:fecha_corte, 'YYYY-MM-DD'))) - TRUNC(PRN.INICIO) AS DIAS_TRANSCURRIDOS
-        ,ABS(MP.CANTIDAD) AS INTERES_TOTAL
-        ,TCD.FECHA_LIQUIDA AS FECHA_LIQUIDACION
-    FROM
-        PRN
-        JOIN MP ON PRN.CDGEM = MP.CDGEM AND PRN.CDGNS = MP.CDGCLNS AND PRN.CICLO = MP.CICLO
-        LEFT JOIN TBL_CIERRE_DIA TCD ON PRN.CDGEM = TCD.CDGEM AND PRN.CDGNS = TCD.CDGCLNS AND PRN.CICLO = TCD.CICLO AND NOT TCD.FECHA_LIQUIDA  IS NULL
-    WHERE
-        PRN.SITUACION IN ('E', 'L')
-        AND MP.TIPO = 'IN'
-)
-,CALCULOS AS (
-    SELECT
-        C.CDGNS
-        ,C.CICLO
-        ,TRUNC(C.INICIO + C.PLAZO_DIAS) AS FIN
-        ,ROUND(C.INTERES_TOTAL / C.PLAZO_DIAS, 2) AS DEVENGO_DIARIO
-        ,DECODE(C.PLAZO_DIAS, C.DIAS_TRANSCURRIDOS, C.INTERES_TOTAL, C.DIAS_TRANSCURRIDOS * ROUND(C.INTERES_TOTAL / C.PLAZO_DIAS, 2)) AS DEVENGO_TRANSCURRIDO
-    FROM CREDITOS C
-)
-,DEVENGOS AS (
-    SELECT
-        DD.CDGCLNS
-        ,DD.CICLO
-        ,DD.INICIO
-        ,COUNT(*) AS DIAS_REGISTRADOS
-        ,SUM(DD.DEV_DIARIO) AS DEVENGO_REGISTRADO
-    FROM
-        DEVENGO_DIARIO DD
-    WHERE
-        DD.FECHA_CALC <= TRUNC(TO_DATE(:fecha_corte, 'YYYY-MM-DD'))
-    GROUP BY
-        DD.CDGCLNS
-        ,DD.CICLO
-        ,DD.INICIO
-)
-SQL;
-
-        // Se reutilizan los CTEs anteriores y se aplica únicamente el filtro de situación
-        // sin alterar la lógica interna ni los cálculos originales.
         $qry = <<<SQL
-$consultaBase
-SELECT
-    C.CDGNS,
-    C.CICLO,
-    C.SITUACION,
-    C.INICIO,
-    CAL.FIN,
-    C.PLAZO_DIAS,
-    CAL.DEVENGO_DIARIO,
-    C.INTERES_TOTAL,
-    C.DIAS_TRANSCURRIDOS,
-    CAL.DEVENGO_TRANSCURRIDO,
-    D.DIAS_REGISTRADOS,
-    D.DEVENGO_REGISTRADO,
-    C.DIAS_TRANSCURRIDOS - NVL(D.DIAS_REGISTRADOS, 0) AS DIAS_DIF,
-    CAL.DEVENGO_TRANSCURRIDO - NVL(D.DEVENGO_REGISTRADO, 0) AS DEVENGO_DIF,
-    C.FECHA_LIQUIDACION
-FROM
-    CREDITOS C
-    INNER JOIN CALCULOS CAL ON C.CDGNS = CAL.CDGNS AND C.CICLO = CAL.CICLO
-    LEFT JOIN DEVENGOS D ON C.CDGNS = D.CDGCLNS AND C.CICLO = D.CICLO AND C.INICIO = D.INICIO
-WHERE
-    CAL.FIN >= TRUNC(TO_DATE(:fecha_corte, 'YYYY-MM-DD'))
-    AND (
-        :situacion = 'AMBOS'
-        OR (:situacion = 'E' AND C.SITUACION = 'ENTREGADO')
-        OR (:situacion = 'L' AND C.SITUACION = 'LIQUIDADO')
-    )
-ORDER BY
-    C.INICIO
-SQL;
+            WITH CREDITOS AS (
+                SELECT 
+                    PRN.CDGNS
+                    ,PRN.CICLO
+                    ,DECODE(PRN.SITUACION, 'E', 'ENTREGADO', 'L', 'LIQUIDADO', 'OTRO') AS SITUACION
+                    ,PRN.INICIO AS INICIO
+                    ,DECODE(PRN.PERIODICIDAD, 'S', 7, 'C', 14, 'Q', 15, 'M', 30, 7) * PRN.PLAZO AS PLAZO_DIAS
+                    ,NVL(TCD.FECHA_LIQUIDA, TRUNC(TO_DATE(:fecha_corte, 'YYYY-MM-DD'))) - TRUNC(PRN.INICIO) AS DIAS_TRANSCURRIDOS
+                    ,ABS(MP.CANTIDAD) AS INTERES_TOTAL
+                    ,TCD.FECHA_LIQUIDA AS FECHA_LIQUIDACION
+                FROM
+                    PRN
+                    JOIN MP ON PRN.CDGEM = MP.CDGEM AND PRN.CDGNS = MP.CDGCLNS AND PRN.CICLO = MP.CICLO
+                    LEFT JOIN TBL_CIERRE_DIA TCD ON PRN.CDGEM = TCD.CDGEM AND PRN.CDGNS = TCD.CDGCLNS AND PRN.CICLO = TCD.CICLO AND NOT TCD.FECHA_LIQUIDA  IS NULL
+                WHERE
+                    PRN.SITUACION IN (LISTA_SITUACIONES)
+                    AND MP.TIPO = 'IN'
+            )
+            ,CALCULOS AS (
+                SELECT
+                    C.CDGNS
+                    ,C.CICLO
+                    ,TRUNC(C.INICIO + C.PLAZO_DIAS) AS FIN
+                    ,ROUND(C.INTERES_TOTAL / C.PLAZO_DIAS, 2) AS DEVENGO_DIARIO
+                    ,DECODE(C.PLAZO_DIAS, C.DIAS_TRANSCURRIDOS, C.INTERES_TOTAL, C.DIAS_TRANSCURRIDOS * ROUND(C.INTERES_TOTAL / C.PLAZO_DIAS, 2)) AS DEVENGO_TRANSCURRIDO
+                FROM CREDITOS C
+            )
+            ,DEVENGOS AS (
+                SELECT
+                    DD.CDGCLNS
+                    ,DD.CICLO
+                    ,DD.INICIO
+                    ,COUNT(*) AS DIAS_REGISTRADOS
+                    ,SUM(DD.DEV_DIARIO) AS DEVENGO_REGISTRADO
+                FROM
+                    DEVENGO_DIARIO DD
+                WHERE
+                    DD.FECHA_CALC <= TRUNC(TO_DATE(:fecha_corte, 'YYYY-MM-DD'))
+                GROUP BY
+                    DD.CDGCLNS
+                    ,DD.CICLO
+                    ,DD.INICIO
+            )
+            SELECT
+                C.CDGNS,
+                C.CICLO,
+                C.SITUACION,
+                TO_CHAR(C.INICIO, 'DD/MM/YYYY') AS INICIO,
+                TO_CHAR(CAL.FIN, 'DD/MM/YYYY') AS FIN,
+                C.PLAZO_DIAS,
+                CAL.DEVENGO_DIARIO,
+                C.INTERES_TOTAL,
+                C.DIAS_TRANSCURRIDOS,
+                CAL.DEVENGO_TRANSCURRIDO,
+                D.DIAS_REGISTRADOS,
+                D.DEVENGO_REGISTRADO,
+                C.DIAS_TRANSCURRIDOS - NVL(D.DIAS_REGISTRADOS, 0) AS DIAS_DIF,
+                CAL.DEVENGO_TRANSCURRIDO - NVL(D.DEVENGO_REGISTRADO, 0) AS DEVENGO_DIF,
+                TO_CHAR(C.FECHA_LIQUIDACION, 'DD/MM/YYYY') AS FECHA_LIQUIDACION
+            FROM
+                CREDITOS C
+                INNER JOIN CALCULOS CAL ON C.CDGNS = CAL.CDGNS AND C.CICLO = CAL.CICLO
+                LEFT JOIN DEVENGOS D ON C.CDGNS = D.CDGCLNS AND C.CICLO = D.CICLO AND C.INICIO = D.INICIO
+            WHERE
+                CAL.FIN >= TRUNC(TO_DATE(:fecha_corte, 'YYYY-MM-DD'))
+            ORDER BY
+                C.INICIO
+        SQL;
+
+        $situacion = isset($datos['situacion']) ? strtoupper($datos['situacion']) : '*';
+        $listaSituaciones = $situacion == '*' ? "'E', 'L'" : "'$situacion'";
+        $qry = str_replace('LISTA_SITUACIONES', $listaSituaciones, $qry);
+
+        $fechaCorte = isset($datos['fechaCorte']) ? $datos['fechaCorte'] : date('Y-m-d');
 
         $prm = [
-            'fecha_corte' => $fechaCorte,
-            'situacion'   => $situacion,
+            'fecha_corte' => $fechaCorte
         ];
+
 
         try {
             $db = new Database();

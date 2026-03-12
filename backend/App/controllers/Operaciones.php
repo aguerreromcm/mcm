@@ -846,7 +846,8 @@ class Operaciones extends Controller
 
                 const obtenerParametrosDevengo = () => {
                     const fechaCorte = $("#fechaCorte").val()
-                    const situacion = $("#situacionCredito").val() || "AMBOS"
+                    const situacion = $("#situacionCredito").val()
+
                     return { fechaCorte, situacion }
                 }
 
@@ -896,8 +897,7 @@ class Operaciones extends Controller
 
                 const descargarExcelDevengo = () => {
                     const params = $.param(obtenerParametrosDevengo())
-                    // Descargar en la misma pestaña, sin abrir una nueva ventana
-                    window.location.href = "/Operaciones/GetReporteInteresDevengado_excel/?" + params
+                    descargaExcel("/Operaciones/GetReporteInteresDevengado_excel/?" + params)
                 }
 
                 $(document).ready(() => {
@@ -921,20 +921,15 @@ class Operaciones extends Controller
      */
     public function GetReporteInteresDevengado()
     {
-        // Asegura que la respuesta sea JSON limpio, como en otros endpoints
         $this->limpiaSalidaParaJson();
 
         try {
             $fechaCorte = isset($_POST['fechaCorte']) ? trim((string) $_POST['fechaCorte']) : '';
-            $situacion = isset($_POST['situacion']) ? strtoupper(trim((string) $_POST['situacion'])) : 'AMBOS';
+            $situacion = isset($_POST['situacion']) ? strtoupper(trim((string) $_POST['situacion'])) : '*';
 
             if ($fechaCorte === '') {
                 $resp = \Core\Model::Responde(false, 'Debe capturar la fecha de corte.', null);
             } else {
-                if ($situacion === '') {
-                    $situacion = 'AMBOS';
-                }
-
                 $resp = OperacionesDao::GetReporteInteresDevengado([
                     'fechaCorte' => $fechaCorte,
                     'situacion'  => $situacion,
@@ -944,9 +939,7 @@ class Operaciones extends Controller
             $resp = \Core\Model::Responde(false, 'Error al obtener el reporte: ' . $e->getMessage(), null, $e->getMessage());
         }
 
-        if (ob_get_level()) {
-            ob_end_clean();
-        }
+        if (ob_get_level()) ob_end_clean();
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode($resp);
         exit;
@@ -960,6 +953,7 @@ class Operaciones extends Controller
     {
         $estilos = \PHPSpreadsheet::GetEstilosExcel();
         $texto = ['estilo' => $estilos['texto_centrado']];
+        $mondea = ['estilo' => $estilos['moneda']];
         $fecha = ['estilo' => $estilos['fecha']];
 
         $columnas = [
@@ -968,15 +962,15 @@ class Operaciones extends Controller
             \PHPSpreadsheet::ColumnaExcel('SITUACION', 'Situación', $texto),
             \PHPSpreadsheet::ColumnaExcel('INICIO', 'Fecha inicio', $fecha),
             \PHPSpreadsheet::ColumnaExcel('FIN', 'Fecha fin', $fecha),
-            \PHPSpreadsheet::ColumnaExcel('PLAZO_DIAS', 'Plazo (días)', $texto),
-            \PHPSpreadsheet::ColumnaExcel('DEVENGO_DIARIO', 'Devengo diario', $texto),
-            \PHPSpreadsheet::ColumnaExcel('INTERES_TOTAL', 'Interés total', $texto),
-            \PHPSpreadsheet::ColumnaExcel('DIAS_TRANSCURRIDOS', 'Días transcurridos', $texto),
-            \PHPSpreadsheet::ColumnaExcel('DEVENGO_TRANSCURRIDO', 'Devengo transcurrido', $texto),
-            \PHPSpreadsheet::ColumnaExcel('DIAS_REGISTRADOS', 'Días registrados', $texto),
-            \PHPSpreadsheet::ColumnaExcel('DEVENGO_REGISTRADO', 'Devengo registrado', $texto),
-            \PHPSpreadsheet::ColumnaExcel('DIAS_DIF', 'Días diferencia', $texto),
-            \PHPSpreadsheet::ColumnaExcel('DEVENGO_DIF', 'Devengo diferencia', $texto),
+            \PHPSpreadsheet::ColumnaExcel('PLAZO_DIAS', 'Plazo (días)'),
+            \PHPSpreadsheet::ColumnaExcel('DEVENGO_DIARIO', 'Devengo diario', $mondea),
+            \PHPSpreadsheet::ColumnaExcel('INTERES_TOTAL', 'Interés total', $mondea),
+            \PHPSpreadsheet::ColumnaExcel('DIAS_TRANSCURRIDOS', 'Días transcurridos'),
+            \PHPSpreadsheet::ColumnaExcel('DEVENGO_TRANSCURRIDO', 'Devengo transcurrido', $mondea),
+            \PHPSpreadsheet::ColumnaExcel('DIAS_REGISTRADOS', 'Días registrados'),
+            \PHPSpreadsheet::ColumnaExcel('DEVENGO_REGISTRADO', 'Devengo registrado', $mondea),
+            \PHPSpreadsheet::ColumnaExcel('DIAS_DIF', 'Días diferencia'),
+            \PHPSpreadsheet::ColumnaExcel('DEVENGO_DIF', 'Devengo diferencia', $mondea),
             \PHPSpreadsheet::ColumnaExcel('FECHA_LIQUIDACION', 'Fecha liquidación', $fecha),
         ];
 

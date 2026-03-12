@@ -122,8 +122,8 @@ PARAMETROS AS (
     JOIN MP ON PRN.CDGEM = MP.CDGEM AND PRN.CDGNS = MP.CDGCLNS AND PRN.CICLO = MP.CICLO AND MP.TIPO = 'IN'
     JOIN CF ON PRN.CDGEM = CF.CDGEM AND PRN.CDGFDI = CF.CDGFDI
     WHERE PRN.CDGEM = 'EMPFIN'
-      AND (:credito IS NULL OR PRN.CDGNS = :credito)
-      AND (:ciclo IS NULL OR PRN.CICLO = :ciclo)
+      AND PRN.CDGNS = :credito
+      AND PRN.CICLO = :ciclo
 ),
 DATOS_CREDITO AS (
     SELECT
@@ -703,29 +703,29 @@ SQL;
             } catch (\Throwable $e) {
                 continue;
             }
-        $inicio = trim((string) ($f['INICIO'] ?? ''));
-        if ($inicio === '') {
-            continue;
-        }
-        $usuarioSesion = $_SESSION['usuario'] ?? 'SYSTEM';
-        try {
-            $stmtInsert->execute([
-                'fecha_calc' => $fechaCalc,
-                'cdgem' => $f['CDGEM'] ?? 'EMPFIN',
-                'cdgclns' => $credito,
-                'ciclo' => $ciclo,
-                'inicio' => $inicio,
-                'dev_diario' => (float) ($f['DEV_DIARIO'] ?? 0),
-                'dias_dev' => (int) ($f['DIAS_DEV'] ?? 0),
-                'int_dev' => (float) ($f['INT_DEV'] ?? 0),
-                'cdgpe' => $usuarioSesion,
-                'dev_diario_sin_iva' => (float) ($f['DEV_DIARIO_SIN_IVA'] ?? 0),
-                'iva_int' => (float) ($f['IVA_INT'] ?? 0),
-                'plazo' => (int) ($f['PLAZO'] ?? 0),
-                'periodicidad' => $f['PERIODICIDAD'] ?? 'S',
-                'plazo_dias' => (int) ($f['PLAZO_DIAS'] ?? 0),
-                'fin_devengo' => trim((string) ($f['FIN_DEVENGO'] ?? '')),
-            ]);
+            $inicio = trim((string) ($f['INICIO'] ?? ''));
+            if ($inicio === '') {
+                continue;
+            }
+            $usuarioSesion = $_SESSION['usuario'] ?? 'SYSTEM';
+            try {
+                $stmtInsert->execute([
+                    'fecha_calc' => $fechaCalc,
+                    'cdgem' => $f['CDGEM'] ?? 'EMPFIN',
+                    'cdgclns' => $credito,
+                    'ciclo' => $ciclo,
+                    'inicio' => $inicio,
+                    'dev_diario' => (float) ($f['DEV_DIARIO'] ?? 0),
+                    'dias_dev' => (int) ($f['DIAS_DEV'] ?? 0),
+                    'int_dev' => (float) ($f['INT_DEV'] ?? 0),
+                    'cdgpe' => $usuarioSesion,
+                    'dev_diario_sin_iva' => (float) ($f['DEV_DIARIO_SIN_IVA'] ?? 0),
+                    'iva_int' => (float) ($f['IVA_INT'] ?? 0),
+                    'plazo' => (int) ($f['PLAZO'] ?? 0),
+                    'periodicidad' => $f['PERIODICIDAD'] ?? 'S',
+                    'plazo_dias' => (int) ($f['PLAZO_DIAS'] ?? 0),
+                    'fin_devengo' => trim((string) ($f['FIN_DEVENGO'] ?? '')),
+                ]);
                 $insertados++;
             } catch (\Throwable $e) {
                 @file_put_contents($logPath, date('c') . " [InsertarFilasDevengo] Fila $credito/$ciclo/$fechaCalc: " . $e->getMessage() . "\n", FILE_APPEND);

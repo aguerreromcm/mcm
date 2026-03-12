@@ -151,11 +151,11 @@ class Menu
     private function opcionesOperaciones()
     {
         return [
-            $this->enlace('Aplicar Pagos', '/Operaciones/AplicarPagos/', ['ADMIN', 'ACALL', 'LAYOU', 'FECR']),
-            $this->enlace('Conciliación de pagos', '/Operaciones/ConciliacionPagos/', ['ADMIN', 'ACALL', 'LAYOU', 'FECR']),
-            $this->enlace('Cierre de día', '/Operaciones/CierreDiario/', ['ADMIN', 'ACALL', 'LAYOU', 'FECR']),
+            $this->enlace('Aplicar Pagos', '/Operaciones/AplicarPagos/', ['AMGM']),
+            $this->enlace('Conciliación de pagos', '/Operaciones/ConciliacionPagos/', ['AMGM']),
+            $this->enlace('Cierre de día', '/Operaciones/CierreDiario/', ['AMGM']),
             $this->enlace('Reporte Cliente y Aval Consolidado', '/Operaciones/ReportePC', ['ADMIN', 'PHEE', 'MCDP', 'FECR', 'ORHM']),
-            $this->enlace('Reporte Interés Devengado', '/Operaciones/ReporteInteresDevengado', ['AMGM']),
+            $this->enlace('Reporte Interés Devengado', '/Operaciones/ReporteInteresDevengado', ['ADMIN', 'ORHM']),
         ];
     }
 
@@ -221,8 +221,8 @@ class Menu
     private function opcionesHerramientas()
     {
         return [
-            $this->enlace('Rep Dia de Atraso', '/Herramientas/RepDiaAtraso/', ['ADMIN']),
-            $this->enlace('Auditoría Devengo', '/Herramientas/AuditoriaDevengo/', ['ADMIN', 'PLMV', 'PHEE']),
+            $this->enlace('Rep Dia de Atraso', '/Herramientas/RepDiaAtraso/', ['AMGM']),
+            $this->enlace('Auditoría Devengo', '/Herramientas/AuditoriaDevengo/', ['AMGM']),
         ];
     }
 
