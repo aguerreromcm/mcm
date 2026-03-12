@@ -427,6 +427,7 @@ sql;
         $sucursales = $datos['sucursales'] == '' ? 'SPR.CDGCO IS NULL' : "SPR.CDGCO IN ({$datos['sucursales']})";
         $fecha = $datos['fechaI'] != '' && $datos['fechaF'] != '' ? "AND TO_DATE(SPR.FECHA_SOL, 'DD/MM/YYYY HH24:MI:SS') BETWEEN TIMESTAMP '{$datos['fechaI']} 00:00:00.000000' AND TIMESTAMP '{$datos['fechaF']} 23:59:59.000000'" : '';
         $usuario = $datos['usuario'] == '' ? '' : "AND SPR.CDGPE = '{$datos['usuario']}'";
+        $filtroSucursalesRetiros = $datos['sucursales'] == '' ? '' : " AND CO.CODIGO IN ({$datos['sucursales']})";
 
         $qry = <<<SQL
             SELECT
@@ -714,6 +715,84 @@ sql;
                 WHERE
                     $sucursales
                     $fecha
+                 
+                UNION
+                 
+                SELECT
+                    (RA.CDGNS || '-' || RA.CICLO) AS A,
+                    RG.NOMBRE AS B,
+                    TO_CHAR(RA.FECHA_CREACION, 'DD/MM/YYYY') AS C,
+                    TO_CHAR(RA.FECHA_CREACION, 'DD/MM/YYYY HH24:MI:SS') AS D,
+                    'RETIRO AHORRO' AS E,
+                    CO.NOMBRE AS F,
+                    GET_NOMBRE_EMPLEADO(PE.CODIGO) AS G,
+                    RA.CDGNS AS H,
+                    GET_NOMBRE_CLIENTE(CL.CODIGO) AS I,
+                    RA.CICLO AS J,
+                    CL.TELEFONO AS K,
+                    RAC.TIPO_LLAMADA_1 AS L,
+                    '- *' AS M,
+                    '- *' AS N,
+                    '-' AS O,
+                    '-' AS P,
+                    '-' AS Q,
+                    '-' AS R,
+                    '-' AS S,
+                    '-' AS T,
+                    '-' AS U,
+                    '-' AS V,
+                    '-' AS W,
+                    '-' AS X,
+                    '' AS Y,
+                    '' AS Z,
+                    '' AS AA,
+                    '' AS AB,
+                    '' AS AC,
+                    '' AS AD,
+                    '' AS AE,
+                    '' AS AF,
+                    '' AS AG,
+                    '' AS AH,
+                    '' AS AI,
+                    '' AS AJ,
+                    TO_CHAR(RAC.FECHA_LLAMADA_1, 'DD/MM/YYYY HH24:MI:SS') AS AK,
+                    TO_CHAR(RAC.FECHA_LLAMADA_2, 'DD/MM/YYYY HH24:MI:SS') AS AL,
+                    NULL AS AM,
+                    NULL AS AN,
+                    RAC.COMENTARIO_INTERNO AS AO,
+                    RAC.COMENTARIO_EXTERNO AS AP,
+                    CASE RAC.ESTATUS
+                        WHEN 'I' THEN 'INCOMPLETA'
+                        WHEN 'C' THEN 'COMPLETA'
+                        WHEN 'R' THEN 'RECHAZADA'
+                        ELSE 'PENDIENTE'
+                    END AS AQ,
+                    NULL AS AR,
+                    NULL AS AS_,
+                    GET_NOMBRE_EMPLEADO(RAC.CDGPE) AS AT_,
+                    NULL AS AU,
+                    '' AS AV,
+                    '' AS AW,
+                    '' AS AX,
+                    '' AS AY,
+                    '' AS AZ,
+                    '' AS BA,
+                    '' AS BB,
+                    '' AS BC,
+                    '' AS BD
+                FROM
+                    RETIROS_AHORRO RA
+                    INNER JOIN SN ON SN.CDGNS = RA.CDGNS AND SN.CICLO = RA.CICLO
+                    INNER JOIN SC ON SC.CDGNS = SN.CDGNS AND SC.CICLO = SN.CICLO AND SC.CANTSOLIC <> 9999
+                    INNER JOIN CL ON CL.CODIGO = SC.CDGCL
+                    INNER JOIN CO ON SN.CDGCO = CO.CODIGO
+                    INNER JOIN RG ON CO.CDGRG = RG.CODIGO
+                    INNER JOIN PE ON PE.CODIGO = SN.CDGOCPE
+                    LEFT JOIN RETIROS_AHORRO_CALLCENTER RAC ON RA.ID = RAC.RETIRO
+                WHERE
+                    1 = 1
+                    $filtroSucursalesRetiros
+                    AND TRUNC(RA.FECHA_CREACION) BETWEEN TO_DATE('{$datos['fechaI']}', 'YYYY-MM-DD') AND TO_DATE('{$datos['fechaF']}', 'YYYY-MM-DD')
             ) ORDER BY D DESC
         SQL;
 
@@ -806,6 +885,65 @@ sql;
             return self::Responde(true, 'Solicitudes de retiro obtenidas', $res);
         } catch (\Exception $e) {
             return self::Responde(false, 'Error al obtener solicitudes de retiro', null, $e->getMessage());
+        }
+    }
+
+    public static function getHistoricoRetiros($fecha_inicio, $fecha_fin, $cdgco)
+    {
+        $string_from_array = is_array($cdgco) ? implode(', ', $cdgco) : (string)$cdgco;
+        $filtro_suc = $string_from_array !== '' && $string_from_array !== '000'
+            ? " AND CO.CODIGO IN ($string_from_array) "
+            : '';
+
+        $qry = <<<SQL
+            SELECT
+                RA.ID
+                , RA.CDGNS AS CREDITO
+                , RA.CICLO
+                , RG.CODIGO AS REGION
+                , RG.NOMBRE AS NOMBRE_REGION
+                , CO.CODIGO AS SUCURSAL
+                , CO.NOMBRE AS NOMBRE_SUCURSAL
+                , GET_NOMBRE_EMPLEADO(PE.CODIGO) AS NOMBRE_EJECUTIVO
+                , TO_CHAR(RA.FECHA_ENTREGA, 'DD/MM/YYYY') AS FECHA_ENTREGA
+                , GET_NOMBRE_CLIENTE(CL.CODIGO) AS NOMBRE_CLIENTE
+                , CL.TELEFONO
+                , RAC.COMENTARIO_INTERNO
+                , RAC.COMENTARIO_EXTERNO
+                , TO_CHAR(RA.FECHA_CREACION, 'DD/MM/YYYY HH24:MI:SS') AS FECHA_CREACION
+                , NVL(RAC.ESTATUS, 'P') AS ESTATUS
+                , CASE NVL(RAC.ESTATUS, 'P')
+                    WHEN 'I' THEN 'INCOMPLETA'
+                    WHEN 'C' THEN 'COMPLETA'
+                    WHEN 'R' THEN 'RECHAZADA'
+                    ELSE 'PENDIENTE'
+                  END AS ESTATUS_ETIQUETA
+                , NVL(RAC.INTENTOS, 0) AS INTENTOS
+                , TO_CHAR(RAC.FECHA_LLAMADA_1, 'DD/MM/YYYY HH24:MI:SS') AS FECHA_LLAMADA_1
+                , TO_CHAR(RAC.FECHA_LLAMADA_2, 'DD/MM/YYYY HH24:MI:SS') AS FECHA_LLAMADA_2
+                , GET_NOMBRE_EMPLEADO(RAC.CDGPE) AS ANALISTA
+            FROM
+                RETIROS_AHORRO RA
+                INNER JOIN SN ON SN.CDGNS = RA.CDGNS AND SN.CICLO = RA.CICLO
+                INNER JOIN SC ON SC.CDGNS = SN.CDGNS AND SC.CICLO = SN.CICLO AND SC.CANTSOLIC <> 9999
+                INNER JOIN CL ON CL.CODIGO = SC.CDGCL
+                INNER JOIN CO ON SN.CDGCO = CO.CODIGO
+                INNER JOIN RG ON CO.CDGRG = RG.CODIGO
+                INNER JOIN PE ON PE.CODIGO = SN.CDGOCPE
+                LEFT JOIN RETIROS_AHORRO_CALLCENTER RAC ON RA.ID = RAC.RETIRO
+            WHERE
+                TRUNC(RA.FECHA_CREACION) BETWEEN TO_DATE('$fecha_inicio', 'YYYY-MM-DD') AND TO_DATE('$fecha_fin', 'YYYY-MM-DD')
+                $filtro_suc
+            ORDER BY
+                RA.FECHA_CREACION DESC
+        SQL;
+
+        try {
+            $db = new Database();
+            $res = $db->queryAll($qry);
+            return self::Responde(true, 'Histórico de retiros obtenido', $res);
+        } catch (\Exception $e) {
+            return self::Responde(false, 'Error al obtener histórico de retiros', null, $e->getMessage());
         }
     }
 

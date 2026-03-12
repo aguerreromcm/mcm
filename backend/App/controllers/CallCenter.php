@@ -3489,7 +3489,79 @@ html;
 html;
             }
 
-            if ($Consulta[0] == '') {
+            $historicoRetiros = CallCenterDao::getHistoricoRetiros($Inicial, $Final, $cdgco);
+
+            if ($historicoRetiros['success']) {
+                foreach ($historicoRetiros['datos'] as $retiro) {
+                    $telefono = $retiro['TELEFONO'];
+                    if ($telefono != '' && substr($telefono, 0, 1) != '(') {
+                        $telefono = "(" . substr($telefono, 0, 3) . ") " . substr($telefono, 3, 3) . " - " . substr($telefono, 6, 4);
+                    }
+
+                    $color = 'success';
+                    $icon = 'fa-check';
+
+                    if ($retiro['ESTATUS'] == 'P') {
+                        $color = 'primary';
+                        $icon = 'fa-frown-o';
+                    } else if ($retiro['ESTATUS'] == 'I') {
+                        $color = 'warning';
+                        $icon = 'fa-clock-o';
+                    }
+
+                    $icon_ci = $retiro['COMENTARIO_INTERNO'] == '' ? 'fa-close' : 'fa-check';
+                    $color_ci = $retiro['COMENTARIO_INTERNO'] == '' ? 'danger' : 'success';
+                    $icon_cf = $retiro['COMENTARIO_EXTERNO'] == '' ? 'fa-close' : 'fa-check';
+                    $color_cf = $retiro['COMENTARIO_EXTERNO'] == '' ? 'danger' : 'success';
+
+                    $validado_por = $retiro['ANALISTA'] != '' ? $retiro['ANALISTA'] : 'PENDIENTE DE VALIDAR';
+
+                    $tabla .= <<<HTML
+                <tr style="padding: 0px !important;">
+                    <td style="padding: 5px !important; width:65px !important;">
+                        <div><span class="label label-success" style="color: #0D0A0A">MCM - {$retiro['ID']}</span></div>
+                        <hr>
+                        <div><label>{$retiro['CREDITO']}-{$retiro['CICLO']}</label></div>
+                        <div><label><span class="label label-info" style="font-size: 12px;">Retiro de ahorro</span></label></div>
+                    </td>
+                    <td style="padding: 10px !important; text-align: left">
+                        <span class="fa fa-building"></span> GERENCIA REGIONAL: ({$retiro['REGION']}) {$retiro['NOMBRE_REGION']}
+                        <br>
+                        <span class="fa fa-map-marker"></span> SUCURSAL: ({$retiro['SUCURSAL']}) {$retiro['NOMBRE_SUCURSAL']}
+                        <br>
+                        <span class="fa fa-briefcase"></span> EJECUTIVO: {$retiro['NOMBRE_EJECUTIVO']}
+                    </td>
+                    <td style="padding-top: 10px !important;">
+                        <span class="fa fa-user"></span>
+                        <label style="color: #1c4e63">{$retiro['NOMBRE_CLIENTE']}</label>
+                        <br>
+                        <label><span class="fa fa-phone"></span> {$telefono}</label>
+                    </td>
+                    <td style="padding-top: 22px !important; text-align: left">
+                        <div>
+                            <b>RETIRO:</b> {$retiro['ESTATUS_ETIQUETA']}
+                            <span class="label label-$color" style="font-size: 95% !important; border-radius: 50em !important;">
+                                <span class="fa $icon"></span>
+                            </span>
+                        </div>
+                        <hr>
+                        <div><b>VALIDÓ:</b> {$validado_por}</div>
+                    </td>
+                    <td style="padding-top: 22px !important;">{$retiro['FECHA_CREACION']}</td>
+                    <td style="padding: 10px !important; text-align: left; width:165px !important;">
+                        <div><span class="label label-$color_ci"><span class="fa $icon_ci"></span></span> Comentarios Internos</div>
+                        <div><span class="label label-$color_cf"><span class="fa $icon_cf"></span></span> Comentarios Externos</div>
+                    </td>
+                    <td style="padding-top: 22px !important;"></td>
+                </tr>
+HTML;
+                }
+            }
+
+            $haySolicitudes = is_array($Consulta) && isset($Consulta[0]) && $Consulta[0] != '';
+            $hayRetiros = $historicoRetiros['success'] && count($historicoRetiros['datos']) > 0;
+
+            if (!$haySolicitudes && !$hayRetiros) {
                 $vista = "historico_call_center_message_f";
             } else {
                 View::set('tabla', $tabla);
@@ -3666,7 +3738,79 @@ html;
 html;
             }
 
-            if ($Consulta[0] == '') {
+            $historicoRetiros = CallCenterDao::getHistoricoRetiros($fechaActual, $fechaActual, $cdgco);
+
+            if ($historicoRetiros['success']) {
+                foreach ($historicoRetiros['datos'] as $retiro) {
+                    $telefono = $retiro['TELEFONO'];
+                    if ($telefono != '' && substr($telefono, 0, 1) != '(') {
+                        $telefono = "(" . substr($telefono, 0, 3) . ") " . substr($telefono, 3, 3) . " - " . substr($telefono, 6, 4);
+                    }
+
+                    $color = 'success';
+                    $icon = 'fa-check';
+
+                    if ($retiro['ESTATUS'] == 'P') {
+                        $color = 'primary';
+                        $icon = 'fa-frown-o';
+                    } else if ($retiro['ESTATUS'] == 'I') {
+                        $color = 'warning';
+                        $icon = 'fa-clock-o';
+                    }
+
+                    $icon_ci = $retiro['COMENTARIO_INTERNO'] == '' ? 'fa-close' : 'fa-check';
+                    $color_ci = $retiro['COMENTARIO_INTERNO'] == '' ? 'danger' : 'success';
+                    $icon_cf = $retiro['COMENTARIO_EXTERNO'] == '' ? 'fa-close' : 'fa-check';
+                    $color_cf = $retiro['COMENTARIO_EXTERNO'] == '' ? 'danger' : 'success';
+
+                    $validado_por = $retiro['ANALISTA'] != '' ? $retiro['ANALISTA'] : 'PENDIENTE DE VALIDAR';
+
+                    $tabla .= <<<HTML
+                <tr style="padding: 0px !important;">
+                    <td style="padding: 5px !important; width:65px !important;">
+                        <div><span class="label label-success" style="color: #0D0A0A">MCM - {$retiro['ID']}</span></div>
+                        <hr>
+                        <div><label>{$retiro['CREDITO']}-{$retiro['CICLO']}</label></div>
+                        <div><label><span class="label label-info" style="font-size: 12px;">Retiro de ahorro</span></label></div>
+                    </td>
+                    <td style="padding: 10px !important; text-align: left">
+                        <span class="fa fa-building"></span> GERENCIA REGIONAL: ({$retiro['REGION']}) {$retiro['NOMBRE_REGION']}
+                        <br>
+                        <span class="fa fa-map-marker"></span> SUCURSAL: ({$retiro['SUCURSAL']}) {$retiro['NOMBRE_SUCURSAL']}
+                        <br>
+                        <span class="fa fa-briefcase"></span> EJECUTIVO: {$retiro['NOMBRE_EJECUTIVO']}
+                    </td>
+                    <td style="padding-top: 10px !important;">
+                        <span class="fa fa-user"></span>
+                        <label style="color: #1c4e63">{$retiro['NOMBRE_CLIENTE']}</label>
+                        <br>
+                        <label><span class="fa fa-phone"></span> {$telefono}</label>
+                    </td>
+                    <td style="padding-top: 22px !important; text-align: left">
+                        <div>
+                            <b>RETIRO:</b> {$retiro['ESTATUS_ETIQUETA']}
+                            <span class="label label-$color" style="font-size: 95% !important; border-radius: 50em !important;">
+                                <span class="fa $icon"></span>
+                            </span>
+                        </div>
+                        <hr>
+                        <div><b>VALIDÓ:</b> {$validado_por}</div>
+                    </td>
+                    <td style="padding-top: 22px !important;">{$retiro['FECHA_CREACION']}</td>
+                    <td style="padding: 10px !important; text-align: left; width:165px !important;">
+                        <div><span class="label label-$color_ci"><span class="fa $icon_ci"></span></span> Comentarios Internos</div>
+                        <div><span class="label label-$color_cf"><span class="fa $icon_cf"></span></span> Comentarios Externos</div>
+                    </td>
+                    <td style="padding-top: 22px !important;"></td>
+                </tr>
+HTML;
+                }
+            }
+
+            $haySolicitudes = is_array($Consulta) && isset($Consulta[0]) && $Consulta[0] != '';
+            $hayRetiros = $historicoRetiros['success'] && count($historicoRetiros['datos']) > 0;
+
+            if (!$haySolicitudes && !$hayRetiros) {
                 View::set('fechaActual', $fechaActual);
                 $vista = "historico_call_center_message_f";
             } else {
