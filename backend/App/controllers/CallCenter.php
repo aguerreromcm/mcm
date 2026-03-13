@@ -3333,114 +3333,114 @@ html;
             foreach ($filasOrdenadas as $item) {
                 if ($item['tipo'] === 'credito') {
                     $value = $item['datos'];
-                if ($value['ESTATUS_CL'] == 'PENDIENTE') {
-                    $color = 'primary';
-                    $icon = 'fa-frown-o';
-                } else if ($value['ESTATUS_CL'] == 'REGISTRO INCOMPLETO') {
-                    $color = 'warning';
-                    $icon = 'fa-clock-o';
-                } else if ($value['ESTATUS_CL'] == '-') {
-                    $color = 'danger';
-                    $icon = 'fa-close';
-                } else {
-                    $color = 'success';
-                    $icon = 'fa-check';
-                }
+                    if ($value['ESTATUS_CL'] == 'PENDIENTE') {
+                        $color = 'primary';
+                        $icon = 'fa-frown-o';
+                    } else if ($value['ESTATUS_CL'] == 'REGISTRO INCOMPLETO') {
+                        $color = 'warning';
+                        $icon = 'fa-clock-o';
+                    } else if ($value['ESTATUS_CL'] == '-') {
+                        $color = 'danger';
+                        $icon = 'fa-close';
+                    } else {
+                        $color = 'success';
+                        $icon = 'fa-check';
+                    }
 
-                if ($value['ESTATUS_AV'] == 'PENDIENTE') {
-                    $color_a = 'primary';
-                    $icon_a = 'fa-frown-o';
-                } else if ($value['ESTATUS_AV'] == 'REGISTRO INCOMPLETO') {
-                    $color_a = 'warning';
-                    $icon_a = 'fa-clock-o';
-                } else if ($value['ESTATUS_AV'] == '-') {
-                    $color_a = 'danger';
-                    $icon_a = 'fa-close';
-                } else {
-                    $color_a = 'success';
-                    $icon_a = 'fa-check';
-                }
+                    if ($value['ESTATUS_AV'] == 'PENDIENTE') {
+                        $color_a = 'primary';
+                        $icon_a = 'fa-frown-o';
+                    } else if ($value['ESTATUS_AV'] == 'REGISTRO INCOMPLETO') {
+                        $color_a = 'warning';
+                        $icon_a = 'fa-clock-o';
+                    } else if ($value['ESTATUS_AV'] == '-') {
+                        $color_a = 'danger';
+                        $icon_a = 'fa-close';
+                    } else {
+                        $color_a = 'success';
+                        $icon_a = 'fa-check';
+                    }
 
-                if ($value['ESTATUS_CL'] == 'REGISTRO INCOMPLETO' || $value['ESTATUS_AV'] == 'REGISTRO INCOMPLETO') {
-                    $titulo_boton = 'Pedir Prorroga';
-                    $color_boton = '#F0AD4E';
-                    $fuente = '#0D0A0A';
-                } else if ($value['FIN_CL'] != '' || $value['FIN_AV'] != '') {
-                    $titulo_boton = 'Pedir Prorroga';
-                    $color_boton = '#0D0A0A';
-                    $fuente = '';
-                } else {
-                    $titulo_boton = 'Pedir Prorroga';
-                    $color_boton = '#029f3f';
-                    $fuente = '';
-                }
+                    if ($value['ESTATUS_CL'] == 'REGISTRO INCOMPLETO' || $value['ESTATUS_AV'] == 'REGISTRO INCOMPLETO') {
+                        $titulo_boton = 'Pedir Prorroga';
+                        $color_boton = '#F0AD4E';
+                        $fuente = '#0D0A0A';
+                    } else if ($value['FIN_CL'] != '' || $value['FIN_AV'] != '') {
+                        $titulo_boton = 'Pedir Prorroga';
+                        $color_boton = '#0D0A0A';
+                        $fuente = '';
+                    } else {
+                        $titulo_boton = 'Pedir Prorroga';
+                        $color_boton = '#029f3f';
+                        $fuente = '';
+                    }
 
-                if ($value['COMENTARIO_INICIAL'] == '') {
-                    $icon_ci = 'fa-close';
-                    $color_ci = 'danger';
-                } else {
-                    $icon_ci = 'fa-check';
-                    $color_ci = 'success';
-                }
-                if ($value['COMENTARIO_FINAL'] == '') {
-                    $icon_cf = 'fa-close';
-                    $color_cf = 'danger';
-                } else {
-                    $icon_cf = 'fa-check';
-                    $color_cf = 'success';
-                }
-                if ($value['ESTATUS_FINAL'] == '') {
-                    $icon_ef = 'fa-close';
-                    $color_ef = 'danger';
-                } else {
-                    $icon_ef = 'fa-check';
-                    $color_ef = 'success';
-                }
+                    if ($value['COMENTARIO_INICIAL'] == '') {
+                        $icon_ci = 'fa-close';
+                        $color_ci = 'danger';
+                    } else {
+                        $icon_ci = 'fa-check';
+                        $color_ci = 'success';
+                    }
+                    if ($value['COMENTARIO_FINAL'] == '') {
+                        $icon_cf = 'fa-close';
+                        $color_cf = 'danger';
+                    } else {
+                        $icon_cf = 'fa-check';
+                        $color_cf = 'success';
+                    }
+                    if ($value['ESTATUS_FINAL'] == '') {
+                        $icon_ef = 'fa-close';
+                        $color_ef = 'danger';
+                    } else {
+                        $icon_ef = 'fa-check';
+                        $color_ef = 'success';
+                    }
 
-                if ($value['VOBO_REG'] == NULL) {
-                    $vobo = '';
-                } else {
-                    $vobo = '<div><span class="label label-success"><span class="fa fa-check"></span></span> VoBo Gerente Regional</div>';
-                }
+                    if ($value['VOBO_REG'] == NULL) {
+                        $vobo = '';
+                    } else {
+                        $vobo = '<div><span class="label label-success"><span class="fa fa-check"></span></span> VoBo Gerente Regional</div>';
+                    }
 
-                if ($value['PRORROGA'] == NULL) {
-                    $boton_titulo_prorroga = 'Prorroga';
-                    $des_prorroga = '';
-                    $boton_reactivar = '';
-                } else {
-                    if ($value['PRORROGA'] == '1') {
-                        $boton_titulo_prorroga = 'Prorroga <br>Pendiente';
-                    } else if ($value['PRORROGA'] == '2') {
-                        $boton_titulo_prorroga = 'Prorroga <br>Aceptada';
-                    } else if ($value['PRORROGA'] == '3') {
-                        $boton_titulo_prorroga = 'Prorroga <br>Declinada';
-                    } else if ($value['PRORROGA'] == '4') {
+                    if ($value['PRORROGA'] == NULL) {
                         $boton_titulo_prorroga = 'Prorroga';
+                        $des_prorroga = '';
+                        $boton_reactivar = '';
+                    } else {
+                        if ($value['PRORROGA'] == '1') {
+                            $boton_titulo_prorroga = 'Prorroga <br>Pendiente';
+                        } else if ($value['PRORROGA'] == '2') {
+                            $boton_titulo_prorroga = 'Prorroga <br>Aceptada';
+                        } else if ($value['PRORROGA'] == '3') {
+                            $boton_titulo_prorroga = 'Prorroga <br>Declinada';
+                        } else if ($value['PRORROGA'] == '4') {
+                            $boton_titulo_prorroga = 'Prorroga';
+                        }
                     }
-                }
 
-                if ($value['REACTIVACION'] == NULL) {
-                    $boton_titulo_reactivar = 'Reactivar';
-                } else {
+                    if ($value['REACTIVACION'] == NULL) {
+                        $boton_titulo_reactivar = 'Reactivar';
+                    } else {
 
-                    if ($value['REACTIVACION'] == '1') {
-                        $boton_titulo_reactivar = 'Reactivar <br>Pendiente';
-                    } else if ($value['REACTIVACION'] == '2') {
-                        $boton_titulo_reactivar = 'Reactivar <br>Aceptado';
-                    } else if ($value['REACTIVACION'] == '3') {
-                        $boton_titulo_reactivar = 'Reactivar Declinado';
-                    } else if ($value['REACTIVACION'] == '400') {
-                        $boton_titulo_reactivar = 'Reactivar Declinado';
+                        if ($value['REACTIVACION'] == '1') {
+                            $boton_titulo_reactivar = 'Reactivar <br>Pendiente';
+                        } else if ($value['REACTIVACION'] == '2') {
+                            $boton_titulo_reactivar = 'Reactivar <br>Aceptado';
+                        } else if ($value['REACTIVACION'] == '3') {
+                            $boton_titulo_reactivar = 'Reactivar Declinado';
+                        } else if ($value['REACTIVACION'] == '400') {
+                            $boton_titulo_reactivar = 'Reactivar Declinado';
+                        }
                     }
-                }
 
-                if ($value['NOMBRE1'] == 'PENDIENTE DE VALIDAR' || $value['NOMBRE1'] == '-') {
-                    $botones_prorroga = <<<html
+                    if ($value['NOMBRE1'] == 'PENDIENTE DE VALIDAR' || $value['NOMBRE1'] == '-') {
+                        $botones_prorroga = <<<html
                 <td style="padding-top: 22px !important;">
                 </td>
 html;
-                } else {
-                    $botones_prorroga = <<<html
+                    } else {
+                        $botones_prorroga = <<<html
                 <td style="padding-top: 22px !important;">
                         <a type="button" class="btn btn-primary btn-circle" onclick="ProrrogaPedir('{$value['ID_SCALL']}','{$value['PRORROGA']}','{$value['REACTIVAR']}');" style="background: $color_boton; color: $fuente " $des_prorroga><i class="fa fa-edit"></i> <b>$boton_titulo_prorroga</b>
                         </a>
@@ -3449,34 +3449,34 @@ html;
                         </a>
                 </td>
 html;
-                }
-                if ($value['NOMBRE1'] == 'PENDIENTE DE VALIDAR' || $value['NOMBRE1'] == '-') {
-                    $ver_resumen = '';
-                } else {
-                    $ver_resumen = <<<html
+                    }
+                    if ($value['NOMBRE1'] == 'PENDIENTE DE VALIDAR' || $value['NOMBRE1'] == '-') {
+                        $ver_resumen = '';
+                    } else {
+                        $ver_resumen = <<<html
                         <hr>
                         <a type="button" target="_blank" href="/CallCenter/Pendientes/?Credito={$value['CDGNS']}&Ciclo={$value['CICLO']}&Suc={$value['CODIGO_SUCURSAL']}&Act=N&Reg={$value['CODIGO_REGION']}&Fec={$value['FECHA_SOL']}" class="btn btn-primary btn-circle"><span class="label label-info"><span class="fa fa-eye"></span></span> Ver Resumen
                         </a>
 html;
-                }
-                if ($value['RECOMENDADO'] != '' && $value['CICLO'] == '01') {
-                    $recomendado = '<div><b>CAMPAÑA ACTIVA</b> <span class="label label-success" style=" font-size: 95% !important; border-radius: 50em !important; background: #6a0013"><span class="fa fa-yelp"> </span> </span></div><b><em>RECOMIENDA MÁS Y PAGA MENOS <em></em></b><hr>';
-                } else {
-                    $recomendado = '';
-                }
+                    }
+                    if ($value['RECOMENDADO'] != '' && $value['CICLO'] == '01') {
+                        $recomendado = '<div><b>CAMPAÑA ACTIVA</b> <span class="label label-success" style=" font-size: 95% !important; border-radius: 50em !important; background: #6a0013"><span class="fa fa-yelp"> </span> </span></div><b><em>RECOMIENDA MÁS Y PAGA MENOS <em></em></b><hr>';
+                    } else {
+                        $recomendado = '';
+                    }
 
-                if ($value['CICLOR'] == '') {
-                    $ciclo_r = '';
-                    $cicloi = $value['CICLO'];;
-                } else {
-                    $ciclo_r = <<<html
+                    if ($value['CICLOR'] == '') {
+                        $ciclo_r = '';
+                        $cicloi = $value['CICLO'];;
+                    } else {
+                        $ciclo_r = <<<html
                         <span  class="label label-warning" style="color: #0D0A0A; font-sice;  font-size: 12px;"> Rechazado</span>
 html;
-                    $cicloi = $value['CICLOR'];
-                }
+                        $cicloi = $value['CICLOR'];
+                    }
 
 
-                $tabla .= <<<html
+                    $tabla .= <<<html
                 <tr style="padding: 0px !important;">
                    <td style="padding: 5px !important; width:65px !important;">
                     <div><span class="label label-success" style="color: #0D0A0A">MCM - {$value['ID_SCALL']}</span></div>
@@ -3614,108 +3614,108 @@ HTML;
             foreach ($filasOrdenadas as $item) {
                 if ($item['tipo'] === 'credito') {
                     $value = $item['datos'];
-                if ($value['ESTATUS_CL'] == 'PENDIENTE') {
-                    $color = 'primary';
-                    $icon = 'fa-frown-o';
-                } else if ($value['ESTATUS_CL'] == 'REGISTRO INCOMPLETO') {
-                    $color = 'warning';
-                    $icon = 'fa-clock-o';
-                } else {
-                    $color = 'success';
-                    $icon = 'fa-check';
-                }
+                    if ($value['ESTATUS_CL'] == 'PENDIENTE') {
+                        $color = 'primary';
+                        $icon = 'fa-frown-o';
+                    } else if ($value['ESTATUS_CL'] == 'REGISTRO INCOMPLETO') {
+                        $color = 'warning';
+                        $icon = 'fa-clock-o';
+                    } else {
+                        $color = 'success';
+                        $icon = 'fa-check';
+                    }
 
-                if ($value['ESTATUS_AV'] == 'PENDIENTE') {
-                    $color_a = 'primary';
-                    $icon_a = 'fa-frown-o';
-                } else if ($value['ESTATUS_AV'] == 'REGISTRO INCOMPLETO') {
-                    $color_a = 'warning';
-                    $icon_a = 'fa-clock-o';
-                } else {
-                    $color_a = 'success';
-                    $icon_a = 'fa-check';
-                }
+                    if ($value['ESTATUS_AV'] == 'PENDIENTE') {
+                        $color_a = 'primary';
+                        $icon_a = 'fa-frown-o';
+                    } else if ($value['ESTATUS_AV'] == 'REGISTRO INCOMPLETO') {
+                        $color_a = 'warning';
+                        $icon_a = 'fa-clock-o';
+                    } else {
+                        $color_a = 'success';
+                        $icon_a = 'fa-check';
+                    }
 
-                if ($value['ESTATUS_CL'] == 'REGISTRO INCOMPLETO' || $value['ESTATUS_AV'] == 'REGISTRO INCOMPLETO') {
-                    $titulo_boton = 'Pedir Prorroga';
-                    $color_boton = '#F0AD4E';
-                    $fuente = '#0D0A0A';
-                } else if ($value['FIN_CL'] != '' || $value['FIN_AV'] != '') {
-                    $titulo_boton = 'Pedir Prorroga';
-                    $color_boton = '#0D0A0A';
-                    $fuente = '';
-                } else {
-                    $titulo_boton = 'Pedir Prorroga';
-                    $color_boton = '#029f3f';
-                    $fuente = '';
-                }
+                    if ($value['ESTATUS_CL'] == 'REGISTRO INCOMPLETO' || $value['ESTATUS_AV'] == 'REGISTRO INCOMPLETO') {
+                        $titulo_boton = 'Pedir Prorroga';
+                        $color_boton = '#F0AD4E';
+                        $fuente = '#0D0A0A';
+                    } else if ($value['FIN_CL'] != '' || $value['FIN_AV'] != '') {
+                        $titulo_boton = 'Pedir Prorroga';
+                        $color_boton = '#0D0A0A';
+                        $fuente = '';
+                    } else {
+                        $titulo_boton = 'Pedir Prorroga';
+                        $color_boton = '#029f3f';
+                        $fuente = '';
+                    }
 
-                if ($value['COMENTARIO_INICIAL'] == '') {
-                    $icon_ci = 'fa-close';
-                    $color_ci = 'danger';
-                } else {
-                    $icon_ci = 'fa-check';
-                    $color_ci = 'success';
-                }
-                if ($value['COMENTARIO_FINAL'] == '') {
-                    $icon_cf = 'fa-close';
-                    $color_cf = 'danger';
-                } else {
-                    $icon_cf = 'fa-check';
-                    $color_cf = 'success';
-                }
-                if ($value['ESTATUS_FINAL'] == '') {
-                    $icon_ef = 'fa-close';
-                    $color_ef = 'danger';
-                } else {
-                    $icon_ef = 'fa-check';
-                    $color_ef = 'success';
-                }
+                    if ($value['COMENTARIO_INICIAL'] == '') {
+                        $icon_ci = 'fa-close';
+                        $color_ci = 'danger';
+                    } else {
+                        $icon_ci = 'fa-check';
+                        $color_ci = 'success';
+                    }
+                    if ($value['COMENTARIO_FINAL'] == '') {
+                        $icon_cf = 'fa-close';
+                        $color_cf = 'danger';
+                    } else {
+                        $icon_cf = 'fa-check';
+                        $color_cf = 'success';
+                    }
+                    if ($value['ESTATUS_FINAL'] == '') {
+                        $icon_ef = 'fa-close';
+                        $color_ef = 'danger';
+                    } else {
+                        $icon_ef = 'fa-check';
+                        $color_ef = 'success';
+                    }
 
-                if ($value['VOBO_REG'] == NULL) {
-                    $vobo = '';
-                } else {
-                    $vobo = '<div><span class="label label-success"><span class="fa fa-check"></span></span> VoBo Gerente Regional</div>';
-                }
+                    if ($value['VOBO_REG'] == NULL) {
+                        $vobo = '';
+                    } else {
+                        $vobo = '<div><span class="label label-success"><span class="fa fa-check"></span></span> VoBo Gerente Regional</div>';
+                    }
 
-                if ($value['PRORROGA'] == NULL) {
-                    $boton_titulo_prorroga = 'Prorroga';
-                    $des_prorroga = '';
-                    $boton_reactivar = '';
-                } else {
-                    if ($value['PRORROGA'] == '1') {
-                        $boton_titulo_prorroga = 'Prorroga <br>Pendiente';
-                    } else if ($value['PRORROGA'] == '2') {
-                        $boton_titulo_prorroga = 'Prorroga <br>Aceptada';
-                    } else if ($value['PRORROGA'] == '3') {
-                        $boton_titulo_prorroga = 'Prorroga <br>Declinada';
-                    } else if ($value['PRORROGA'] == '4') {
+                    if ($value['PRORROGA'] == NULL) {
                         $boton_titulo_prorroga = 'Prorroga';
+                        $des_prorroga = '';
+                        $boton_reactivar = '';
+                    } else {
+                        if ($value['PRORROGA'] == '1') {
+                            $boton_titulo_prorroga = 'Prorroga <br>Pendiente';
+                        } else if ($value['PRORROGA'] == '2') {
+                            $boton_titulo_prorroga = 'Prorroga <br>Aceptada';
+                        } else if ($value['PRORROGA'] == '3') {
+                            $boton_titulo_prorroga = 'Prorroga <br>Declinada';
+                        } else if ($value['PRORROGA'] == '4') {
+                            $boton_titulo_prorroga = 'Prorroga';
+                        }
                     }
-                }
 
-                if ($value['REACTIVACION'] == NULL) {
-                    $boton_titulo_reactivar = 'Reactivar';
-                } else {
+                    if ($value['REACTIVACION'] == NULL) {
+                        $boton_titulo_reactivar = 'Reactivar';
+                    } else {
 
-                    if ($value['REACTIVACION'] == '1') {
-                        $boton_titulo_reactivar = 'Reactivar <br>Pendiente';
-                    } else if ($value['REACTIVACION'] == '2') {
-                        $boton_titulo_reactivar = 'Reactivar <br>Aceptado';
-                    } else if ($value['REACTIVACION'] == '3') {
-                        $boton_titulo_reactivar = 'Reactivar Declinado';
-                    } else if ($value['REACTIVACION'] == '400') {
-                        $boton_titulo_reactivar = 'Reactivar Declinado';
+                        if ($value['REACTIVACION'] == '1') {
+                            $boton_titulo_reactivar = 'Reactivar <br>Pendiente';
+                        } else if ($value['REACTIVACION'] == '2') {
+                            $boton_titulo_reactivar = 'Reactivar <br>Aceptado';
+                        } else if ($value['REACTIVACION'] == '3') {
+                            $boton_titulo_reactivar = 'Reactivar Declinado';
+                        } else if ($value['REACTIVACION'] == '400') {
+                            $boton_titulo_reactivar = 'Reactivar Declinado';
+                        }
                     }
-                }
 
-                if ($value['NOMBRE1'] == 'PENDIENTE DE VALIDAR' || $value['NOMBRE1'] == '-') {
-                    $botones_prorroga = <<<html
+                    if ($value['NOMBRE1'] == 'PENDIENTE DE VALIDAR' || $value['NOMBRE1'] == '-') {
+                        $botones_prorroga = <<<html
                 <td style="padding-top: 22px !important;">
                 </td>
 html;
-                } else {
-                    $botones_prorroga = <<<html
+                    } else {
+                        $botones_prorroga = <<<html
                 <td style="padding-top: 22px !important;">
                         <a type="button" class="btn btn-primary btn-circle" onclick="ProrrogaPedir('{$value['ID_SCALL']}','{$value['PRORROGA']}','{$value['REACTIVAR']}');" style="background: $color_boton; color: $fuente " $des_prorroga><i class="fa fa-edit"></i> <b>$boton_titulo_prorroga</b>
                         </a>
@@ -3724,30 +3724,30 @@ html;
                         </a>
                 </td>
 html;
-                }
+                    }
 
-                if ($value['NOMBRE1'] == 'PENDIENTE DE VALIDAR' || $value['NOMBRE1'] == '-') {
-                    $ver_resumen = '';
-                } else {
-                    $ver_resumen = <<<html
+                    if ($value['NOMBRE1'] == 'PENDIENTE DE VALIDAR' || $value['NOMBRE1'] == '-') {
+                        $ver_resumen = '';
+                    } else {
+                        $ver_resumen = <<<html
                         <hr>
                         <a type="button" target="_blank" href="/CallCenter/Pendientes/?Credito={$value['CDGNS']}&Ciclo={$value['CICLO']}&Suc={$value['CODIGO_SUCURSAL']}&Act=N&Reg={$value['CODIGO_REGION']}&Fec={$value['FECHA_SOL']}" class="btn btn-primary btn-circle"><span class="label label-info"><span class="fa fa-eye"></span></span> Ver Resumen
                         </a>
 html;
-                }
+                    }
 
-                if ($value['CICLOR'] == '') {
-                    $ciclo_r = '';
-                    $cicloi = $value['CICLO'];;
-                } else {
-                    $ciclo_r = <<<html
+                    if ($value['CICLOR'] == '') {
+                        $ciclo_r = '';
+                        $cicloi = $value['CICLO'];;
+                    } else {
+                        $ciclo_r = <<<html
                         <span  class="label label-warning" style="color: #0D0A0A; font-sice;  font-size: 12px;"> Rechazado</span>
 html;
-                    $cicloi = $value['CICLOR'];
-                }
+                        $cicloi = $value['CICLOR'];
+                    }
 
 
-                $tabla .= <<<html
+                    $tabla .= <<<html
                 <tr style="padding: 0px !important;">
                   <td style="padding: 5px !important; width:65px !important;">
                     <div><span class="label label-success" style="color: #0D0A0A">MCM - {$value['ID_SCALL']}</span></div>

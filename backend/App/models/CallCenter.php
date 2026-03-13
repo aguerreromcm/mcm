@@ -426,7 +426,7 @@ sql;
     public static function getAllSolicitudesHistoricoExcel($datos)
     {
         $sucursales = $datos['sucursales'] == '' ? 'SPR.CDGCO IS NULL' : "SPR.CDGCO IN ({$datos['sucursales']})";
-        $fecha = $datos['fechaI'] != '' && $datos['fechaF'] != '' ? "AND TO_DATE(SPR.FECHA_SOL, 'DD/MM/YYYY HH24:MI:SS') BETWEEN TIMESTAMP '{$datos['fechaI']} 00:00:00.000000' AND TIMESTAMP '{$datos['fechaF']} 23:59:59.000000'" : '';
+        $fecha = $datos['fechaI'] != '' && $datos['fechaF'] != '' ? "AND TO_DATE(SPR.FECHA_SOL, 'DD/MM/YYYY HH24:MI:SS') BETWEEN TO_DATE('{$datos['fechaI']} 00:00:00', 'YYYY-MM-DD HH24:MI:SS') AND TO_DATE('{$datos['fechaF']} 23:59:59', 'YYYY-MM-DD HH24:MI:SS')" : '';
         $usuario = $datos['usuario'] == '' ? '' : "AND SPR.CDGPE = '{$datos['usuario']}'";
         $filtroSucursalesRetiros = $datos['sucursales'] == '' ? '' : " AND CO.CODIGO IN ({$datos['sucursales']})";
 
@@ -572,7 +572,7 @@ sql;
                     '' AS BB,
                     '' AS BC,
                     '' AS BD,
-                    CAST(SPR.FECHA_SOL AS TIMESTAMP) AS FECHA_ORDEN
+                    TO_DATE(SPR.FECHA_SOL, 'DD/MM/YYYY HH24:MI:SS') AS FECHA_ORDEN
                 FROM 
                     SOLICITUDES_PROCESADAS SPR
                     INNER JOIN PE ON PE.CODIGO = SPR.CDGPE 
@@ -721,7 +721,7 @@ sql;
                     '' AS BB,
                     '' AS BC,
                     '' AS BD,
-                    CAST(SPR.FECHA_SOL AS TIMESTAMP) AS FECHA_ORDEN
+                    TO_DATE(SPR.FECHA_SOL, 'DD/MM/YYYY HH24:MI:SS') AS FECHA_ORDEN
                 FROM
                     SOLICITUDES_PENDIENTES SPR
                 WHERE
