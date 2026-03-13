@@ -41,6 +41,14 @@
 
                     <div class="dataTable_wrapper">
                         <table class="table table-striped table-bordered table-hover" id="muestra-cupones">
+                            <colgroup>
+                                <col>
+                                <col>
+                                <col style="width: 18%">
+                                <col>
+                                <col>
+                                <col>
+                            </colgroup>
                             <thead>
                             <tr>
                                 <th>-</th>

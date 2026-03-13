@@ -435,6 +435,10 @@ sql;
                 *
             FROM (
                 SELECT DISTINCT
+                    CASE
+                        WHEN SPR.ESTATUS_FINAL LIKE 'RETIRO%' THEN 'AHORRO'
+                        ELSE 'CREDITO'
+                    END AS TIPO,
                     (SPR.CDGNS || '-' || 
                       CASE 
                           WHEN SPR.CICLOR IS NOT NULL THEN SPR.CICLOR
@@ -567,7 +571,8 @@ sql;
                     '' AS BA,
                     '' AS BB,
                     '' AS BC,
-                    '' AS BD
+                    '' AS BD,
+                    CAST(SPR.FECHA_SOL AS TIMESTAMP) AS FECHA_ORDEN
                 FROM 
                     SOLICITUDES_PROCESADAS SPR
                     INNER JOIN PE ON PE.CODIGO = SPR.CDGPE 
@@ -576,10 +581,15 @@ sql;
                     $fecha
                     $usuario
                     AND SEMAFORO = '1'
+                    AND (SPR.ESTATUS_FINAL IS NULL OR SPR.ESTATUS_FINAL NOT LIKE 'RETIRO%')
                  
                 UNION
                  
                 SELECT DISTINCT
+                    CASE
+                        WHEN SPR.ESTATUS_FINAL LIKE 'RETIRO%' THEN 'AHORRO'
+                        ELSE 'CREDITO'
+                    END AS TIPO,
                     (SPR.CDGNS || '-' || CASE
                             WHEN (
                                 CICLO = 'R1'
@@ -710,21 +720,29 @@ sql;
                     '' AS BA,
                     '' AS BB,
                     '' AS BC,
-                    '' AS BD
+                    '' AS BD,
+                    CAST(SPR.FECHA_SOL AS TIMESTAMP) AS FECHA_ORDEN
                 FROM
                     SOLICITUDES_PENDIENTES SPR
                 WHERE
                     $sucursales
                     $fecha
+                    AND (SPR.ESTATUS_FINAL IS NULL OR SPR.ESTATUS_FINAL NOT LIKE 'RETIRO%')
                  
                 UNION
                  
                 SELECT
+                    'AHORRO' AS TIPO,
                     (RA.CDGNS || '-' || RA.CICLO) AS A,
                     RG.NOMBRE AS B,
                     TO_CHAR(RA.FECHA_CREACION, 'DD/MM/YYYY') AS C,
                     TO_CHAR(RA.FECHA_CREACION, 'DD/MM/YYYY HH24:MI:SS') AS D,
-                    'RETIRO AHORRO' AS E,
+                    CASE RAC.ESTATUS
+                        WHEN 'I' THEN 'INCOMPLETA'
+                        WHEN 'C' THEN 'COMPLETA'
+                        WHEN 'R' THEN 'RECHAZADA'
+                        ELSE 'PENDIENTE'
+                    END AS E,
                     CO.NOMBRE AS F,
                     GET_NOMBRE_EMPLEADO(PE.CODIGO) AS G,
                     RA.CDGNS AS H,
@@ -780,7 +798,8 @@ sql;
                     '' AS BA,
                     '' AS BB,
                     '' AS BC,
-                    '' AS BD
+                    '' AS BD,
+                    RA.FECHA_CREACION AS FECHA_ORDEN
                 FROM
                     RETIROS_AHORRO RA
                     INNER JOIN SN ON SN.CDGNS = RA.CDGNS AND SN.CICLO = RA.CICLO
@@ -794,7 +813,7 @@ sql;
                     1 = 1
                     $filtroSucursalesRetiros
                     AND TRUNC(RA.FECHA_CREACION) BETWEEN TO_DATE('{$datos['fechaI']}', 'YYYY-MM-DD') AND TO_DATE('{$datos['fechaF']}', 'YYYY-MM-DD')
-            ) ORDER BY D DESC
+            ) ORDER BY FECHA_ORDEN DESC
         SQL;
 
         try {

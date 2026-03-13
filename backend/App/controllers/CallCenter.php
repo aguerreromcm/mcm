@@ -3305,8 +3305,34 @@ html;
 
         if ($Inicial != '' || $Final != '' || $Sucursal != '') {
             $Consulta = CallCenterDao::getAllSolicitudesHistorico($Inicial, $Final, $cdgco, $this->__usuario, $this->__perfil, $Sucursal);
-            foreach ($Consulta as $key => $value) {
-
+            $historicoRetiros = CallCenterDao::getHistoricoRetiros($Inicial, $Final, $cdgco);
+            $filasOrdenadas = [];
+            foreach ($Consulta as $v) {
+                $esRetiro = isset($v['ESTATUS_FINAL']) && stripos($v['ESTATUS_FINAL'], 'RETIRO') === 0;
+                if (!$esRetiro) {
+                    $filasOrdenadas[] = ['tipo' => 'credito', 'fecha' => $v['FECHA_SOL'], 'datos' => $v];
+                }
+            }
+            if ($historicoRetiros['success']) {
+                $idsRetirosVistos = [];
+                foreach ($historicoRetiros['datos'] as $r) {
+                    $idRetiro = isset($r['ID']) ? $r['ID'] : null;
+                    if ($idRetiro !== null && in_array($idRetiro, $idsRetirosVistos)) {
+                        continue;
+                    }
+                    if ($idRetiro !== null) {
+                        $idsRetirosVistos[] = $idRetiro;
+                    }
+                    $filasOrdenadas[] = ['tipo' => 'retiro', 'fecha' => $r['FECHA_CREACION'], 'datos' => $r];
+                }
+            }
+            usort($filasOrdenadas, function ($a, $b) {
+                return strcmp($b['fecha'], $a['fecha']);
+            });
+            $tabla = '';
+            foreach ($filasOrdenadas as $item) {
+                if ($item['tipo'] === 'credito') {
+                    $value = $item['datos'];
                 if ($value['ESTATUS_CL'] == 'PENDIENTE') {
                     $color = 'primary';
                     $icon = 'fa-frown-o';
@@ -3487,20 +3513,14 @@ html;
                     $botones_prorroga
                 </tr>
 html;
-            }
-
-            $historicoRetiros = CallCenterDao::getHistoricoRetiros($Inicial, $Final, $cdgco);
-
-            if ($historicoRetiros['success']) {
-                foreach ($historicoRetiros['datos'] as $retiro) {
+                } else {
+                    $retiro = $item['datos'];
                     $telefono = $retiro['TELEFONO'];
                     if ($telefono != '' && substr($telefono, 0, 1) != '(') {
                         $telefono = "(" . substr($telefono, 0, 3) . ") " . substr($telefono, 3, 3) . " - " . substr($telefono, 6, 4);
                     }
-
                     $color = 'success';
                     $icon = 'fa-check';
-
                     if ($retiro['ESTATUS'] == 'P') {
                         $color = 'primary';
                         $icon = 'fa-frown-o';
@@ -3508,14 +3528,11 @@ html;
                         $color = 'warning';
                         $icon = 'fa-clock-o';
                     }
-
                     $icon_ci = $retiro['COMENTARIO_INTERNO'] == '' ? 'fa-close' : 'fa-check';
                     $color_ci = $retiro['COMENTARIO_INTERNO'] == '' ? 'danger' : 'success';
                     $icon_cf = $retiro['COMENTARIO_EXTERNO'] == '' ? 'fa-close' : 'fa-check';
                     $color_cf = $retiro['COMENTARIO_EXTERNO'] == '' ? 'danger' : 'success';
-
                     $validado_por = $retiro['ANALISTA'] != '' ? $retiro['ANALISTA'] : 'PENDIENTE DE VALIDAR';
-
                     $tabla .= <<<HTML
                 <tr style="padding: 0px !important;">
                     <td style="padding: 5px !important; width:65px !important;">
@@ -3539,7 +3556,7 @@ html;
                     </td>
                     <td style="padding-top: 22px !important; text-align: left">
                         <div>
-                            <b>RETIRO:</b> {$retiro['ESTATUS_ETIQUETA']}
+                            <b>ESTATUS:</b> {$retiro['ESTATUS_ETIQUETA']}
                             <span class="label label-$color" style="font-size: 95% !important; border-radius: 50em !important;">
                                 <span class="fa $icon"></span>
                             </span>
@@ -3569,7 +3586,34 @@ HTML;
             }
         } else {
             $Consulta = CallCenterDao::getAllSolicitudesHistorico($fechaActual, $fechaActual, $cdgco, $this->__usuario, $this->__perfil, $Sucursal);
-            foreach ($Consulta as $key => $value) {
+            $historicoRetiros = CallCenterDao::getHistoricoRetiros($fechaActual, $fechaActual, $cdgco);
+            $filasOrdenadas = [];
+            foreach ($Consulta as $v) {
+                $esRetiro = isset($v['ESTATUS_FINAL']) && stripos($v['ESTATUS_FINAL'], 'RETIRO') === 0;
+                if (!$esRetiro) {
+                    $filasOrdenadas[] = ['tipo' => 'credito', 'fecha' => $v['FECHA_SOL'], 'datos' => $v];
+                }
+            }
+            if ($historicoRetiros['success']) {
+                $idsRetirosVistos = [];
+                foreach ($historicoRetiros['datos'] as $r) {
+                    $idRetiro = isset($r['ID']) ? $r['ID'] : null;
+                    if ($idRetiro !== null && in_array($idRetiro, $idsRetirosVistos)) {
+                        continue;
+                    }
+                    if ($idRetiro !== null) {
+                        $idsRetirosVistos[] = $idRetiro;
+                    }
+                    $filasOrdenadas[] = ['tipo' => 'retiro', 'fecha' => $r['FECHA_CREACION'], 'datos' => $r];
+                }
+            }
+            usort($filasOrdenadas, function ($a, $b) {
+                return strcmp($b['fecha'], $a['fecha']);
+            });
+            $tabla = '';
+            foreach ($filasOrdenadas as $item) {
+                if ($item['tipo'] === 'credito') {
+                    $value = $item['datos'];
                 if ($value['ESTATUS_CL'] == 'PENDIENTE') {
                     $color = 'primary';
                     $icon = 'fa-frown-o';
@@ -3736,12 +3780,8 @@ html;
                     $botones_prorroga
                 </tr>
 html;
-            }
-
-            $historicoRetiros = CallCenterDao::getHistoricoRetiros($fechaActual, $fechaActual, $cdgco);
-
-            if ($historicoRetiros['success']) {
-                foreach ($historicoRetiros['datos'] as $retiro) {
+                } else {
+                    $retiro = $item['datos'];
                     $telefono = $retiro['TELEFONO'];
                     if ($telefono != '' && substr($telefono, 0, 1) != '(') {
                         $telefono = "(" . substr($telefono, 0, 3) . ") " . substr($telefono, 3, 3) . " - " . substr($telefono, 6, 4);
@@ -3788,7 +3828,7 @@ html;
                     </td>
                     <td style="padding-top: 22px !important; text-align: left">
                         <div>
-                            <b>RETIRO:</b> {$retiro['ESTATUS_ETIQUETA']}
+                            <b>ESTATUS:</b> {$retiro['ESTATUS_ETIQUETA']}
                             <span class="label label-$color" style="font-size: 95% !important; border-radius: 50em !important;">
                                 <span class="fa $icon"></span>
                             </span>
@@ -4392,6 +4432,7 @@ html;
         $estilos = \PHPSpreadsheet::GetEstilosExcel();
 
         $columnas = [
+            \PHPSpreadsheet::ColumnaExcel('TIPO', 'TIPO'),
             \PHPSpreadsheet::ColumnaExcel('A', '-'),
             \PHPSpreadsheet::ColumnaExcel('B', 'NOMBRE REGION'),
             \PHPSpreadsheet::ColumnaExcel('C', 'FECHA DE TRABAJO', ['estilo' => $estilos['fecha']]),
