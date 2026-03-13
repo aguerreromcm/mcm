@@ -3940,6 +3940,7 @@ HTML;
         $Final = $_GET['Final'];
         $Sucursal = $_GET['Suc'];
         $cdgco = array();
+        $opciones_suc = '';
         $ComboSucursales = CallCenterDao::getComboSucursales($this->__usuario);
 
         if ($ComboSucursales['success']) {
@@ -3948,7 +3949,7 @@ HTML;
                     $sel = $Sucursal == $val2['CODIGO'] ? 'selected' : '';
 
                     $opciones_suc .= <<<html
-                        <option {$Sucursal} value="{$val2['CODIGO']}">({$val2['CODIGO']}) {$val2['NOMBRE']}</option>
+                        <option {$sel} value="{$val2['CODIGO']}">({$val2['CODIGO']}) {$val2['NOMBRE']}</option>
                     html;
                     array_push($cdgco, $val2['CODIGO']);
                 }
@@ -3956,136 +3957,162 @@ HTML;
         }
 
         if ($Inicial != '' || $Final != '') {
-            /////////////////////////////////
             $Consulta = CallCenterDao::getAllSolicitudesHistorico($Inicial, $Final, '', $this->__usuario, $this->__perfil, $Sucursal);
-            foreach ($Consulta as $key => $value) {
-                if ($value['ESTATUS_CL'] == 'PENDIENTE') {
-                    $color = 'primary';
-                    $icon = 'fa-frown-o';
-                } else if ($value['ESTATUS_CL'] == 'REGISTRO INCOMPLETO') {
-                    $color = 'warning';
-                    $icon = 'fa-clock-o';
-                } else if ($value['ESTATUS_CL'] == '-') {
-                    $color = 'danger';
-                    $icon = 'fa-close';
-                } else {
-                    $color = 'success';
-                    $icon = 'fa-check';
+            $historicoRetiros = CallCenterDao::getHistoricoRetiros($Inicial, $Final, $cdgco);
+            $filasOrdenadas = [];
+            foreach ($Consulta as $v) {
+                $esRetiro = isset($v['ESTATUS_FINAL']) && stripos($v['ESTATUS_FINAL'], 'RETIRO') === 0;
+                if (!$esRetiro) {
+                    $filasOrdenadas[] = ['tipo' => 'credito', 'fecha' => $v['FECHA_SOL'], 'datos' => $v];
                 }
+            }
+            if ($historicoRetiros['success']) {
+                $idsRetirosVistos = [];
+                foreach ($historicoRetiros['datos'] as $r) {
+                    $idRetiro = isset($r['ID']) ? $r['ID'] : null;
+                    if ($idRetiro !== null && in_array($idRetiro, $idsRetirosVistos)) {
+                        continue;
+                    }
+                    if ($idRetiro !== null) {
+                        $idsRetirosVistos[] = $idRetiro;
+                    }
+                    $filasOrdenadas[] = ['tipo' => 'retiro', 'fecha' => $r['FECHA_CREACION'], 'datos' => $r];
+                }
+            }
+            usort($filasOrdenadas, function ($a, $b) {
+                return strcmp($b['fecha'], $a['fecha']);
+            });
+            $tabla = '';
+            foreach ($filasOrdenadas as $item) {
+                if ($item['tipo'] === 'credito') {
+                    $value = $item['datos'];
+                    if ($value['ESTATUS_CL'] == 'PENDIENTE') {
+                        $color = 'primary';
+                        $icon = 'fa-frown-o';
+                    } else if ($value['ESTATUS_CL'] == 'REGISTRO INCOMPLETO') {
+                        $color = 'warning';
+                        $icon = 'fa-clock-o';
+                    } else if ($value['ESTATUS_CL'] == '-') {
+                        $color = 'danger';
+                        $icon = 'fa-close';
+                    } else {
+                        $color = 'success';
+                        $icon = 'fa-check';
+                    }
 
-                if ($value['ESTATUS_AV'] == 'PENDIENTE') {
-                    $color_a = 'primary';
-                    $icon_a = 'fa-frown-o';
-                } else if ($value['ESTATUS_AV'] == 'REGISTRO INCOMPLETO') {
-                    $color_a = 'warning';
-                    $icon_a = 'fa-clock-o';
-                } else if ($value['ESTATUS_AV'] == '-') {
-                    $color_a = 'danger';
-                    $icon_a = 'fa-close';
-                } else {
-                    $color_a = 'success';
-                    $icon_a = 'fa-check';
-                }
+                    if ($value['ESTATUS_AV'] == 'PENDIENTE') {
+                        $color_a = 'primary';
+                        $icon_a = 'fa-frown-o';
+                    } else if ($value['ESTATUS_AV'] == 'REGISTRO INCOMPLETO') {
+                        $color_a = 'warning';
+                        $icon_a = 'fa-clock-o';
+                    } else if ($value['ESTATUS_AV'] == '-') {
+                        $color_a = 'danger';
+                        $icon_a = 'fa-close';
+                    } else {
+                        $color_a = 'success';
+                        $icon_a = 'fa-check';
+                    }
 
-                if ($value['ESTATUS_CL'] == 'REGISTRO INCOMPLETO' || $value['ESTATUS_AV'] == 'REGISTRO INCOMPLETO') {
-                    $titulo_boton = 'Pedir Prorroga';
-                    $color_boton = '#F0AD4E';
-                    $fuente = '#0D0A0A';
-                } else if ($value['FIN_CL'] != '' || $value['FIN_AV'] != '') {
-                    $titulo_boton = 'Pedir Prorroga';
-                    $color_boton = '#0D0A0A';
-                    $fuente = '';
-                } else {
-                    $titulo_boton = 'Pedir Prorroga';
-                    $color_boton = '#029f3f';
-                    $fuente = '';
-                }
+                    if ($value['ESTATUS_CL'] == 'REGISTRO INCOMPLETO' || $value['ESTATUS_AV'] == 'REGISTRO INCOMPLETO') {
+                        $titulo_boton = 'Pedir Prorroga';
+                        $color_boton = '#F0AD4E';
+                        $fuente = '#0D0A0A';
+                    } else if ($value['FIN_CL'] != '' || $value['FIN_AV'] != '') {
+                        $titulo_boton = 'Pedir Prorroga';
+                        $color_boton = '#0D0A0A';
+                        $fuente = '';
+                    } else {
+                        $titulo_boton = 'Pedir Prorroga';
+                        $color_boton = '#029f3f';
+                        $fuente = '';
+                    }
 
-                if ($value['COMENTARIO_INICIAL'] == '') {
-                    $icon_ci = 'fa-close';
-                    $color_ci = 'danger';
-                } else {
-                    $icon_ci = 'fa-check';
-                    $color_ci = 'success';
-                }
-                if ($value['COMENTARIO_FINAL'] == '') {
-                    $icon_cf = 'fa-close';
-                    $color_cf = 'danger';
-                } else {
-                    $icon_cf = 'fa-check';
-                    $color_cf = 'success';
-                }
-                if ($value['ESTATUS_FINAL'] == '') {
-                    $icon_ef = 'fa-close';
-                    $color_ef = 'danger';
-                } else {
-                    $icon_ef = 'fa-check';
-                    $color_ef = 'success';
-                }
+                    if ($value['COMENTARIO_INICIAL'] == '') {
+                        $icon_ci = 'fa-close';
+                        $color_ci = 'danger';
+                    } else {
+                        $icon_ci = 'fa-check';
+                        $color_ci = 'success';
+                    }
+                    if ($value['COMENTARIO_FINAL'] == '') {
+                        $icon_cf = 'fa-close';
+                        $color_cf = 'danger';
+                    } else {
+                        $icon_cf = 'fa-check';
+                        $color_cf = 'success';
+                    }
+                    if ($value['ESTATUS_FINAL'] == '') {
+                        $icon_ef = 'fa-close';
+                        $color_ef = 'danger';
+                    } else {
+                        $icon_ef = 'fa-check';
+                        $color_ef = 'success';
+                    }
 
-                if ($value['VOBO_REG'] == NULL) {
-                    $vobo = '';
-                } else {
-                    $vobo = '<div><span class="label label-success"><span class="fa fa-check"></span></span> VoBo Gerente Regional</div>';
-                }
+                    if ($value['VOBO_REG'] == NULL) {
+                        $vobo = '';
+                    } else {
+                        $vobo = '<div><span class="label label-success"><span class="fa fa-check"></span></span> VoBo Gerente Regional</div>';
+                    }
 
-                if ($value['PRORROGA'] == NULL) {
-                    $boton_titulo_prorroga = 'Prorroga';
-                    $des_prorroga = '';
-                    $boton_reactivar = '';
-                } else {
-                    if ($value['PRORROGA'] == '1') {
-                        $boton_titulo_prorroga = 'Prorroga <br>Pendiente';
-                    } else if ($value['PRORROGA'] == '2') {
-                        $boton_titulo_prorroga = 'Prorroga <br>Aceptada';
-                    } else if ($value['PRORROGA'] == '3') {
-                        $boton_titulo_prorroga = 'Prorroga <br>Declinada';
-                    } else if ($value['PRORROGA'] == '4') {
+                    if ($value['PRORROGA'] == NULL) {
                         $boton_titulo_prorroga = 'Prorroga';
+                        $des_prorroga = '';
+                        $boton_reactivar = '';
+                    } else {
+                        if ($value['PRORROGA'] == '1') {
+                            $boton_titulo_prorroga = 'Prorroga <br>Pendiente';
+                        } else if ($value['PRORROGA'] == '2') {
+                            $boton_titulo_prorroga = 'Prorroga <br>Aceptada';
+                        } else if ($value['PRORROGA'] == '3') {
+                            $boton_titulo_prorroga = 'Prorroga <br>Declinada';
+                        } else if ($value['PRORROGA'] == '4') {
+                            $boton_titulo_prorroga = 'Prorroga';
+                        }
                     }
-                }
 
-                if ($value['REACTIVACION'] == NULL) {
-                    $boton_titulo_reactivar = 'Reactivar';
-                } else {
-                    if ($value['REACTIVACION'] == '1') {
-                        $boton_titulo_reactivar = 'Reactivar <br>Pendiente';
-                    } else if ($value['REACTIVACION'] == '2') {
-                        $boton_titulo_reactivar = 'Reactivar <br>Aceptado';
-                    } else if ($value['REACTIVACION'] == '3') {
-                        $boton_titulo_reactivar = 'Reactivar Declinado';
-                    } else if ($value['REACTIVACION'] == '400') {
-                        $boton_titulo_reactivar = 'Reactivar Declinado';
+                    if ($value['REACTIVACION'] == NULL) {
+                        $boton_titulo_reactivar = 'Reactivar';
+                    } else {
+                        if ($value['REACTIVACION'] == '1') {
+                            $boton_titulo_reactivar = 'Reactivar <br>Pendiente';
+                        } else if ($value['REACTIVACION'] == '2') {
+                            $boton_titulo_reactivar = 'Reactivar <br>Aceptado';
+                        } else if ($value['REACTIVACION'] == '3') {
+                            $boton_titulo_reactivar = 'Reactivar Declinado';
+                        } else if ($value['REACTIVACION'] == '400') {
+                            $boton_titulo_reactivar = 'Reactivar Declinado';
+                        }
                     }
-                }
 
-                if ($value['NOMBRE1'] == 'PENDIENTE DE VALIDAR' || $value['NOMBRE1'] == '-') {
-                    $ver_resumen = '';
-                } else {
-                    $ver_resumen = <<<HTML
+                    if ($value['NOMBRE1'] == 'PENDIENTE DE VALIDAR' || $value['NOMBRE1'] == '-') {
+                        $ver_resumen = '';
+                    } else {
+                        $ver_resumen = <<<HTML
                         <hr>
                         <a type="button" target="_blank" href="/CallCenter/Pendientes/?Credito={$value['CDGNS']}&Ciclo={$value['CICLO']}&Suc={$value['CODIGO_SUCURSAL']}&Act=N&Reg={$value['CODIGO_REGION']}&Fec={$value['FECHA_SOL']}" class="btn btn-primary btn-circle"><span class="label label-info"><span class="fa fa-eye"></span></span> Ver Resumen
                         </a>
                     HTML;
-                }
+                    }
 
-                if ($value['RECOMENDADO'] != '' && $value['CICLO'] == '01') {
-                    $recomendado = '<div><b>CAMPAÑA ACTIVA</b> <span class="label label-success" style=" font-size: 95% !important; border-radius: 50em !important; background: #6a0013"><span class="fa fa-yelp"> </span> </span></div><b><em>RECOMIENDA MÁS Y PAGA MENOS <em></em></b><hr>';
-                } else {
-                    $recomendado = '';
-                }
+                    if ($value['RECOMENDADO'] != '' && $value['CICLO'] == '01') {
+                        $recomendado = '<div><b>CAMPAÑA ACTIVA</b> <span class="label label-success" style=" font-size: 95% !important; border-radius: 50em !important; background: #6a0013"><span class="fa fa-yelp"> </span> </span></div><b><em>RECOMIENDA MÁS Y PAGA MENOS <em></em></b><hr>';
+                    } else {
+                        $recomendado = '';
+                    }
 
-                if ($value['CICLOR'] == '') {
-                    $ciclo_r = '';
-                    $cicloi = $value['CICLO'];;
-                } else {
-                    $ciclo_r = <<<html
+                    if ($value['CICLOR'] == '') {
+                        $ciclo_r = '';
+                        $cicloi = $value['CICLO'];;
+                    } else {
+                        $ciclo_r = <<<html
                         <span  class="label label-warning" style="color: #0D0A0A; font-sice;  font-size: 12px;"> Rechazado</span>
 html;
-                    $cicloi = $value['CICLOR'];
-                }
+                        $cicloi = $value['CICLOR'];
+                    }
 
-                $tabla .= <<<HTML
+                    $tabla .= <<<HTML
                     <tr style="padding: 0px !important;">
                        <td style="padding: 5px !important; width:65px !important;">
                     <div><span class="label label-success" style="color: #0D0A0A">MCM - {$value['ID_SCALL']}</span></div>
@@ -4118,9 +4145,71 @@ html;
                         </td>
                     </tr>
                 HTML;
+                } else {
+                    $retiro = $item['datos'];
+                    $telefono = $retiro['TELEFONO'];
+                    if ($telefono != '' && substr($telefono, 0, 1) != '(') {
+                        $telefono = "(" . substr($telefono, 0, 3) . ") " . substr($telefono, 3, 3) . " - " . substr($telefono, 6, 4);
+                    }
+                    $color = 'success';
+                    $icon = 'fa-check';
+                    if ($retiro['ESTATUS'] == 'P') {
+                        $color = 'primary';
+                        $icon = 'fa-frown-o';
+                    } else if ($retiro['ESTATUS'] == 'I') {
+                        $color = 'warning';
+                        $icon = 'fa-clock-o';
+                    }
+                    $icon_ci = $retiro['COMENTARIO_INTERNO'] == '' ? 'fa-close' : 'fa-check';
+                    $color_ci = $retiro['COMENTARIO_INTERNO'] == '' ? 'danger' : 'success';
+                    $icon_cf = $retiro['COMENTARIO_EXTERNO'] == '' ? 'fa-close' : 'fa-check';
+                    $color_cf = $retiro['COMENTARIO_EXTERNO'] == '' ? 'danger' : 'success';
+                    $validado_por = $retiro['ANALISTA'] != '' ? $retiro['ANALISTA'] : 'PENDIENTE DE VALIDAR';
+                    $tabla .= <<<HTML
+                <tr style="padding: 0px !important;">
+                    <td style="padding: 5px !important; width:65px !important;">
+                        <div><span class="label label-success" style="color: #0D0A0A">MCM - {$retiro['ID']}</span></div>
+                        <hr>
+                        <div><label>{$retiro['CREDITO']}-{$retiro['CICLO']}</label></div>
+                        <div><label><span class="label label-info" style="font-size: 12px;">Retiro de ahorro</span></label></div>
+                    </td>
+                    <td style="padding: 10px !important; text-align: left">
+                        <span class="fa fa-building"></span> GERENCIA REGIONAL: ({$retiro['REGION']}) {$retiro['NOMBRE_REGION']}
+                        <br>
+                        <span class="fa fa-map-marker"></span> SUCURSAL: ({$retiro['SUCURSAL']}) {$retiro['NOMBRE_SUCURSAL']}
+                        <br>
+                        <span class="fa fa-briefcase"></span> EJECUTIVO: {$retiro['NOMBRE_EJECUTIVO']}
+                    </td>
+                    <td style="padding-top: 10px !important;">
+                        <span class="fa fa-user"></span>
+                        <label style="color: #1c4e63">{$retiro['NOMBRE_CLIENTE']}</label>
+                        <br>
+                        <label><span class="fa fa-phone"></span> {$telefono}</label>
+                    </td>
+                    <td style="padding-top: 22px !important; text-align: left">
+                        <div>
+                            <b>ESTATUS:</b> {$retiro['ESTATUS_ETIQUETA']}
+                            <span class="label label-$color" style="font-size: 95% !important; border-radius: 50em !important;">
+                                <span class="fa $icon"></span>
+                            </span>
+                        </div>
+                        <hr>
+                        <div><b>VALIDÓ:</b> {$validado_por}</div>
+                    </td>
+                    <td style="padding-top: 22px !important;">{$retiro['FECHA_CREACION']}</td>
+                    <td style="padding: 10px !important; text-align: left; width:165px !important;">
+                        <div><span class="label label-$color_ci"><span class="fa $icon_ci"></span></span> Comentarios Internos</div>
+                        <div><span class="label label-$color_cf"><span class="fa $icon_cf"></span></span> Comentarios Externos</div>
+                    </td>
+                </tr>
+HTML;
+                }
             }
 
-            if ($Consulta[0] == '') {
+            $haySolicitudes = is_array($Consulta) && isset($Consulta[0]) && $Consulta[0] != '';
+            $hayRetiros = $historicoRetiros['success'] && count($historicoRetiros['datos']) > 0;
+
+            if (!$haySolicitudes && !$hayRetiros) {
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
                 View::set('Inicial', $fechaActual);
@@ -4136,129 +4225,167 @@ html;
             }
         } else {
             $Consulta = CallCenterDao::getAllSolicitudesHistorico($fechaActual, $fechaActual, '', $this->__usuario, $this->__perfil, $Sucursal);
-            foreach ($Consulta as $key => $value) {
-                if ($value['ESTATUS_CL'] == 'PENDIENTE') {
-                    $color = 'primary';
-                    $icon = 'fa-frown-o';
-                } else if ($value['ESTATUS_CL'] == 'REGISTRO INCOMPLETO') {
-                    $color = 'warning';
-                    $icon = 'fa-clock-o';
-                } else {
-                    $color = 'success';
-                    $icon = 'fa-check';
+            $historicoRetiros = CallCenterDao::getHistoricoRetiros($fechaActual, $fechaActual, $cdgco);
+            $filasOrdenadas = [];
+            foreach ($Consulta as $v) {
+                $esRetiro = isset($v['ESTATUS_FINAL']) && stripos($v['ESTATUS_FINAL'], 'RETIRO') === 0;
+                if (!$esRetiro) {
+                    $filasOrdenadas[] = ['tipo' => 'credito', 'fecha' => $v['FECHA_SOL'], 'datos' => $v];
                 }
+            }
+            if ($historicoRetiros['success']) {
+                $idsRetirosVistos = [];
+                foreach ($historicoRetiros['datos'] as $r) {
+                    $idRetiro = isset($r['ID']) ? $r['ID'] : null;
+                    if ($idRetiro !== null && in_array($idRetiro, $idsRetirosVistos)) {
+                        continue;
+                    }
+                    if ($idRetiro !== null) {
+                        $idsRetirosVistos[] = $idRetiro;
+                    }
+                    $filasOrdenadas[] = ['tipo' => 'retiro', 'fecha' => $r['FECHA_CREACION'], 'datos' => $r];
+                }
+            }
+            usort($filasOrdenadas, function ($a, $b) {
+                return strcmp($b['fecha'], $a['fecha']);
+            });
+            $tabla = '';
+            foreach ($filasOrdenadas as $item) {
+                if ($item['tipo'] === 'credito') {
+                    $value = $item['datos'];
+                    if ($value['ESTATUS_CL'] == 'PENDIENTE') {
+                        $color = 'primary';
+                        $icon = 'fa-frown-o';
+                    } else if ($value['ESTATUS_CL'] == 'REGISTRO INCOMPLETO') {
+                        $color = 'warning';
+                        $icon = 'fa-clock-o';
+                    } else if ($value['ESTATUS_CL'] == '-') {
+                        $color = 'danger';
+                        $icon = 'fa-close';
+                    } else {
+                        $color = 'success';
+                        $icon = 'fa-check';
+                    }
 
-                if ($value['ESTATUS_AV'] == 'PENDIENTE') {
-                    $color_a = 'primary';
-                    $icon_a = 'fa-frown-o';
-                } else if ($value['ESTATUS_AV'] == 'REGISTRO INCOMPLETO') {
-                    $color_a = 'warning';
-                    $icon_a = 'fa-clock-o';
-                } else {
-                    $color_a = 'success';
-                    $icon_a = 'fa-check';
-                }
+                    if ($value['ESTATUS_AV'] == 'PENDIENTE') {
+                        $color_a = 'primary';
+                        $icon_a = 'fa-frown-o';
+                    } else if ($value['ESTATUS_AV'] == 'REGISTRO INCOMPLETO') {
+                        $color_a = 'warning';
+                        $icon_a = 'fa-clock-o';
+                    } else if ($value['ESTATUS_AV'] == '-') {
+                        $color_a = 'danger';
+                        $icon_a = 'fa-close';
+                    } else {
+                        $color_a = 'success';
+                        $icon_a = 'fa-check';
+                    }
 
-                if ($value['ESTATUS_CL'] == 'REGISTRO INCOMPLETO' || $value['ESTATUS_AV'] == 'REGISTRO INCOMPLETO') {
-                    $titulo_boton = 'Pedir Prorroga';
-                    $color_boton = '#F0AD4E';
-                    $fuente = '#0D0A0A';
-                } else if ($value['FIN_CL'] != '' || $value['FIN_AV'] != '') {
-                    $titulo_boton = 'Pedir Prorroga';
-                    $color_boton = '#0D0A0A';
-                    $fuente = '';
-                } else {
-                    $titulo_boton = 'Pedir Prorroga';
-                    $color_boton = '#029f3f';
-                    $fuente = '';
-                }
+                    if ($value['ESTATUS_CL'] == 'REGISTRO INCOMPLETO' || $value['ESTATUS_AV'] == 'REGISTRO INCOMPLETO') {
+                        $titulo_boton = 'Pedir Prorroga';
+                        $color_boton = '#F0AD4E';
+                        $fuente = '#0D0A0A';
+                    } else if ($value['FIN_CL'] != '' || $value['FIN_AV'] != '') {
+                        $titulo_boton = 'Pedir Prorroga';
+                        $color_boton = '#0D0A0A';
+                        $fuente = '';
+                    } else {
+                        $titulo_boton = 'Pedir Prorroga';
+                        $color_boton = '#029f3f';
+                        $fuente = '';
+                    }
 
-                if ($value['COMENTARIO_INICIAL'] == '') {
-                    $icon_ci = 'fa-close';
-                    $color_ci = 'danger';
-                } else {
-                    $icon_ci = 'fa-check';
-                    $color_ci = 'success';
-                }
-                if ($value['COMENTARIO_FINAL'] == '') {
-                    $icon_cf = 'fa-close';
-                    $color_cf = 'danger';
-                } else {
-                    $icon_cf = 'fa-check';
-                    $color_cf = 'success';
-                }
-                if ($value['ESTATUS_FINAL'] == '') {
-                    $icon_ef = 'fa-close';
-                    $color_ef = 'danger';
-                } else {
-                    $icon_ef = 'fa-check';
-                    $color_ef = 'success';
-                }
+                    if ($value['COMENTARIO_INICIAL'] == '') {
+                        $icon_ci = 'fa-close';
+                        $color_ci = 'danger';
+                    } else {
+                        $icon_ci = 'fa-check';
+                        $color_ci = 'success';
+                    }
+                    if ($value['COMENTARIO_FINAL'] == '') {
+                        $icon_cf = 'fa-close';
+                        $color_cf = 'danger';
+                    } else {
+                        $icon_cf = 'fa-check';
+                        $color_cf = 'success';
+                    }
+                    if ($value['ESTATUS_FINAL'] == '') {
+                        $icon_ef = 'fa-close';
+                        $color_ef = 'danger';
+                    } else {
+                        $icon_ef = 'fa-check';
+                        $color_ef = 'success';
+                    }
 
-                if ($value['VOBO_REG'] == NULL) {
-                    $vobo = '';
-                } else {
-                    $vobo = '<div><span class="label label-success"><span class="fa fa-check"></span></span> VoBo Gerente Regional</div>';
-                }
+                    if ($value['VOBO_REG'] == NULL) {
+                        $vobo = '';
+                    } else {
+                        $vobo = '<div><span class="label label-success"><span class="fa fa-check"></span></span> VoBo Gerente Regional</div>';
+                    }
 
-                if ($value['PRORROGA'] == NULL) {
-                    $boton_titulo_prorroga = 'Prorroga';
-                    $des_prorroga = '';
-                    $boton_reactivar = '';
-                } else {
-                    if ($value['PRORROGA'] == '1') {
-                        $boton_titulo_prorroga = 'Prorroga <br>Pendiente';
-                    } else if ($value['PRORROGA'] == '2') {
-                        $boton_titulo_prorroga = 'Prorroga <br>Aceptada';
-                    } else if ($value['PRORROGA'] == '3') {
-                        $boton_titulo_prorroga = 'Prorroga <br>Declinada';
-                    } else if ($value['PRORROGA'] == '4') {
+                    if ($value['PRORROGA'] == NULL) {
                         $boton_titulo_prorroga = 'Prorroga';
+                        $des_prorroga = '';
+                        $boton_reactivar = '';
+                    } else {
+                        if ($value['PRORROGA'] == '1') {
+                            $boton_titulo_prorroga = 'Prorroga <br>Pendiente';
+                        } else if ($value['PRORROGA'] == '2') {
+                            $boton_titulo_prorroga = 'Prorroga <br>Aceptada';
+                        } else if ($value['PRORROGA'] == '3') {
+                            $boton_titulo_prorroga = 'Prorroga <br>Declinada';
+                        } else if ($value['PRORROGA'] == '4') {
+                            $boton_titulo_prorroga = 'Prorroga';
+                        }
                     }
-                }
 
-                if ($value['REACTIVACION'] == NULL) {
-                    $boton_titulo_reactivar = 'Reactivar';
-                } else {
-                    if ($value['REACTIVACION'] == '1') {
-                        $boton_titulo_reactivar = 'Reactivar <br>Pendiente';
-                    } else if ($value['REACTIVACION'] == '2') {
-                        $boton_titulo_reactivar = 'Reactivar <br>Aceptado';
-                    } else if ($value['REACTIVACION'] == '3') {
-                        $boton_titulo_reactivar = 'Reactivar Declinado';
-                    } else if ($value['REACTIVACION'] == '400') {
-                        $boton_titulo_reactivar = 'Reactivar Declinado';
+                    if ($value['REACTIVACION'] == NULL) {
+                        $boton_titulo_reactivar = 'Reactivar';
+                    } else {
+                        if ($value['REACTIVACION'] == '1') {
+                            $boton_titulo_reactivar = 'Reactivar <br>Pendiente';
+                        } else if ($value['REACTIVACION'] == '2') {
+                            $boton_titulo_reactivar = 'Reactivar <br>Aceptado';
+                        } else if ($value['REACTIVACION'] == '3') {
+                            $boton_titulo_reactivar = 'Reactivar Declinado';
+                        } else if ($value['REACTIVACION'] == '400') {
+                            $boton_titulo_reactivar = 'Reactivar Declinado';
+                        }
                     }
-                }
 
-                if ($value['NOMBRE1'] == 'PENDIENTE DE VALIDAR' || $value['NOMBRE1'] == '-') {
-                    $ver_resumen = '';
-                } else {
-                    $ver_resumen = <<<HTML
+                    if ($value['NOMBRE1'] == 'PENDIENTE DE VALIDAR' || $value['NOMBRE1'] == '-') {
+                        $ver_resumen = '';
+                    } else {
+                        $ver_resumen = <<<HTML
                         <hr>
                         <a type="button" target="_blank" href="/CallCenter/Pendientes/?Credito={$value['CDGNS']}&Ciclo={$value['CICLO']}&Suc={$value['CODIGO_SUCURSAL']}&Act=N&Reg={$value['CODIGO_REGION']}&Fec={$value['FECHA_SOL']}" class="btn btn-primary btn-circle"><span class="label label-info"><span class="fa fa-eye"></span></span> Ver Resumen
                         </a>
                     HTML;
-                }
+                    }
 
-                if ($value['CICLOR'] == '') {
-                    $ciclo_r = '';
-                    $cicloi = $value['CICLO'];;
-                } else {
-                    $ciclo_r = <<<html
+                    if ($value['RECOMENDADO'] != '' && $value['CICLO'] == '01') {
+                        $recomendado = '<div><b>CAMPAÑA ACTIVA</b> <span class="label label-success" style=" font-size: 95% !important; border-radius: 50em !important; background: #6a0013"><span class="fa fa-yelp"> </span> </span></div><b><em>RECOMIENDA MÁS Y PAGA MENOS <em></em></b><hr>';
+                    } else {
+                        $recomendado = '';
+                    }
+
+                    if ($value['CICLOR'] == '') {
+                        $ciclo_r = '';
+                        $cicloi = $value['CICLO'];;
+                    } else {
+                        $ciclo_r = <<<html
                         <span  class="label label-warning" style="color: #0D0A0A; font-sice;  font-size: 12px;"> Rechazado</span>
 html;
-                    $cicloi = $value['CICLOR'];
-                }
+                        $cicloi = $value['CICLOR'];
+                    }
 
-                $tabla .= <<<HTML
+                    $tabla .= <<<HTML
                     <tr style="padding: 0px !important;">
                        <td style="padding: 5px !important; width:65px !important;">
                     <div><span class="label label-success" style="color: #0D0A0A">MCM - {$value['ID_SCALL']}</span></div>
                     <hr>
                     <div><label>{$value['CDGNS']}-{$cicloi}</label></div>
                     <div><label>{$ciclo_r}</label></div>
-                    
                     </td>
                         <td style="padding: 10px !important; text-align: left">
                             <span class="fa fa-building"></span> GERENCIA REGIONAL: ({$value['CODIGO_REGION']}) {$value['REGION']}
@@ -4272,6 +4399,7 @@ html;
                             <div><b>CLIENTE:</b> {$value['ESTATUS_CL']}  <span class="label label-$color" style="font-size: 95% !important; border-radius: 50em !important;"><span class="fa $icon"></span></span></div>
                             <div><b>AVAL:</b> {$value['ESTATUS_AV']}  <span class="label label-$color_a" style="font-size: 95% !important; border-radius: 50em !important;"><span class="fa $icon_a"></span> </span></div>
                             <hr>
+                            {$recomendado}
                             <div><b>VALIDO:</b> {$value['NOMBRE1']} {$value['PRIMAPE']} {$value['SEGAPE']}</div>
                         </td>
                         <td style="padding-top: 22px !important;">{$value['FECHA_SOL']}</td>
@@ -4284,9 +4412,71 @@ html;
                         </td>
                     </tr>
                 HTML;
+                } else {
+                    $retiro = $item['datos'];
+                    $telefono = $retiro['TELEFONO'];
+                    if ($telefono != '' && substr($telefono, 0, 1) != '(') {
+                        $telefono = "(" . substr($telefono, 0, 3) . ") " . substr($telefono, 3, 3) . " - " . substr($telefono, 6, 4);
+                    }
+                    $color = 'success';
+                    $icon = 'fa-check';
+                    if ($retiro['ESTATUS'] == 'P') {
+                        $color = 'primary';
+                        $icon = 'fa-frown-o';
+                    } else if ($retiro['ESTATUS'] == 'I') {
+                        $color = 'warning';
+                        $icon = 'fa-clock-o';
+                    }
+                    $icon_ci = $retiro['COMENTARIO_INTERNO'] == '' ? 'fa-close' : 'fa-check';
+                    $color_ci = $retiro['COMENTARIO_INTERNO'] == '' ? 'danger' : 'success';
+                    $icon_cf = $retiro['COMENTARIO_EXTERNO'] == '' ? 'fa-close' : 'fa-check';
+                    $color_cf = $retiro['COMENTARIO_EXTERNO'] == '' ? 'danger' : 'success';
+                    $validado_por = $retiro['ANALISTA'] != '' ? $retiro['ANALISTA'] : 'PENDIENTE DE VALIDAR';
+                    $tabla .= <<<HTML
+                <tr style="padding: 0px !important;">
+                    <td style="padding: 5px !important; width:65px !important;">
+                        <div><span class="label label-success" style="color: #0D0A0A">MCM - {$retiro['ID']}</span></div>
+                        <hr>
+                        <div><label>{$retiro['CREDITO']}-{$retiro['CICLO']}</label></div>
+                        <div><label><span class="label label-info" style="font-size: 12px;">Retiro de ahorro</span></label></div>
+                    </td>
+                    <td style="padding: 10px !important; text-align: left">
+                        <span class="fa fa-building"></span> GERENCIA REGIONAL: ({$retiro['REGION']}) {$retiro['NOMBRE_REGION']}
+                        <br>
+                        <span class="fa fa-map-marker"></span> SUCURSAL: ({$retiro['SUCURSAL']}) {$retiro['NOMBRE_SUCURSAL']}
+                        <br>
+                        <span class="fa fa-briefcase"></span> EJECUTIVO: {$retiro['NOMBRE_EJECUTIVO']}
+                    </td>
+                    <td style="padding-top: 10px !important;">
+                        <span class="fa fa-user"></span>
+                        <label style="color: #1c4e63">{$retiro['NOMBRE_CLIENTE']}</label>
+                        <br>
+                        <label><span class="fa fa-phone"></span> {$telefono}</label>
+                    </td>
+                    <td style="padding-top: 22px !important; text-align: left">
+                        <div>
+                            <b>ESTATUS:</b> {$retiro['ESTATUS_ETIQUETA']}
+                            <span class="label label-$color" style="font-size: 95% !important; border-radius: 50em !important;">
+                                <span class="fa $icon"></span>
+                            </span>
+                        </div>
+                        <hr>
+                        <div><b>VALIDÓ:</b> {$validado_por}</div>
+                    </td>
+                    <td style="padding-top: 22px !important;">{$retiro['FECHA_CREACION']}</td>
+                    <td style="padding: 10px !important; text-align: left; width:165px !important;">
+                        <div><span class="label label-$color_ci"><span class="fa $icon_ci"></span></span> Comentarios Internos</div>
+                        <div><span class="label label-$color_cf"><span class="fa $icon_cf"></span></span> Comentarios Externos</div>
+                    </td>
+                </tr>
+HTML;
+                }
             }
 
-            if ($Consulta[0] == '') {
+            $haySolicitudes = is_array($Consulta) && isset($Consulta[0]) && $Consulta[0] != '';
+            $hayRetiros = $historicoRetiros['success'] && count($historicoRetiros['datos']) > 0;
+
+            if (!$haySolicitudes && !$hayRetiros) {
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
                 View::set('fechaActual', $fechaActual);

@@ -137,7 +137,7 @@ class Menu
             $this->enlace('Solicitudes de Prorroga', '/CallCenter/Prorroga/', ['ADMIN', 'ACALL', 'ESMM', 'HSEJ']),
             $this->enlace('Reactivar Solicitudes', '/CallCenter/Reactivar/', ['ADMIN', 'ACALL', 'ESMM', 'HSEJ']),
             $this->enlace('Búsqueda Rápida', '/CallCenter/Busqueda/', ['ADMIN', 'CALLC', 'ACALL', 'HSEJ', 'ESMM', 'MAPH']),
-            $this->enlace('Histórico Analistas', '/CallCenter/HistoricoAnalistas/', ['ESMM', 'MAPH']),
+            $this->enlace('Histórico Analistas', '/CallCenter/HistoricoAnalistas/', ['ADMIN', 'ESMM', 'MAPH']),
             $this->enlace('Todos los Pendientes', '/CallCenter/Global/', ['ADMIN', 'CALLC', 'ACALL', 'HSEJ', 'FLHR']),
             $this->enlace($mis . 'Pendientes' . $analistas, '/CallCenter/Pendientes/', ['ADMIN', 'CALLC', 'ACALL', 'HSEJ']),
             $this->enlace($mis . 'Históricos' . $analistas, '/CallCenter/Historico/', ['ADMIN', 'CALLC', 'ACALL', 'HSEJ', 'ESMM', 'MAPH']),
