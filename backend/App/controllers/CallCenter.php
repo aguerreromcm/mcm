@@ -130,45 +130,7 @@ class CallCenter extends Controller
                         }
                     }
 
-                    if (completo == "0") {
-                        if (tipo_cl == "") {
-                            swal("Seleccione el tipo de llamada que realizo", { icon: "warning" })
-                        } else {
-                            swal({
-                                title: "¿Está segura de continuar con una llamada incompleta?",
-                                text: mensaje,
-                                icon: "warning",
-                                buttons: ["Cancelar", "Continuar"],
-                                dangerMode: false
-                            }).then((willDelete) => {
-                                if (willDelete) {
-                                    const agregar_CL = document.getElementById("agregar_CL")
-                                    agregar_CL.disabled = true
-
-                                    $.ajax({
-                                        type: "POST",
-                                        url: "/CallCenter/PagosAddEncuestaCL/",
-                                        data: $("#Add_cl").serialize() + "&contenido=" + contenido,
-                                        success: function (respuesta) {
-                                            if (respuesta == "1") {
-                                                swal("Registro guardado exitosamente", {
-                                                    icon: "success"
-                                                })
-                                                location.reload()
-                                            } else {
-                                                $("#modal_encuesta_cliente").modal("hide")
-                                                swal(respuesta, {
-                                                    icon: "error"
-                                                })
-                                            }
-                                        }
-                                    })
-                                } else {
-                                    swal("Continúe con su registro", { icon: "success" })
-                                }
-                            })
-                        }
-                    } else {
+                    if (completo != "0") {
                         if (tipo_cl == "") {
                             swal("Seleccione el tipo de llamada que realizo", { icon: "warning" })
                         } else if (uno == "") {
@@ -212,7 +174,8 @@ class CallCenter extends Controller
                                         url: "/CallCenter/PagosAddEncuestaCL/",
                                         data: $("#Add_cl").serialize() + "&contenido=" + contenido,
                                         success: function (respuesta) {
-                                            if (respuesta == "1") {
+                                            if ($.trim(respuesta) === "1") {
+                                                $("#modal_encuesta_cliente").modal("hide")
                                                 swal("Registro guardado exitosamente", {
                                                     icon: "success"
                                                 })
@@ -227,6 +190,45 @@ class CallCenter extends Controller
                                     })
                                 } else {
                                     swal("Continúe con su registro", { icon: "info" })
+                                }
+                            })
+                        }
+                    } else {
+                        if (tipo_cl == "") {
+                            swal("Seleccione el tipo de llamada que realizo", { icon: "warning" })
+                        } else {
+                            swal({
+                                title: "¿Está segura de continuar con una llamada incompleta?",
+                                text: mensaje,
+                                icon: "warning",
+                                buttons: ["Cancelar", "Continuar"],
+                                dangerMode: false
+                            }).then((willDelete) => {
+                                if (willDelete) {
+                                    const agregar_CL = document.getElementById("agregar_CL")
+                                    agregar_CL.disabled = true
+
+                                    $.ajax({
+                                        type: "POST",
+                                        url: "/CallCenter/PagosAddEncuestaCL/",
+                                        data: $("#Add_cl").serialize() + "&contenido=" + contenido,
+                                        success: function (respuesta) {
+                                            if ($.trim(respuesta) === "1") {
+                                                $("#modal_encuesta_cliente").modal("hide")
+                                                swal("Registro guardado exitosamente", {
+                                                    icon: "success"
+                                                })
+                                                location.reload()
+                                            } else {
+                                                $("#modal_encuesta_cliente").modal("hide")
+                                                swal(respuesta, {
+                                                    icon: "error"
+                                                })
+                                            }
+                                        }
+                                    })
+                                } else {
+                                    swal("Continúe con su registro", { icon: "success" })
                                 }
                             })
                         }
@@ -246,7 +248,7 @@ class CallCenter extends Controller
                     siete = document.getElementById("siete_av_" + id).value
                     ocho = document.getElementById("ocho_av_" + id).value
                     nueve = document.getElementById("nueve_av_" + id).value
-                    completo = $("input[name='completo_av_" + id + "]:checked").val()
+                    completo = $("input[name='completo_av_" + id + "']:checked").val()
                     llamada = document.getElementById("titulo_av_" + id)
                     contenido = llamada.innerHTML
 
@@ -261,45 +263,7 @@ class CallCenter extends Controller
                         }
                     }
 
-                    if (completo == "0") {
-                        if (tipo_av == "") {
-                            swal("Seleccione el tipo de llamada que realizo", { icon: "warning" })
-                        } else {
-                            swal({
-                                title: "¿Está segura de continuar con una llamada incompleta?",
-                                text: mensaje,
-                                icon: "warning",
-                                buttons: ["Cancelar", "Continuar"],
-                                dangerMode: false
-                            }).then((willDelete) => {
-                                if (willDelete) {
-                                    const agregar_AV = document.getElementById("agregar_av_" + id)
-                                    agregar_AV.disabled = true
-                                    $.ajax({
-                                        type: "POST",
-                                        url: "/CallCenter/PagosAddEncuestaAV/",
-                                        data: $("#Add_av_" + id).serialize() + "&contenido_av_" + id + "=" + contenido + "&no_av=" + id,
-                                        success: function (respuesta) {
-                                            if (respuesta == "1") {
-                                                swal("Registro guardado exitosamente", {
-                                                    icon: "success"
-                                                })
-                                                location.reload()
-                                            } else {
-                                                $("#modal_encuesta_cliente").modal("hide")
-                                                swal(respuesta, {
-                                                    icon: "error"
-                                                })
-                                                document.getElementById("monto").value = ""
-                                            }
-                                        }
-                                    })
-                                } else {
-                                    swal("Continúe con su registro", { icon: "info" })
-                                }
-                            })
-                        }
-                    } else {
+                    if (completo != "0") {
                         if (tipo_av == "") {
                             swal("Seleccione el tipo de llamada que realizo", { icon: "warning" })
                         } else if (uno == "") {
@@ -337,13 +301,53 @@ class CallCenter extends Controller
                                         url: "/CallCenter/PagosAddEncuestaAV/",
                                         data: $("#Add_av_" + id).serialize() + "&contenido_av_" + id + "=" + contenido + "&no_av=" + id,
                                         success: function (respuesta) {
-                                            if (respuesta == "1") {
+                                            if ($.trim(respuesta) === "1") {
+                                                $("#modal_encuesta_aval_" + id).modal("hide")
                                                 swal("Registro guardado exitosamente", {
                                                     icon: "success"
                                                 })
                                                 location.reload()
                                             } else {
-                                                $("#modal_encuesta_cliente").modal("hide")
+                                                $("#modal_encuesta_aval_" + id).modal("hide")
+                                                swal(respuesta, {
+                                                    icon: "error"
+                                                })
+                                                document.getElementById("monto").value = ""
+                                            }
+                                        }
+                                    })
+                                } else {
+                                    swal("Continúe con su registro", { icon: "info" })
+                                }
+                            })
+                        }
+                    } else {
+                        if (tipo_av == "") {
+                            swal("Seleccione el tipo de llamada que realizo", { icon: "warning" })
+                        } else {
+                            swal({
+                                title: "¿Está segura de continuar con una llamada incompleta?",
+                                text: mensaje,
+                                icon: "warning",
+                                buttons: ["Cancelar", "Continuar"],
+                                dangerMode: false
+                            }).then((willDelete) => {
+                                if (willDelete) {
+                                    const agregar_AV = document.getElementById("agregar_av_" + id)
+                                    agregar_AV.disabled = true
+                                    $.ajax({
+                                        type: "POST",
+                                        url: "/CallCenter/PagosAddEncuestaAV/",
+                                        data: $("#Add_av_" + id).serialize() + "&contenido_av_" + id + "=" + contenido + "&no_av=" + id,
+                                        success: function (respuesta) {
+                                            if ($.trim(respuesta) === "1") {
+                                                $("#modal_encuesta_aval_" + id).modal("hide")
+                                                swal("Registro guardado exitosamente", {
+                                                    icon: "success"
+                                                })
+                                                location.reload()
+                                            } else {
+                                                $("#modal_encuesta_aval_" + id).modal("hide")
                                                 swal(respuesta, {
                                                     icon: "error"
                                                 })
@@ -384,7 +388,8 @@ class CallCenter extends Controller
                                 "&cliente_id_res=" +
                                 cliente_id,
                             success: function (respuesta) {
-                                if (respuesta == "1") {
+                                if ($.trim(respuesta) === "1") {
+                                    $("#modal_encuesta_cliente").modal("hide")
                                     swal("Registro guardado exitosamente", {
                                         icon: "success"
                                     })
@@ -596,21 +601,22 @@ class CallCenter extends Controller
                                 type: "POST",
                                 url: "/CallCenter/PagosAddEncuestaCL/",
                                 data: $("#Add_cl").serialize() + "&contenido=" + contenido + "&completo=0",
-                                success: function (respuesta) {
-                                    if (respuesta == "1") {
-                                        swal("Registro guardado exitosamente", {
-                                            icon: "success"
-                                        })
-                                        location.reload()
-                                    } else {
-                                        $("#modal_encuesta_cliente").modal("hide")
-                                        swal(respuesta, {
-                                            icon: "error"
-                                        })
-                                    }
+                            success: function (respuesta) {
+                                if ($.trim(respuesta) === "1") {
+                                    $("#modal_encuesta_cliente").modal("hide")
+                                    swal("Registro guardado exitosamente", {
+                                        icon: "success"
+                                    })
+                                    location.reload()
+                                } else {
+                                    $("#modal_encuesta_cliente").modal("hide")
+                                    swal(respuesta, {
+                                        icon: "error"
+                                    })
                                 }
-                            })
-                        } else {
+                            }
+                        })
+                    } else {
                             swal("Continúe con su registro", { icon: "success" })
                             document.getElementById("check_2610").checked = false
                             return false
@@ -1417,52 +1423,7 @@ html;
              
              
              
-             if(completo == '0')
-                 {
-                     
-                      if(tipo_cl == '')
-                        {
-                             swal("Seleccione el tipo de llamada que realizo", {icon: "warning",});
-                        }
-                      else 
-                          {
-                                  swal({
-                                  title: "¿Está segura de continuar con una llamada incompleta?",
-                                  text: mensaje,
-                                  icon: "warning",
-                                  buttons: ["Cancelar", "Continuar"],
-                                  dangerMode: false
-                                })
-                                .then((willDelete) => {
-                                  if (willDelete) {
-                                      $.ajax({
-                                            type: 'POST',
-                                            url: '/CallCenter/PagosAddEncuestaCL/',
-                                            data: $('#Add_cl').serialize()+'&contenido='+contenido,
-                                            success: function(respuesta) {
-                                                 if(respuesta=='1'){
-                                                 swal("Registro guardado exitosamente", {
-                                                              icon: "success",
-                                                            });
-                                                 location.reload();
-                                                }
-                                                else {
-                                                $('#modal_encuesta_cliente').modal('hide')
-                                                 swal(respuesta, {
-                                                              icon: "error",
-                                                            });
-                                                  
-                                                }
-                                            }
-                                            });
-                                  }
-                                  else {
-                                    swal("Continúe con su registro", {icon: "success",});
-                                  }
-                                });
-                         }
-                 }
-             else 
+             if(completo != '0')
                  {
                       if(tipo_cl == '')
                         {
@@ -1509,8 +1470,8 @@ html;
                                         url: '/CallCenter/PagosAddEncuestaCL/',
                                         data: $('#Add_cl').serialize()+'&contenido='+contenido,
                                         success: function(respuesta) {
-                                             if(respuesta=='1'){
-                                          
+                                             if($.trim(respuesta) === '1'){
+                                             $('#modal_encuesta_cliente').modal('hide')
                                              swal("Registro guardado exitosamente", {
                                                           icon: "success",
                                                         });
@@ -1533,6 +1494,52 @@ html;
                                 });
                             //////////////////////////////777
                         }
+                 }
+             else 
+                 {
+                     
+                      if(tipo_cl == '')
+                        {
+                             swal("Seleccione el tipo de llamada que realizo", {icon: "warning",});
+                        }
+                      else 
+                          {
+                                  swal({
+                                  title: "¿Está segura de continuar con una llamada incompleta?",
+                                  text: mensaje,
+                                  icon: "warning",
+                                  buttons: ["Cancelar", "Continuar"],
+                                  dangerMode: false
+                                })
+                                .then((willDelete) => {
+                                  if (willDelete) {
+                                      $.ajax({
+                                            type: 'POST',
+                                            url: '/CallCenter/PagosAddEncuestaCL/',
+                                            data: $('#Add_cl').serialize()+'&contenido='+contenido,
+                                            success: function(respuesta) {
+                                                 if($.trim(respuesta) === '1'){
+                                                 $('#modal_encuesta_cliente').modal('hide')
+                                                 swal("Registro guardado exitosamente", {
+                                                              icon: "success",
+                                                            });
+                                                 location.reload();
+                                                }
+                                                else {
+                                                $('#modal_encuesta_cliente').modal('hide')
+                                                 swal(respuesta, {
+                                                              icon: "error",
+                                                            });
+                                                  
+                                                }
+                                            }
+                                            });
+                                  }
+                                  else {
+                                    swal("Continúe con su registro", {icon: "success",});
+                                  }
+                                });
+                         }
                  }
             
            
@@ -1574,52 +1581,7 @@ html;
              
              
              
-             if(completo == '0')
-                 {
-                     
-                      if(tipo_av == '')
-                        {
-                             swal("Seleccione el tipo de llamada que realizo", {icon: "warning",});
-                        }
-                      else 
-                          {
-                                  swal({
-                                  title: "¿Está segura de continuar con una llamada incompleta?",
-                                  text: mensaje,
-                                  icon: "warning",
-                                  buttons: ["Cancelar", "Continuar"],
-                                  dangerMode: false
-                                })
-                                .then((willDelete) => {
-                                  if (willDelete) {
-                                      $.ajax({
-                                            type: 'POST',
-                                            url: '/CallCenter/PagosAddEncuestaAV/',
-                                            data: $('#Add_av').serialize()+'&contenido_av='+contenido,
-                                            success: function(respuesta) {
-                                                 if(respuesta=='1'){
-                                                 swal("Registro guardado exitosamente", {
-                                                              icon: "success",
-                                                            });
-                                                 location.reload();
-                                                }
-                                                else {
-                                                $('#modal_encuesta_cliente').modal('hide')
-                                                 swal(respuesta, {
-                                                              icon: "error",
-                                                            });
-                                                    document.getElementById("monto").value = "";
-                                                }
-                                            }
-                                            });
-                                  }
-                                  else {
-                                    swal("Continúe con su registro", {icon: "info",});
-                                  }
-                                });
-                         }
-                 }
-             else 
+             if(completo != '0')
                  {
                       if(tipo_av == '')
                         {
@@ -1660,8 +1622,8 @@ html;
                                         url: '/CallCenter/PagosAddEncuestaAV/',
                                         data: $('#Add_av').serialize()+'&contenido_av='+contenido,
                                         success: function(respuesta) {
-                                             if(respuesta=='1'){
-                                          
+                                             if($.trim(respuesta) === '1'){
+                                             $('#modal_encuesta_cliente').modal('hide')
                                              swal("Registro guardado exitosamente", {
                                                           icon: "success",
                                                         });
@@ -1685,10 +1647,56 @@ html;
                             //////////////////////////////777
                         }
                  }
+             else 
+                 {
+                     
+                      if(tipo_av == '')
+                        {
+                             swal("Seleccione el tipo de llamada que realizo", {icon: "warning",});
+                        }
+                      else 
+                          {
+                                  swal({
+                                  title: "¿Está segura de continuar con una llamada incompleta?",
+                                  text: mensaje,
+                                  icon: "warning",
+                                  buttons: ["Cancelar", "Continuar"],
+                                  dangerMode: false
+                                })
+                                .then((willDelete) => {
+                                  if (willDelete) {
+                                      $.ajax({
+                                            type: 'POST',
+                                            url: '/CallCenter/PagosAddEncuestaAV/',
+                                            data: $('#Add_av').serialize()+'&contenido_av='+contenido,
+                                        success: function(respuesta) {
+                                                 if($.trim(respuesta) === '1'){
+                                                 $('#modal_encuesta_cliente').modal('hide')
+                                                 swal("Registro guardado exitosamente", {
+                                                              icon: "success",
+                                                            });
+                                                 location.reload();
+                                                }
+                                                else {
+                                                $('#modal_encuesta_cliente').modal('hide')
+                                                 swal(respuesta, {
+                                                              icon: "error",
+                                                            });
+                                                document.getElementById("monto").value = "";
+                                            }
+                                        }
+                                        });
+                                  }
+                                  else {
+                                    swal("Continúe con su registro", {icon: "info",});
+                                  }
+                                });
+                         }
+                 }
             
            
     }
-        function enviar_comentarios_add(){	
+        function enviar_comentarios_add(){
              cliente_encuesta = document.getElementById("cliente_encuesta").value; 
              cliente_id = document.getElementById("cliente_id").value; 
              
@@ -1704,16 +1712,17 @@ html;
                 type: 'POST',
                 url: '/CallCenter/Resumen/',
                 data: $('#Add_comentarios').serialize()+ "&cdgco_res="+cdgco_res+ "&ciclo_cl_res="+ciclo_cl_res+ "&cliente_id_res="+cliente_id,
-                success: function(respuesta) 
+                success: function(respuesta)
                 {
-                    if(respuesta=='1')
-                    {               
+                    if($.trim(respuesta) === '1')
+                    {
+                       $('#modal_encuesta_cliente').modal('hide')
                        swal("Registro guardado exitosamente", {
                                 icon: "success",
                            });
                        location.reload();
                     }
-                    else 
+                    else
                     {
                         $('#modal_encuesta_cliente').modal('hide')
                         swal(respuesta, {
@@ -2151,52 +2160,7 @@ html;
              
              
              
-             if(completo == '0')
-                 {
-                     
-                      if(tipo_cl == '')
-                        {
-                             swal("Seleccione el tipo de llamada que realizo", {icon: "warning",});
-                        }
-                      else 
-                          {
-                                  swal({
-                                  title: "¿Está segura de continuar con una llamada incompleta?",
-                                  text: mensaje,
-                                  icon: "warning",
-                                  buttons: ["Cancelar", "Continuar"],
-                                  dangerMode: false
-                                })
-                                .then((willDelete) => {
-                                  if (willDelete) {
-                                      $.ajax({
-                                            type: 'POST',
-                                            url: '/CallCenter/PagosAddEncuestaCL/',
-                                            data: $('#Add_cl').serialize()+'&contenido='+contenido,
-                                            success: function(respuesta) {
-                                                 if(respuesta=='1'){
-                                                 swal("Registro guardado exitosamente", {
-                                                              icon: "success",
-                                                            });
-                                                 location.reload();
-                                                }
-                                                else {
-                                                $('#modal_encuesta_cliente').modal('hide')
-                                                 swal(respuesta, {
-                                                              icon: "error",
-                                                            });
-                                                  
-                                                }
-                                            }
-                                            });
-                                  }
-                                  else {
-                                    swal("Continúe con su registro", {icon: "success",});
-                                  }
-                                });
-                         }
-                 }
-             else 
+             if(completo != '0')
                  {
                       if(tipo_cl == '')
                         {
@@ -2243,8 +2207,8 @@ html;
                                         url: '/CallCenter/PagosAddEncuestaCL/',
                                         data: $('#Add_cl').serialize()+'&contenido='+contenido,
                                         success: function(respuesta) {
-                                             if(respuesta=='1'){
-                                          
+                                             if($.trim(respuesta) === '1'){
+                                             $('#modal_encuesta_cliente').modal('hide')
                                              swal("Registro guardado exitosamente", {
                                                           icon: "success",
                                                         });
@@ -2267,6 +2231,52 @@ html;
                                 });
                             //////////////////////////////777
                         }
+                 }
+             else 
+                 {
+                     
+                      if(tipo_cl == '')
+                        {
+                             swal("Seleccione el tipo de llamada que realizo", {icon: "warning",});
+                        }
+                      else 
+                          {
+                                  swal({
+                                  title: "¿Está segura de continuar con una llamada incompleta?",
+                                  text: mensaje,
+                                  icon: "warning",
+                                  buttons: ["Cancelar", "Continuar"],
+                                  dangerMode: false
+                                })
+                                .then((willDelete) => {
+                                  if (willDelete) {
+                                      $.ajax({
+                                            type: 'POST',
+                                            url: '/CallCenter/PagosAddEncuestaCL/',
+                                            data: $('#Add_cl').serialize()+'&contenido='+contenido,
+                                            success: function(respuesta) {
+                                                 if($.trim(respuesta) === '1'){
+                                                 $('#modal_encuesta_cliente').modal('hide')
+                                                 swal("Registro guardado exitosamente", {
+                                                              icon: "success",
+                                                            });
+                                                 location.reload();
+                                                }
+                                                else {
+                                                $('#modal_encuesta_cliente').modal('hide')
+                                                 swal(respuesta, {
+                                                              icon: "error",
+                                                            });
+                                                  
+                                                }
+                                            }
+                                            });
+                                  }
+                                  else {
+                                    swal("Continúe con su registro", {icon: "success",});
+                                  }
+                                });
+                         }
                  }
             
            
@@ -2308,52 +2318,7 @@ html;
              
              
              
-             if(completo == '0')
-                 {
-                     
-                      if(tipo_av == '')
-                        {
-                             swal("Seleccione el tipo de llamada que realizo", {icon: "warning",});
-                        }
-                      else 
-                          {
-                                  swal({
-                                  title: "¿Está segura de continuar con una llamada incompleta?",
-                                  text: mensaje,
-                                  icon: "warning",
-                                  buttons: ["Cancelar", "Continuar"],
-                                  dangerMode: false
-                                })
-                                .then((willDelete) => {
-                                  if (willDelete) {
-                                      $.ajax({
-                                            type: 'POST',
-                                            url: '/CallCenter/PagosAddEncuestaAV/',
-                                            data: $('#Add_av').serialize()+'&contenido_av='+contenido,
-                                            success: function(respuesta) {
-                                                 if(respuesta=='1'){
-                                                 swal("Registro guardado exitosamente", {
-                                                              icon: "success",
-                                                            });
-                                                 location.reload();
-                                                }
-                                                else {
-                                                $('#modal_encuesta_cliente').modal('hide')
-                                                 swal(respuesta, {
-                                                              icon: "error",
-                                                            });
-                                                    document.getElementById("monto").value = "";
-                                                }
-                                            }
-                                            });
-                                  }
-                                  else {
-                                    swal("Continúe con su registro", {icon: "info",});
-                                  }
-                                });
-                         }
-                 }
-             else 
+             if(completo != '0')
                  {
                       if(tipo_av == '')
                         {
@@ -2394,8 +2359,8 @@ html;
                                         url: '/CallCenter/PagosAddEncuestaAV/',
                                         data: $('#Add_av').serialize()+'&contenido_av='+contenido,
                                         success: function(respuesta) {
-                                             if(respuesta=='1'){
-                                          
+                                             if($.trim(respuesta) === '1'){
+                                             $('#modal_encuesta_cliente').modal('hide')
                                              swal("Registro guardado exitosamente", {
                                                           icon: "success",
                                                         });
@@ -2419,10 +2384,56 @@ html;
                             //////////////////////////////777
                         }
                  }
+             else 
+                 {
+                     
+                      if(tipo_av == '')
+                        {
+                             swal("Seleccione el tipo de llamada que realizo", {icon: "warning",});
+                        }
+                      else 
+                          {
+                                  swal({
+                                  title: "¿Está segura de continuar con una llamada incompleta?",
+                                  text: mensaje,
+                                  icon: "warning",
+                                  buttons: ["Cancelar", "Continuar"],
+                                  dangerMode: false
+                                })
+                                .then((willDelete) => {
+                                  if (willDelete) {
+                                      $.ajax({
+                                            type: 'POST',
+                                            url: '/CallCenter/PagosAddEncuestaAV/',
+                                            data: $('#Add_av').serialize()+'&contenido_av='+contenido,
+                                        success: function(respuesta) {
+                                                 if($.trim(respuesta) === '1'){
+                                                 $('#modal_encuesta_cliente').modal('hide')
+                                                 swal("Registro guardado exitosamente", {
+                                                              icon: "success",
+                                                            });
+                                                 location.reload();
+                                                }
+                                                else {
+                                                $('#modal_encuesta_cliente').modal('hide')
+                                                 swal(respuesta, {
+                                                              icon: "error",
+                                                            });
+                                                document.getElementById("monto").value = "";
+                                            }
+                                        }
+                                        });
+                                  }
+                                  else {
+                                    swal("Continúe con su registro", {icon: "info",});
+                                  }
+                                });
+                         }
+                 }
             
            
     }
-        function enviar_comentarios_add(){	
+        function enviar_comentarios_add(){
              cliente_encuesta = document.getElementById("cliente_encuesta").value; 
              cliente_id = document.getElementById("cliente_id").value; 
              
@@ -2438,16 +2449,17 @@ html;
                 type: 'POST',
                 url: '/CallCenter/Resumen/',
                 data: $('#Add_comentarios').serialize()+ "&cdgco_res="+cdgco_res+ "&ciclo_cl_res="+ciclo_cl_res+ "&cliente_id_res="+cliente_id,
-                success: function(respuesta) 
+                success: function(respuesta)
                 {
-                    if(respuesta=='1')
-                    {               
+                    if($.trim(respuesta) === '1')
+                    {
+                       $('#modal_encuesta_cliente').modal('hide')
                        swal("Registro guardado exitosamente", {
                                 icon: "success",
                            });
                        location.reload();
                     }
-                    else 
+                    else
                     {
                         $('#modal_encuesta_cliente').modal('hide')
                         swal(respuesta, {
@@ -3008,7 +3020,8 @@ html;
                                       url: '/CallCenter/AsignarSucursal/',
                                       data: $('#Add_AS').serialize(),
                                       success: function(respuesta) {
-                                          if(respuesta=='1'){
+                                          if($.trim(respuesta) === '1'){
+                                             $('#modal_encuesta_cliente').modal('hide')
                                              swal("Registro guardado exitosamente", {
                                                   icon: "success",
                                                   });
