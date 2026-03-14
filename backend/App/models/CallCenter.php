@@ -561,7 +561,7 @@ sql;
                         ELSE 'S'
                     END AS AR,
                     SPR.VOBO_REG AS AS_,
-                    PE.NOMBRE1 || ' ' || PE.NOMBRE2 || ' ' || PE.PRIMAPE || ' ' || PE.SEGAPE AS AT_,
+                    GET_NOMBRE_EMPLEADO(PE.CODIGO) AS AT_,
                     SPR.SEMAFORO AS AU,
                     '' AS AV,
                     '' AS AW,
