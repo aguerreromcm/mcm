@@ -37,22 +37,66 @@ class CierreDiaRepository
      */
     public function validaCierreEnEjecucion()
     {
-        $qry = <<<SQL
-            SELECT
-                TO_CHAR(INICIO, 'DD/MM/YYYY HH24:MI:SS') AS INICIO,
-                TO_CHAR(FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CIERRE,
-                USUARIO
-            FROM BITACORA_CIERRE_DIARIO
-            WHERE FIN IS NULL
-        SQL;
-        return $this->sinSalida(function () use ($qry) {
-            try {
-                $db = new Database();
-                $r = $db->queryOne($qry);
-                return $r ?: [];
-            } catch (\Exception $e) {
+        return $this->sinSalida(function () {
+            $db = new Database();
+            if ($db->db_activa === null) {
                 return [];
             }
+
+            // Limpieza preventiva: si hay EXITO definido pero FIN sigue null,
+            // entonces el registro está inconsistente. Marcamos FIN para evitar falsos positivos.
+            try {
+                $db->db_activa
+                    ->prepare("UPDATE BITACORA_CIERRE_DIARIO SET FIN = SYSDATE WHERE FIN IS NULL AND EXITO IS NOT NULL")
+                    ->execute();
+            } catch (\Exception $e) {
+                // Si falla la limpieza, seguimos con la validación por estado/consistencia.
+            }
+
+            // Proceso activo (equivalente a EN_PROCESO):
+            // - fecha_inicio presente (INICIO)
+            // - fecha_fin ausente (FIN IS NULL)
+            // - estatus EN_PROCESO: en este esquema equivale a EXITO IS NULL
+            // - consistencia con la tabla de cierre: descartamos si la fecha ya fue liquidada (FECHA_LIQUIDA no es null)
+            $qryConCierrePendiente = <<<SQL
+                SELECT
+                    TO_CHAR(b.INICIO, 'DD/MM/YYYY HH24:MI:SS') AS INICIO,
+                    TO_CHAR(b.FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CIERRE,
+                    b.USUARIO
+                FROM BITACORA_CIERRE_DIARIO b
+                WHERE b.FIN IS NULL
+                  AND b.INICIO IS NOT NULL
+                  AND b.EXITO IS NULL
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM TBL_CIERRE_DIA tcd
+                      WHERE tcd.FECHA_CALC = TRUNC(b.FECHA_CALCULO)
+                        AND tcd.FECHA_LIQUIDA IS NOT NULL
+                  )
+                ORDER BY b.INICIO DESC
+                FETCH FIRST 1 ROW ONLY
+            SQL;
+
+            // Fallback por compatibilidad: si la tabla no permite consultar FECHA_LIQUIDA (o falla),
+            // al menos aplicamos el filtro estricto de FIN/INICIO/EXITO.
+            $qryFallback = <<<SQL
+                SELECT
+                    TO_CHAR(INICIO, 'DD/MM/YYYY HH24:MI:SS') AS INICIO,
+                    TO_CHAR(FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CIERRE,
+                    USUARIO
+                FROM BITACORA_CIERRE_DIARIO
+                WHERE FIN IS NULL
+                  AND INICIO IS NOT NULL
+                  AND EXITO IS NULL
+                ORDER BY INICIO DESC
+                FETCH FIRST 1 ROW ONLY
+            SQL;
+
+            $r = $db->queryOne($qryConCierrePendiente);
+            if ($r === false) {
+                $r = $db->queryOne($qryFallback);
+            }
+            return $r ?: [];
         });
     }
 

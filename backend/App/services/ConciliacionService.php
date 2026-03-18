@@ -5,6 +5,7 @@ namespace App\services;
 defined("APPPATH") or die("Access denied");
 
 use Core\Model;
+use Core\App;
 use Core\Database;
 use App\repositories\ConciliacionRepository;
 
@@ -164,8 +165,19 @@ class ConciliacionService
             return Model::Responde(false, 'No hay conexión a la base de datos.', null, 'Conexión nula');
         }
 
+        $config = App::getConfig();
+        $valor = $config['CONCILIACION_SOLO_FLUJO'] ?? ($config['conciliacion']['CONCILIACION_SOLO_FLUJO'] ?? null);
+        $valorNorm = $valor === null ? null : strtolower(trim((string) $valor));
+        $soloFlujo = $valorNorm !== null ? (filter_var($valorNorm, FILTER_VALIDATE_BOOLEAN) === true) : false;
+
+        $logPath = defined('APPPATH') ? dirname(APPPATH) . '/logs/conciliacion_pagos.log' : __DIR__ . '/../../logs/conciliacion_pagos.log';
+
         try {
             $db->IniciaTransaccion();
+
+            // Snapshot previo para detectar si realmente se afectó MP.
+            $estadoAntes = $repo->obtenerEstadosConciliacionPagos($pagos, $db);
+
             foreach ($pagos as $i => $pago) {
                 if (!is_array($pago)) {
                     $db->CancelaTransaccion();
@@ -173,20 +185,54 @@ class ConciliacionService
                 }
                 $repo->ejecutarSpRedistribucionPagos($pago, $usuario, $identificador, $db);
             }
+
+            // Snapshot posterior (aún dentro de la transacción) para validar afectación.
+            $estadoDespues = $repo->obtenerEstadosConciliacionPagos($pagos, $db);
+
             $db->ConfirmaTransaccion();
+
+            $n = count($pagos);
+            $afectados = 0;
+            for ($idx = 0; $idx < $n; $idx++) {
+                $a = $estadoAntes[$idx] ?? ['encontrado' => false, 'conciliado' => null, 'estatus' => null];
+                $d = $estadoDespues[$idx] ?? ['encontrado' => false, 'conciliado' => null, 'estatus' => null];
+                if (empty($a['encontrado']) || empty($d['encontrado'])) {
+                    continue;
+                }
+                if (($a['conciliado'] ?? null) !== ($d['conciliado'] ?? null) || ($a['estatus'] ?? null) !== ($d['estatus'] ?? null)) {
+                    $afectados++;
+                }
+            }
+
+            $mensajeLog = date('c') . ' [' . $usuario . '] soloFlujo=' . ($soloFlujo ? '1' : '0') . ' pagos=' . $n . ' afectados=' . $afectados . "\n";
+            @file_put_contents($logPath, $mensajeLog, FILE_APPEND);
+
+            if ($soloFlujo) {
+                return Model::Responde(true, 'Conciliación en modo solo flujo completada (sin cambios aplicados).');
+            }
+
+            if ($afectados === 0) {
+                return Model::Responde(
+                    false,
+                    'No se aplicaron cambios en BD durante la conciliación (0 pagos afectado(s)).',
+                    null,
+                    'Sin afectación'
+                );
+            }
+
+            return Model::Responde(true, "Conciliación aplicada correctamente. Pagos afectados: {$afectados} de {$n}.");
         } catch (\InvalidArgumentException $e) {
             if (isset($db) && $db->db_activa !== null) {
                 $db->CancelaTransaccion();
             }
+            @file_put_contents($logPath, date('c') . ' [' . $usuario . '] Error=InvalidArgumentException ' . $e->getMessage() . "\n", FILE_APPEND);
             return Model::Responde(false, $e->getMessage(), null, $e->getMessage());
         } catch (\Throwable $e) {
             if (isset($db) && $db->db_activa !== null) {
                 $db->CancelaTransaccion();
             }
+            @file_put_contents($logPath, date('c') . ' [' . $usuario . '] Error=Throwable ' . $e->getMessage() . "\n", FILE_APPEND);
             return Model::Responde(false, 'Error al conciliar: ' . $e->getMessage(), null, $e->getMessage());
         }
-
-        $n = count($pagos);
-        return Model::Responde(true, "Se conciliaron {$n} pago(s) correctamente.");
     }
 }

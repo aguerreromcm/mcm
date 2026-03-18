@@ -576,7 +576,9 @@ class Database
      */
     public function spRedistribucionPagos($empresa, $cdgclns, $ciclo, $tipo, $fecha, $periodo, $secuencia, $monto, $cuenta, $usuario, $identificador)
     {
-        $sql = "BEGIN spRedistribucionPagos(:empresa, :cdgclns, :ciclo, :tipo, TO_DATE(:fecha, 'YYYY-MM-DD'), :periodo, :secuencia, :monto, :cuenta, :usuario, :identificador); END;";
+        // En VB6 el identificador se pasa como literal numérico (sin comillas).
+        // Para replicar ese comportamiento, lo convertimos con TO_NUMBER().
+        $sql = "BEGIN spRedistribucionPagos(:empresa, :cdgclns, :ciclo, :tipo, TO_DATE(:fecha, 'YYYY-MM-DD'), :periodo, :secuencia, :monto, :cuenta, :usuario, TO_NUMBER(:identificador)); END;";
         $stmt = $this->db_activa->prepare($sql);
         $stmt->execute([
             'empresa' => $empresa,
@@ -611,7 +613,7 @@ class Database
      */
     public function spRedistribucionPagosPrueba($empresa, $cdgclns, $ciclo, $tipo, $fecha, $periodo, $secuencia, $monto, $cuenta, $usuario, $identificador)
     {
-        $sql = "BEGIN spRedistribucionPagos_PRUEBA(:empresa, :cdgclns, :ciclo, :tipo, TO_DATE(:fecha, 'YYYY-MM-DD'), :periodo, :secuencia, :monto, :cuenta, :usuario, :identificador); END;";
+        $sql = "BEGIN spRedistribucionPagos_PRUEBA(:empresa, :cdgclns, :ciclo, :tipo, TO_DATE(:fecha, 'YYYY-MM-DD'), :periodo, :secuencia, :monto, :cuenta, :usuario, TO_NUMBER(:identificador)); END;";
         $stmt = $this->db_activa->prepare($sql);
         $stmt->execute([
             'empresa' => $empresa,

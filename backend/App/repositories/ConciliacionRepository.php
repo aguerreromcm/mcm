@@ -99,7 +99,7 @@ class ConciliacionRepository
                 a.secuencia, a.referencia, a.cdgcb, a.tipo,
                 TO_CHAR(a.frealdep, 'YYYY-MM-DD') AS frealdep,
                 a.cantidad, a.modo, a.conciliado, a.estatus, a.actualizarpe,
-                a.secuenciaim, a.fechaim, a.periodo AS periodo2,
+                a.secuenciaim, a.fechaim,
                 NVL(RTRIM(LTRIM(b.nombre1 || ' ' || b.nombre2)), '') || ' ' || NVL(RTRIM(LTRIM(b.primape || ' ' || b.segape)), '') AS nombre
                 FROM mp a
                 LEFT JOIN cl b ON b.cdgem = a.cdgem AND b.codigo = a.cdgclns
@@ -114,7 +114,7 @@ class ConciliacionRepository
                 a.secuencia, a.referencia, a.cdgcb, a.tipo,
                 TO_CHAR(a.frealdep, 'YYYY-MM-DD') AS frealdep,
                 a.cantidad, a.modo, a.conciliado, a.estatus, a.actualizarpe,
-                a.secuenciaim, a.fechaim, a.periodo AS periodo2,
+                a.secuenciaim, a.fechaim,
                 RTRIM(LTRIM(b.nombre)) AS nombre
                 FROM mp a
                 LEFT JOIN ns b ON b.cdgem = a.cdgem AND b.codigo = a.cdgclns
@@ -184,12 +184,88 @@ class ConciliacionRepository
 
         $config = App::getConfig();
         $valor = $config['CONCILIACION_SOLO_FLUJO'] ?? ($config['conciliacion']['CONCILIACION_SOLO_FLUJO'] ?? null);
-        $soloFlujo = $valor !== null && (filter_var($valor, FILTER_VALIDATE_BOOLEAN) || $valor === 'true' || $valor === '1');
+        $valorNorm = $valor === null ? null : strtolower(trim((string) $valor));
+        // Solo consideramos "true" (tolerando variantes). Cualquier valor no parseable cae en false.
+        $soloFlujo = $valorNorm !== null ? (filter_var($valorNorm, FILTER_VALIDATE_BOOLEAN) === true) : false;
 
         if ($soloFlujo) {
             $database->spRedistribucionPagosPrueba($empresa, $cdgclns, $ciclo, $tipo, $fecha, $periodo, $secuencia, $monto, $cuenta, $usuario, $identificador);
         } else {
             $database->spRedistribucionPagos($empresa, $cdgclns, $ciclo, $tipo, $fecha, $periodo, $secuencia, $monto, $cuenta, $usuario, $identificador);
         }
+    }
+
+    /**
+     * Obtiene el estado actual en MP (conciliado/estatus) para los pagos dados.
+     * Se usa para validar "afectación real" antes/después de ejecutar la conciliación.
+     *
+     * @param array $pagos
+     * @param \Core\Database|null $db
+     * @return array Lista en el mismo orden del input:
+     *   ['encontrado'=>bool,'conciliado'=>string|null,'estatus'=>string|null]
+     */
+    public function obtenerEstadosConciliacionPagos(array $pagos, $db = null)
+    {
+        $database = $db !== null ? $db : new Database();
+        if ($database->db_activa === null) {
+            throw new \RuntimeException('No hay conexión a la base de datos.');
+        }
+
+        $result = [];
+        foreach ($pagos as $pago) {
+            if (!is_array($pago)) {
+                $result[] = ['encontrado' => false, 'conciliado' => null, 'estatus' => null];
+                continue;
+            }
+
+            $cdgem = trim((string) ($pago['CDGEM'] ?? ''));
+            $cdgclns = trim((string) ($pago['CDGCLNS'] ?? ''));
+            $ciclo = trim((string) ($pago['CICLO'] ?? ''));
+            $clns = trim((string) ($pago['CLNS'] ?? ($pago['TIPOCTE'] ?? '')));
+            $frealdep = trim((string) ($pago['FREALDEP'] ?? ''));
+            $periodoSet = array_key_exists('PERIODO', $pago);
+            $periodo = $periodoSet ? (int) $pago['PERIODO'] : null;
+            $secuencia = trim((string) ($pago['SECUENCIA'] ?? ''));
+
+            // Si falta cualquier clave, no intentamos consultar para evitar errores de parseo.
+            if ($cdgem === '' || $cdgclns === '' || $ciclo === '' || $clns === '' || $frealdep === '' || $periodo === null || $secuencia === '') {
+                $result[] = ['encontrado' => false, 'conciliado' => null, 'estatus' => null];
+                continue;
+            }
+
+            $sql = "SELECT conciliado, estatus
+                    FROM mp
+                    WHERE cdgem = :cdgem
+                      AND cdgclns = :cdgclns
+                      AND ciclo = :ciclo
+                      AND clns = :clns
+                      AND TRUNC(frealdep) = TO_DATE(:frealdep, 'YYYY-MM-DD')
+                      AND periodo = :periodo
+                      AND secuencia = :secuencia";
+
+            $stmt = $database->db_activa->prepare($sql);
+            $stmt->execute([
+                'cdgem' => $cdgem,
+                'cdgclns' => $cdgclns,
+                'ciclo' => $ciclo,
+                'clns' => $clns,
+                'frealdep' => $frealdep,
+                'periodo' => $periodo,
+                'secuencia' => $secuencia,
+            ]);
+
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (is_array($row) && count($row) > 0) {
+                $result[] = [
+                    'encontrado' => true,
+                    'conciliado' => isset($row['CONCILIADO']) ? trim((string) $row['CONCILIADO']) : null,
+                    'estatus' => isset($row['ESTATUS']) ? trim((string) $row['ESTATUS']) : null,
+                ];
+            } else {
+                $result[] = ['encontrado' => false, 'conciliado' => null, 'estatus' => null];
+            }
+        }
+
+        return $result;
     }
 }

@@ -63,13 +63,15 @@ class PagosAplicacionRepository
 		AND PGD.ESTATUS = 'A'
 		AND PGD.TIPO IN('P','G', 'X')
 		AND PGD.MONTO != 0
-		AND PGD.FECHA BETWEEN TO_DATE(:f1, 'YYYY-MM-DD') AND TO_DATE(:f2, 'YYYY-MM-DD')
+		-- VB6 filtra por "fecha" sin importar la hora (Fecha de pago).
+		-- En Oracle, si FECHA tiene HH:MI:SS, BETWEEN por igualdad puede omitir registros.
+		AND TRUNC(PGD.FECHA) = TO_DATE(:f1, 'YYYY-MM-DD')
 	ORDER BY
 		PGD.FECHA
 sql;
         try {
             $stmt = $db->db_activa->prepare($query);
-            $stmt->execute(['f1' => $fecha, 'f2' => $fecha]);
+			$stmt->execute(['f1' => $fecha]);
             $filas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
             if (!is_array($filas)) {
                 return [];

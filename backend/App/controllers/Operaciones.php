@@ -102,11 +102,27 @@ class Operaciones extends Controller
                         if (!respuesta.success) return showError(respuesta.mensaje)
                         const mensaje = "El proceso de cierre diario ha sido iniciado. Al finalizar se enviará el resumen por correo."
                         showSuccess(mensaje).then(() => {
-                            ejecutando = true
-                            inicioEjecucion = fechaActualFormateada()
-                            usuarioEjecucion = "{$this->__usuario}"
-                    $("#procesar").attr("disabled", true)
-                    validaEjecucionActiva()
+                            $("#procesar").attr("disabled", true)
+                            fetch("/operaciones/ValidaCierreEnEjecucion", {
+                                method: "GET",
+                                headers: {
+                                    "Content-Type": "application/json"
+                                }
+                            })
+                                .then((response) => response.json())
+                                .then((respuesta) => {
+                                    ejecutando = respuesta.datos && Object.keys(respuesta.datos).length > 0
+                                    inicioEjecucion = ejecutando ? respuesta.datos.INICIO : null
+                                    usuarioEjecucion = ejecutando ? respuesta.datos.USUARIO : null
+                                })
+                                .catch(() => {
+                                    ejecutando = false
+                                    inicioEjecucion = null
+                                    usuarioEjecucion = null
+                                })
+                                .then(() => {
+                                    validaEjecucionActiva()
+                                })
                         })
                     })
                 }
