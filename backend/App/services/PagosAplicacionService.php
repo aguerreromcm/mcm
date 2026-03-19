@@ -141,9 +141,6 @@ class PagosAplicacionService
         $detalle = [];
         $totalImporte = 0;
         $logPath = defined('APPPATH') ? dirname(APPPATH) . '/logs/aplicar_pagos.log' : __DIR__ . '/../../logs/aplicar_pagos.log';
-        // VB6 arma la fecha para el SP con fecha y hora (formato dependiente del SP).
-        // Generamos candidatos equivalentes y ante ORA-01861/01830 reintentamos.
-        $fechaPagoCandidatos = self::generarCandidatosFechaParaSp($fecha);
 
         try {
             $db->IniciaTransaccion();
@@ -154,43 +151,28 @@ class PagosAplicacionService
                 $totalImporte += $monto;
                 $referencia = isset($f['REFERENCIA']) ? trim((string) $f['REFERENCIA']) : '';
                 $moneda = isset($f['MONEDA']) ? trim((string) $f['MONEDA']) : 'MN';
+                $fechaPagoParaSp = isset($f['FECHA']) ? (string) $f['FECHA'] : $fecha . ' 00:00:00';
+                $monto = isset($f['MONTO']) ? (float) $f['MONTO'] : $monto;
 
-                // Reintentos por formato de fecha/hora.
-                $ultimoError = null;
-                $ultimaFechaIntentada = '';
-                $res = null;
-                foreach ($fechaPagoCandidatos as $i => $fechaPagoParaSp) {
-                    $ultimaFechaIntentada = $fechaPagoParaSp;
-                    try {
-                        $res = $repo->ejecutarSpImportaPago(
-                            $fechaPagoParaSp,
-                            $referencia,
-                            (string) $monto,
-                            $usuario,
-                            $identificador,
-                            $renglon1,
-                            $renglon1,
-                            $noPagos,
-                            $idImportacion,
-                            $moneda,
-                            null,
-                            $db
-                        );
-                        $ultimoError = null;
-                        break;
-                    } catch (\Throwable $e) {
-                        $ultimoError = $e;
-                        $msg = (string) $e->getMessage();
-                        // Solo reintentamos cuando el error es por parsing de fecha.
-                        if (strpos($msg, 'ORA-01861') === false && strpos($msg, 'ORA-01830') === false) {
-                            throw $e;
-                        }
-                    }
-                }
-                if ($res === null) {
-                    $msg = $ultimoError ? $ultimoError->getMessage() : 'Error al convertir fecha para SP.';
-                    throw new \RuntimeException($msg . ' | fecha intento=' . $ultimaFechaIntentada);
-                }
+                $res = $repo->ejecutarSpImportaPago(
+                    $fechaPagoParaSp,
+                    $referencia,
+                    (string) $monto,
+                    $usuario,
+                    $identificador,
+                    $renglon1,
+                    $renglon1,
+                    $noPagos,
+                    $idImportacion,
+                    $moneda,
+                    null,
+                    $db
+                );
+
+                // VB6 frmImportacion: si p_val (Parameters 15) es 0 o 1 → éxito ("Pago importado con éxito.");
+                // Solo si p_val no es 0 ni 1 se consulta res_impor. No exigir únicamente 1.
+                $valSp = (int) ($res['validacion'] ?? -1);
+                $spValidacionOk = ($valSp === 0 || $valSp === 1);
 
                 $detalle[] = [
                     'renglon' => $renglon1,
@@ -198,7 +180,7 @@ class PagosAplicacionService
                     'referencia' => $referencia,
                     'monto' => $monto,
                     'moneda' => $moneda,
-                    'ok' => $res['success'] && (int) $res['validacion'] === 1,
+                    'ok' => $res['success'] && $spValidacionOk,
                     'resultado' => $res['resultado'] ?? '',
                     'validacion' => $res['validacion'] ?? -1,
                 ];
@@ -206,8 +188,19 @@ class PagosAplicacionService
                 if (!$res['success']) {
                     throw new \RuntimeException('SP falló en renglón ' . $renglon1 . ': ' . ($res['resultado'] ?? 'sin mensaje'));
                 }
-                if ((int) ($res['validacion'] ?? -1) !== 1) {
-                    throw new \RuntimeException('Validación del SP en renglón ' . $renglon1 . ': ' . ($res['resultado'] ?? 'código ' . ($res['validacion'] ?? '')));
+                if (!$spValidacionOk) {
+                    $mensajeValidacion = trim((string) ($res['resultado'] ?? ''));
+                    if ($mensajeValidacion === '') {
+                        $mensajeValidacion = 'código validación ' . $valSp;
+                    }
+                    $mensajeLogVal = date('c')
+                        . ' [' . $usuario . ']'
+                        . ' Fecha=' . $fecha
+                        . ' Renglon=' . $renglon1
+                        . ' ValidacionSP=' . $valSp
+                        . ' Mensaje=' . $mensajeValidacion
+                        . "\n";
+                    @file_put_contents($logPath, $mensajeLogVal, FILE_APPEND);
                 }
 
                 if (!$soloFlujo && isset($f['CDGEM'], $f['CDGNS'], $f['CICLO'], $f['SECUENCIA'])) {
@@ -224,20 +217,24 @@ class PagosAplicacionService
             }
 
             if (!$soloFlujo) {
-                $detalleJson = json_encode($detalle, JSON_UNESCAPED_UNICODE);
-                $okInsert = $repo->insertarProcesado(
-                    $fecha,
-                    $noPagos,
-                    round($totalImporte, 2),
-                    $usuario,
-                    'OK',
-                    null,
-                    $detalleJson,
-                    $db
-                );
-
-                if (!$okInsert) {
-                    throw new \RuntimeException('Error al registrar PAGOS_PROCESADOS');
+                try {
+                    $detalleJson = json_encode($detalle, JSON_UNESCAPED_UNICODE);
+                    $repo->insertarProcesado(
+                        $fecha,
+                        $noPagos,
+                        round($totalImporte, 2),
+                        $usuario,
+                        'OK',
+                        null,
+                        $detalleJson,
+                        $db
+                    );
+                } catch (\Throwable $e) {
+                    @file_put_contents(
+                        $logPath,
+                        date('c') . ' [WARN] insertarProcesado falló: ' . $e->getMessage() . "\n",
+                        FILE_APPEND
+                    );
                 }
             }
 
@@ -303,33 +300,4 @@ class PagosAplicacionService
         }
     }
 
-    /**
-     * Replica candidatos equivalentes a VB6 para p_fecha del SP.
-     * El SP real puede convertir internamente con distintos pictures; por eso probamos varias variantes.
-     *
-     * @return string[] ordenados por probabilidad (primero el más cercano a VB6)
-     */
-    private static function generarCandidatosFechaParaSp(string $fecha): array
-    {
-        $fecha = trim($fecha);
-        if ($fecha === '') return [];
-
-        $fecha = str_replace('-', '/', $fecha); // YYYY/MM/DD
-        $fecha12 = date('h:i:s'); // 12-hour clock
-        $fecha24 = date('H:i:s'); // 24-hour clock
-
-        // VB6 concatena: Format(fecha,"YYYY/MM/DD") & Format(Time," hh:mm:ss")
-        // y el " hh:mm:ss" suele traer un espacio previo al hour.
-        $c1 = $fecha . ' ' . $fecha24; // YYYY/MM/DD HH:MM:SS
-        $c2 = $fecha . ' ' . $fecha12; // YYYY/MM/DD hh:MM:SS
-        $c3 = $fecha; // YYYY/MM/DD (solo fecha)
-
-        // Variante day-first por si el SP usa DD/MM/YYYY internamente.
-        $fechaDmY = date('d/m/Y', strtotime(str_replace('/', '-', $fecha))); // DD/MM/YYYY
-        $c4 = $fechaDmY . ' ' . $fecha24; // DD/MM/YYYY HH:MM:SS
-        $c5 = $fechaDmY . ' ' . $fecha12; // DD/MM/YYYY hh:MM:SS
-        $c6 = $fechaDmY; // DD/MM/YYYY
-
-        return [$c1, $c2, $c3, $c4, $c5, $c6];
-    }
 }

@@ -3,3 +3,5 @@ configuracion.ini
 backend/App/config/configuracion.ini
 backend/Jobs/Logs/*
 .idea
+VB6/
+backend/logs/
