@@ -615,13 +615,23 @@ class Operaciones extends Controller
                         }).done(function (respuesta) {
                             swal.close();
                             if (respuesta && respuesta.success) {
-                                showSuccess(respuesta.mensaje).then(function () {
+                                swal({
+                                    title: "Conciliación completada",
+                                    text: (respuesta.mensaje || "La conciliación se ejecutó correctamente.") + " Pagos seleccionados: " + pagos.length + ".",
+                                    icon: "success",
+                                    button: "Aceptar"
+                                }).then(function () {
                                     consultarConciliacion();
                                 });
                             } else {
                                 var msg = (respuesta && respuesta.mensaje) ? respuesta.mensaje : "Error al conciliar.";
                                 if (respuesta && respuesta.error) msg += " " + respuesta.error;
-                                showError(msg);
+                                swal({
+                                    title: "Conciliación no aplicada",
+                                    text: msg,
+                                    icon: "error",
+                                    button: "Aceptar"
+                                });
                             }
                         }).fail(function (xhr, textStatus, errorThrown) {
                             swal.close();
@@ -631,7 +641,12 @@ class Operaciones extends Controller
                                 if (xhr.responseJSON.mensaje) msg = xhr.responseJSON.mensaje;
                                 if (xhr.responseJSON.error) msg += " " + xhr.responseJSON.error;
                             } else if (xhr && xhr.responseText && xhr.responseText.length < 500) msg = xhr.responseText;
-                            showError(msg);
+                            swal({
+                                title: "Conciliación no aplicada",
+                                text: msg,
+                                icon: "error",
+                                button: "Aceptar"
+                            });
                         });
                     });
                 };
