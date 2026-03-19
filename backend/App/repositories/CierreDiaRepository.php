@@ -5,7 +5,6 @@ namespace App\repositories;
 defined("APPPATH") or die("Access denied");
 
 use Core\Database;
-use Core\App;
 
 /**
  * Repository: acceso a datos del Cierre de Día.
@@ -380,7 +379,6 @@ class CierreDiaRepository
     /**
      * Ejecuta el stored procedure de cierre (sp_Cierre_Dia en VB6).
      * Parámetro 0 = completo, 1 = solo pendientes / regenerar.
-     * Si CIERRE_DIA_SOLO_FLUJO = true en config, no ejecuta el SP (valida flujo sin afectar datos).
      *
      * @param string $fecha Y-m-d
      * @param int $regenerar 0 o 1
@@ -388,14 +386,6 @@ class CierreDiaRepository
      */
     public function ejecutarSpCierreDia($fecha, $regenerar = 0)
     {
-        $configCierre = $this->getConfigCierreDia();
-        $valor = isset($configCierre['CIERRE_DIA_SOLO_FLUJO']) ? trim((string) $configCierre['CIERRE_DIA_SOLO_FLUJO']) : '';
-        $soloFlujo = $valor !== '' && (filter_var($valor, FILTER_VALIDATE_BOOLEAN) || strtolower($valor) === 'true' || $valor === '1');
-
-        if ($soloFlujo) {
-            return;
-        }
-
         $db = new Database();
         if ($db->db_activa === null) {
             throw new \RuntimeException('No hay conexión a la base de datos.');
@@ -466,17 +456,4 @@ class CierreDiaRepository
         return $resultado;
     }
 
-    /**
-     * Lee la sección [cierre_dia] del configuracion.ini (getConfig() devuelve array plano sin secciones).
-     *
-     * @return array
-     */
-    private function getConfigCierreDia()
-    {
-        if (!function_exists('parse_ini_file')) {
-            return [];
-        }
-        $ini = @parse_ini_file(dirname(__DIR__) . '/config/configuracion.ini', true);
-        return isset($ini['cierre_dia']) && is_array($ini['cierre_dia']) ? $ini['cierre_dia'] : [];
-    }
 }
