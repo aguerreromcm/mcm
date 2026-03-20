@@ -102,12 +102,11 @@ class Menu
     {
         return [
             $this->enlace('Alta Contrato', '/AhorroSimple/Contrato/', ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'QARO', 'MAPH']),
-            $this->enlace('Estado de Cuenta Ahorro', '/AhorroSimple/EstadoCuenta/', ['ADMIN', 'CAJA', 'AMOCA', 'CPAGO', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'LGFR', 'MGJC', 'MAPH']),
+            $this->enlace('Estado de Cuenta Ahorro', '/AhorroSimple/EstadoCuenta/', ['ADMIN', 'CAJA', 'CPAGO', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'LGFR', 'MGJC', 'MAPH']),
             $this->enlace('Valida Crédito Adicional', '/AhorroSimple/ValidaAdicional/', ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'MGJC', 'MAPH']),
-            $this->enlace('Agregar Exepciones MXT', '/AhorroSimple/ExepcionesMXT/', ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'MGJC', 'MAPH']),
+            $this->enlace('Agregar Exepciones MXT', '/AhorroSimple/ExepcionesMXT/', ['ADMIN', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'MGJC', 'MAPH']),
             $this->enlace('Solicitudes Retiro', '/AhorroConsulta/', ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'MGJC', 'MAPH']),
-            // Permisos temporales para pruebas de retiro de ahorro a 'LVGA', 'MCDP' y 'FLHR'
-            $this->enlace('Gestión de Retiros', '/Ahorro/SolicitudesRetiroAdmin/', ['ADMIN', 'LVGA', 'MCDP', 'FLHR']),
+            $this->enlace('Gestión de Retiros', '/Ahorro/SolicitudesRetiroAdmin/', ['ADMIN', 'LVGA', 'MCDP']),
         ];
     }
 

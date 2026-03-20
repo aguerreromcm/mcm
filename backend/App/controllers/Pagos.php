@@ -1438,7 +1438,7 @@ html;
         $getSucursales = '';
         if (
             in_array($this->__perfil, ['ADMIN', 'ACALL']) ||
-            in_array($this->__usuario, ['PMAB', 'PAES', 'COCS', 'LGFR', 'FECR', 'JACJ', 'CILA', 'VAMA', 'CRME', 'ZEPG', 'LRAF', 'MAAL', 'REHM', 'JUSA', 'MBAE', 'DDLI'])
+            in_array($this->__usuario, ['PMAB', 'PAES', 'COCS', 'LGFR', 'FECR', 'JACJ', 'CILA', 'VAMA', 'CRME', 'ZEPG', 'LRAF', 'MAAL', 'REHM', 'JUSA', 'MBAE', 'DDLI', 'CAAM'])
         ) {
             $getSucursales .= '<option value="">TODAS</option>';
         }
