@@ -42,19 +42,9 @@
             <div class="row" id="resumenConciliacion" style="margin-bottom: 15px;">
                 <div class="tile_count col-sm-12" style="margin-bottom: 8px; margin-top: 8px;">
                     <div class="col-md-2 col-sm-4 tile_stats_count">
-                        <span class="count_top" style="font-size: 14px"><i class="fa fa-list"></i> Total pagos</span>
+                        <span class="count_top" style="font-size: 14px"><i class="fa fa-list"></i> Total de Pagos Pendientes</span>
                         <div class="count" style="font-size: 18px" id="totalPagos">0</div>
                         <span class="count_bottom" id="importeTotal">$ 0.00</span>
-                    </div>
-                    <div class="col-md-2 col-sm-4 tile_stats_count">
-                        <span class="count_top" style="font-size: 14px"><i class="fa fa-check"></i> Conciliados</span>
-                        <div class="count" style="font-size: 18px" id="totalPagosConciliados">0</div>
-                        <span class="count_bottom" id="importeConciliados">$ 0.00</span>
-                    </div>
-                    <div class="col-md-2 col-sm-4 tile_stats_count">
-                        <span class="count_top" style="font-size: 14px"><i class="fa fa-clock-o"></i> Pendientes</span>
-                        <div class="count" style="font-size: 18px" id="totalPagosPendientes">0</div>
-                        <span class="count_bottom" id="importePendientes">$ 0.00</span>
                     </div>
                 </div>
             </div>

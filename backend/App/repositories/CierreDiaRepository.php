@@ -137,6 +137,7 @@ class CierreDiaRepository
         $qry = <<<SQL
             SELECT
                 TO_CHAR(FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CALCULO,
+                TO_CHAR(FECHA_CALCULO, 'YYYY-MM-DD') AS FECHA_CIERRE_ISO,
                 TO_CHAR(INICIO, 'DD/MM/YYYY HH24:MI') AS INICIO,
                 TO_CHAR(FIN, 'DD/MM/YYYY HH24:MI') AS FIN,
                 USUARIO,
@@ -258,9 +259,10 @@ class CierreDiaRepository
     }
 
     /**
-     * Resumen devengo para correo: créditos y monto (fecha = día siguiente al cierre).
+     * Resumen devengo para correo y pantalla: mismo criterio que validación manual en BD.
+     * SELECT COUNT(*), SUM(DEV_DIARIO) FROM DEVENGO_DIARIO WHERE TRUNC(FECHA_CALC) = TO_DATE(:fecha, ...)
      *
-     * @param string $fechaDevengo Y-m-d (fecha de devengo, típicamente fecha_cierre + 1)
+     * @param string $fechaDevengo Y-m-d (fecha calendario de FECHA_CALC; alinear con fecha de cierre en bitácora)
      * @return array [ 'creditos' => int, 'monto' => float ]
      */
     public function getResumenDevengo($fechaDevengo)
@@ -268,7 +270,7 @@ class CierreDiaRepository
         $qry = <<<SQL
             SELECT COUNT(*) AS CREDITOS, NVL(SUM(DEV_DIARIO), 0) AS MONTO
             FROM DEVENGO_DIARIO
-            WHERE FECHA_CALC = TO_DATE(:fecha, 'YYYY-MM-DD')
+            WHERE TRUNC(FECHA_CALC) = TO_DATE(:fecha, 'YYYY-MM-DD')
         SQL;
         return $this->sinSalida(function () use ($qry, $fechaDevengo) {
             try {
@@ -280,6 +282,98 @@ class CierreDiaRepository
                 ];
             } catch (\Exception $e) {
                 return ['creditos' => 0, 'monto' => 0];
+            }
+        });
+    }
+
+    /**
+     * Obtiene resúmenes de cierre y devengo para un conjunto de fechas en solo 2 consultas.
+     * Mantiene exactamente los mismos criterios de getResumenCierre() y getResumenDevengo().
+     *
+     * @param array $fechasIso Lista de fechas Y-m-d
+     * @return array [
+     *   'cierre' => [ 'YYYY-MM-DD' => int ],
+     *   'devengo' => [ 'YYYY-MM-DD' => ['creditos' => int, 'monto' => float] ]
+     * ]
+     */
+    public function getResumenesPorFechas(array $fechasIso)
+    {
+        $fechas = array_values(array_unique(array_filter(array_map('trim', $fechasIso), function ($f) {
+            return $f !== '';
+        })));
+
+        if (empty($fechas)) {
+            return ['cierre' => [], 'devengo' => []];
+        }
+
+        return $this->sinSalida(function () use ($fechas) {
+            try {
+                $db = new Database();
+                $binds = [];
+                $holders = [];
+                foreach ($fechas as $i => $fecha) {
+                    $k = 'f' . $i;
+                    $holders[] = "TO_DATE(:$k, 'YYYY-MM-DD')";
+                    $binds[$k] = $fecha;
+                }
+                $inList = implode(', ', $holders);
+
+                $qryCierre = <<<SQL
+                    SELECT
+                        TO_CHAR(TCD.FECHA_CALC, 'YYYY-MM-DD') AS FECHA,
+                        COUNT(*) AS TOTAL
+                    FROM TBL_CIERRE_DIA TCD
+                    WHERE TCD.FECHA_CALC IN ($inList)
+                      AND NOT EXISTS (
+                          SELECT 1 FROM PRN_LEGAL PL
+                          WHERE PL.CDGEM = TCD.CDGEM AND PL.CDGCLNS = TCD.CDGCLNS
+                            AND PL.CICLO = TCD.CICLO AND PL.CLNS = TCD.CLNS
+                            AND PL.TIPO IN ('C','Z') AND PL.ALTA < TCD.FECHA_CALC + 1
+                      )
+                    GROUP BY TO_CHAR(TCD.FECHA_CALC, 'YYYY-MM-DD')
+                SQL;
+
+                $qryDevengo = <<<SQL
+                    SELECT
+                        TO_CHAR(TRUNC(FECHA_CALC), 'YYYY-MM-DD') AS FECHA,
+                        COUNT(*) AS CREDITOS,
+                        NVL(SUM(DEV_DIARIO), 0) AS MONTO
+                    FROM DEVENGO_DIARIO
+                    WHERE TRUNC(FECHA_CALC) IN ($inList)
+                    GROUP BY TO_CHAR(TRUNC(FECHA_CALC), 'YYYY-MM-DD')
+                SQL;
+
+                $filasCierre = $db->queryAll($qryCierre, $binds);
+                $filasDevengo = $db->queryAll($qryDevengo, $binds);
+
+                $mapCierre = [];
+                if (is_array($filasCierre)) {
+                    foreach ($filasCierre as $r) {
+                        $fecha = isset($r['FECHA']) ? (string) $r['FECHA'] : '';
+                        if ($fecha === '') {
+                            continue;
+                        }
+                        $mapCierre[$fecha] = (int) ($r['TOTAL'] ?? 0);
+                    }
+                }
+
+                $mapDevengo = [];
+                if (is_array($filasDevengo)) {
+                    foreach ($filasDevengo as $r) {
+                        $fecha = isset($r['FECHA']) ? (string) $r['FECHA'] : '';
+                        if ($fecha === '') {
+                            continue;
+                        }
+                        $mapDevengo[$fecha] = [
+                            'creditos' => (int) ($r['CREDITOS'] ?? 0),
+                            'monto' => round((float) ($r['MONTO'] ?? 0), 2),
+                        ];
+                    }
+                }
+
+                return ['cierre' => $mapCierre, 'devengo' => $mapDevengo];
+            } catch (\Exception $e) {
+                return ['cierre' => [], 'devengo' => []];
             }
         });
     }

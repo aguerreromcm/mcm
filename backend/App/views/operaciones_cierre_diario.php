@@ -46,22 +46,30 @@
                                 <th>Fin</th>
                                 <th>Usuario</th>
                                 <th>Estado</th>
+                                <th>Registros de cierre procesados</th>
+                                <th>Créditos (devengo)</th>
+                                <th>Monto intereses devengados</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="tbodyUltimosCierres">
                             <?php
                             $listaCierres = isset($listaCierres) ? $listaCierres : [];
                             if (empty($listaCierres)) {
-                                echo '<tr><td colspan="5">No hay cierres registrados.</td></tr>';
+                                echo '<tr><td colspan="8">No hay cierres registrados.</td></tr>';
                             } else {
                                 foreach ($listaCierres as $c) {
                                     $estado = !empty($c['EXITO']) ? 'OK' : 'Error';
                                     echo '<tr>';
                                     echo '<td>' . htmlspecialchars($c['FECHA_CALCULO'] ?? '-') . '</td>';
-                                    echo '<td>' . htmlspecialchars($c['INICIO'] ?? '-') . '</td>';
-                                    echo '<td>' . htmlspecialchars($c['FIN'] ?? '-') . '</td>';
+                                    $inicioRaw = (string) ($c['INICIO'] ?? '-');
+                                    $finRaw = (string) ($c['FIN'] ?? '-');
+                                    echo '<td><span class="js-local-time">' . htmlspecialchars($inicioRaw) . '</span></td>';
+                                    echo '<td><span class="js-local-time">' . htmlspecialchars($finRaw) . '</span></td>';
                                     echo '<td>' . htmlspecialchars($c['USUARIO'] ?? '-') . '</td>';
                                     echo '<td>' . htmlspecialchars($estado) . '</td>';
+                                    echo '<td>' . htmlspecialchars((string) ($c['REGISTROS_PROCESADOS'] ?? '0')) . '</td>';
+                                    echo '<td>' . htmlspecialchars((string) ($c['CREDITOS_DEVENGO'] ?? '0')) . '</td>';
+                                    echo '<td>' . htmlspecialchars($c['MONTO_INTERESES_DEVENGADOS'] ?? '$ 0.00') . '</td>';
                                     echo '</tr>';
                                 }
                             }
@@ -73,5 +81,33 @@
         </div>
     </div>
 </div>
+
+<script>
+    (function () {
+        const parseDmYHmAsUtc = (txt) => {
+            if (!txt || txt === "-") return null;
+            const m = txt.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
+            if (!m) return null;
+            const dia = parseInt(m[1], 10);
+            const mes = parseInt(m[2], 10) - 1;
+            const anio = parseInt(m[3], 10);
+            const hora = parseInt(m[4], 10);
+            const minuto = parseInt(m[5], 10);
+            return new Date(Date.UTC(anio, mes, dia, hora, minuto, 0));
+        };
+
+        document.querySelectorAll(".js-local-time").forEach((el) => {
+            const original = (el.textContent || "").trim();
+            const dt = parseDmYHmAsUtc(original);
+            if (!dt || isNaN(dt.getTime())) return;
+            const dd = String(dt.getDate()).padStart(2, "0");
+            const mm = String(dt.getMonth() + 1).padStart(2, "0");
+            const yyyy = dt.getFullYear();
+            const hh = String(dt.getHours()).padStart(2, "0");
+            const mi = String(dt.getMinutes()).padStart(2, "0");
+            el.textContent = dd + "/" + mm + "/" + yyyy + " " + hh + ":" + mi;
+        });
+    })();
+</script>
 
 <?= $footer; ?>
