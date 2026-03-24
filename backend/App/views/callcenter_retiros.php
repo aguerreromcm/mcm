@@ -23,6 +23,27 @@ $color = $datos_retiro['ESTATUS'] == 'P' ? 'warning' : ($datos_retiro['ESTATUS']
 $estilo_iniciar = $datos_retiro['ESTATUS'] == 'C' ? 'display:none;' : '';
 $estilo_ver = $datos_retiro['ESTATUS'] != 'C' ? 'display:none;' : '';
 
+$r1_db = isset($datos_retiro['R1']) ? (string) $datos_retiro['R1'] : '';
+$r2_db = isset($datos_retiro['R2']) ? (string) $datos_retiro['R2'] : '';
+$ret_encuesta_nueva = strlen($r1_db) >= 3;
+if ($ret_encuesta_nueva) {
+    $ret_q1 = $r1_db[0] ?? '';
+    $ret_q2 = $r1_db[1] ?? '';
+    $ret_q3 = $r1_db[2] ?? '';
+    $ret_q4 = $r2_db !== '' ? $r2_db[0] : '';
+} else {
+    $ret_q1 = $r1_db;
+    $ret_q2 = '';
+    $ret_q3 = '';
+    $ret_q4 = $r2_db;
+}
+$ret_lbl_sn = function ($v) {
+    return $v === 'S' ? 'SÍ' : ($v === 'N' ? 'NO' : '—');
+};
+$ret_lbl_val = function ($v) {
+    return $v === 'S' ? 'RESPONDIO CORRECTAMENTE' : ($v === 'N' ? 'NO RESPONDIO' : '—');
+};
+
 ?>
 
 <div class="right_col">
@@ -218,6 +239,7 @@ $estilo_ver = $datos_retiro['ESTATUS'] != 'C' ? 'display:none;' : '';
             <div class="modal-header">
                 <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
                 <center>
+                    <p style="margin: 0 0 6px 0;"><small><strong>ENCUESTA CLIENTE</strong> — <span style="color: #c00;">ALCANCIA MÁS CON MENOS</span></small></p>
                     <h4 class="modal-title"><?= $datos_retiro['NOMBRE_CLIENTE'] ?>, LLAMADA #<label id="titulo" name="titulo"><?= $datos_retiro['INTENTOS'] + 1 ?></label></h4>
                 </center>
             </div>
@@ -259,20 +281,46 @@ $estilo_ver = $datos_retiro['ESTATUS'] != 'C' ? 'display:none;' : '';
                         <h3><b>Preguntas de validación</b></h3>
                     </div>
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-md-12">
                             <div class="form-group">
-                                <label for="p1">1.- ¿Usted solicito un retiro? *</label>
-                                <select class="form-control mr-sm-3" id="p1">
+                                <label for="ret_p1">1.- ¿Está solicitando un retiro de su alcancía? *</label>
+                                <select class="form-control mr-sm-3" id="ret_p1">
                                     <option selected disabled value="">Seleccione una opción</option>
-                                    <option value="S">SI</option>
+                                    <option value="S">SÍ</option>
                                     <option value="N">NO</option>
                                 </select>
                             </div>
                         </div>
+                    </div>
+                    <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label for="p2">2.- ¿Cuanto solicito? *</label>
-                                <select class="form-control mr-sm-3" id="p2">
+                                <label for="ret_p2">2.- ¿Nombre completo? *</label>
+                                <select class="form-control mr-sm-3" id="ret_p2">
+                                    <option selected disabled value="">Seleccione una opción</option>
+                                    <option value="S">RESPONDIO CORRECTAMENTE</option>
+                                    <option value="N">NO RESPONDIO</option>
+                                </select>
+                                <p style="color: #007700"><b>R: <?= htmlspecialchars($datos_retiro['NOMBRE_CLIENTE'], ENT_QUOTES, 'UTF-8') ?></b></p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="ret_p3">3.- ¿Dirección actual? *</label>
+                                <select class="form-control mr-sm-3" id="ret_p3">
+                                    <option selected disabled value="">Seleccione una opción</option>
+                                    <option value="S">RESPONDIO CORRECTAMENTE</option>
+                                    <option value="N">NO RESPONDIO</option>
+                                </select>
+                                <p style="color: #007700"><b>R: <?= htmlspecialchars($datos_retiro['DOMICILIO'], ENT_QUOTES, 'UTF-8') ?></b></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="form-group">
+                                <label for="ret_p4">4.- ¿Qué cantidad va a retirar? *</label>
+                                <select class="form-control mr-sm-3" id="ret_p4">
                                     <option selected disabled value="">Seleccione una opción</option>
                                     <option value="S">RESPONDIO CORRECTAMENTE</option>
                                     <option value="N">NO RESPONDIO</option>
@@ -347,19 +395,35 @@ $estilo_ver = $datos_retiro['ESTATUS'] != 'C' ? 'display:none;' : '';
                     <div class="row" style="margin-bottom: 10px; text-align: center;">
                         <h3><b>Preguntas de validación</b></h3>
                     </div>
+                    <input type="hidden" id="r1" value="<?= htmlspecialchars($r1_db, ENT_QUOTES, 'UTF-8') ?>">
+                    <input type="hidden" id="r2" value="<?= htmlspecialchars($r2_db, ENT_QUOTES, 'UTF-8') ?>">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="form-group">
+                                <label>1.- ¿Está solicitando un retiro de su alcancía? *</label>
+                                <input type="text" class="form-control" value="<?= htmlspecialchars($ret_lbl_sn($ret_q1), ENT_QUOTES, 'UTF-8') ?>" readonly>
+                            </div>
+                        </div>
+                    </div>
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label for="r1_etiqueta">1.- ¿Usted solicito un retiro? *</label>
-                                <input type="hidden" id="r1" value="<?= $datos_retiro['R1'] ?>">
-                                <input type="text" class="form-control" id="r1_etiqueta" value="<?= $datos_retiro['R1'] == 'S' ? 'SI' : 'NO' ?>" readonly>
+                                <label>2.- ¿Nombre completo? *</label>
+                                <input type="text" class="form-control" value="<?= $ret_encuesta_nueva ? htmlspecialchars($ret_lbl_val($ret_q2), ENT_QUOTES, 'UTF-8') : '— (registro anterior)' ?>" readonly>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label for="r2_etiqueta">2.- ¿Cuanto solicito? *</label>
-                                <input type="hidden" id="r2" value="<?= $datos_retiro['R2'] ?>">
-                                <input type="text" class="form-control" id="r2_etiqueta" value="<?= $datos_retiro['R2'] == 'S' ? 'RESPONDIO CORRECTAMENTE' : 'NO RESPONDIO' ?>" readonly>
+                                <label>3.- ¿Dirección actual? *</label>
+                                <input type="text" class="form-control" value="<?= $ret_encuesta_nueva ? htmlspecialchars($ret_lbl_val($ret_q3), ENT_QUOTES, 'UTF-8') : '— (registro anterior)' ?>" readonly>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="form-group">
+                                <label>4.- ¿Qué cantidad va a retirar? *</label>
+                                <input type="text" class="form-control" value="<?= htmlspecialchars($ret_lbl_val($ret_q4), ENT_QUOTES, 'UTF-8') ?>" readonly>
                             </div>
                         </div>
                     </div>

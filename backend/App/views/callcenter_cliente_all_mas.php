@@ -441,6 +441,7 @@ html;
                     <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
                     <span class="label label-danger" style="font-size: 95% !important; border-radius: 50em !important; background: #787878FF">CLIENTE</span>
                     <center>
+                        <p style="margin: 0 0 6px 0;"><small><strong>ENCUESTA CLIENTE</strong> — <span style="color: #c00;">CRÉDITO MÁS POR TI</span></small></p>
                         <h4 class="modal-title"><?php echo $Administracion[0]['CLIENTE']; ?>, LLAMADA #<label id="titulo" name="titulo"><?php if ($Administracion[3]['NUMERO_INTENTOS_CL'] == NULL) {
                                                                                                                                             $num = '1';
                                                                                                                                         } else {
@@ -522,180 +523,67 @@ html;
                         </div>
                         <div class="">
                             <hr>
-                            <h5><b>Preguntas de validación</b></h5>
+                            <h5><b>Preguntas de validación</b> <small class="text-muted">(Crédito Más por Ti)</small></h5>
                             <hr style="background: black">
                             <div class="row">
-                                <div class="col-md-3">
+                                <div class="col-md-12">
                                     <div class="form-group">
-                                        <label for="uno_cl">1.- ¿Qué edad tiene? *</label>
+                                        <label for="uno_cl">1.- ¿Está solicitando el crédito más por ti? *</label>
                                         <select class="form-control mr-sm-3" autofocus type="select" id="uno_cl" name="uno_cl">
                                             <option selected disabled value="">Seleccione una opción</option>
-                                            <option value="S">RESPONDIO CORRECTAMENTE</option>
-                                            <option value="N">NO RESPONDIO</option>
+                                            <option value="S">SÍ</option>
+                                            <option value="N">NO</option>
                                         </select>
-                                        <p style="color: #007700"><b>R: <?php echo $Administracion[1]['EDAD']; ?> AÑOS</b></p>
                                     </div>
                                 </div>
-                                <div class="col-md-3">
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
                                     <div class="form-group">
-                                        <label for="dos_cl">2.- ¿Cuál es su fecha de nacimiento? *</label>
-                                        <select class="form-control mr-sm-3" autofocus type="select" id="dos_cl" name="dos_cl">
+                                        <label for="dos_cl">2.- ¿Nombre completo? *</label>
+                                        <select class="form-control mr-sm-3" type="select" id="dos_cl" name="dos_cl">
                                             <option selected disabled value="">Seleccione una opción</option>
                                             <option value="S">RESPONDIO CORRECTAMENTE</option>
                                             <option value="N">NO RESPONDIO</option>
                                         </select>
-                                        <p style="color: #007700"><b>R: <?php echo $Administracion[1]['NACIMIENTO']; ?></b></p>
+                                        <p style="color: #007700"><b>R: <?php echo $Administracion[0]['CLIENTE']; ?></b></p>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        <label for="tres_cl">3.- ¿Cuál es su domicilio completo? *</label>
-                                        <select class="form-control mr-sm-3" autofocus type="select" id="tres_cl" name="tres_cl">
+                                        <label for="tres_cl">3.- ¿Dirección actual? *</label>
+                                        <select class="form-control mr-sm-3" type="select" id="tres_cl" name="tres_cl">
                                             <option selected disabled value="">Seleccione una opción</option>
                                             <option value="S">RESPONDIO CORRECTAMENTE</option>
                                             <option value="N">NO RESPONDIO</option>
                                         </select>
-                                        <p style="color: #007700"><b>R: <?php echo $Administracion[1]['CALLE']; ?>, <?php echo $Administracion[1]['COLONIA']; ?>, <?php echo $Administracion[1]['MUNICIPIO']; ?>, <?php echo $Administracion[1]['ESTADO']; ?>, C.P:<?php echo $Administracion[1]['CP']; ?>.</b></p>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label for="cuatro_cl">4.- ¿Tiempo viviendo en este domicilio? *</label>
-                                        <select class="form-control mr-sm-3" autofocus type="select" id="cuatro_cl" name="cuatro_cl">
-                                            <option selected disabled value="">Seleccione una opción</option>
-                                            <option value="S">RESPONDIO CORRECTAMENTE</option>
-                                            <option value="N">NO RESPONDIO</option>
-                                        </select>
-                                        <p style="color: #007700"><b></b></p>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="form-group">
-                                        <label for="cinco_cl">5.- Actualmente, ¿Cuál es su principal fuente de ingresos? *</label>
-                                        <select class="form-control mr-sm-3" autofocus type="select" id="cinco_cl" name="cinco_cl">
-                                            <option selected disabled value="">Seleccione una opción</option>
-                                            <option value="S">RESPONDIO CORRECTAMENTE</option>
-                                            <option value="N">NO RESPONDIO</option>
-                                        </select>
-                                        <p style="color: #007700"><b>R: <?php echo $Administracion[1]['ACT_ECO']; ?></b></p>
+                                        <p style="color: #007700"><b>R: <?php echo $Administracion[1]['CALLE']; ?>, <?php echo $Administracion[1]['COLONIA']; ?>, <?php echo $Administracion[1]['MUNICIPIO']; ?>, <?php echo $Administracion[1]['ESTADO']; ?>, C.P: <?php echo $Administracion[1]['CP']; ?>.</b></p>
                                     </div>
                                 </div>
                             </div>
-                            <hr style="margin-top: 2px !important; margin-bottom: 2px !important;">
                             <div class="row">
-                                <div class="col-md-3">
+                                <div class="col-md-12">
                                     <div class="form-group">
-                                        <label for="seis_cl">6.- ¿Cuál es el nombre completo de sus avales? *</label>
-                                        <select class="form-control mr-sm-3" autofocus type="select" id="seis_cl" name="seis_cl">
-                                            <option selected disabled value="">Seleccione una opción</option>
-                                            <option value="S">RESPONDIO CORRECTAMENTE</option>
-                                            <option value="N">NO RESPONDIO</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label for="siete_cl">7.- ¿Qué relación directa tiene con sus avales? *</label>
-                                        <select class="form-control mr-sm-3" autofocus type="select" id="siete_cl" name="siete_cl">
-                                            <option selected disabled value="">Seleccione una opción</option>
-                                            <option value="S">RESPONDIO CORRECTAMENTE</option>
-                                            <option value="N">NO RESPONDIO</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label for="ocho_cl">8.- ¿Actividad económica de sus avales? *</label>
-                                        <select class="form-control mr-sm-3" autofocus type="select" id="ocho_cl" name="ocho_cl">
-                                            <option selected disabled value="">Seleccione una opción</option>
-                                            <option value="S">RESPONDIO CORRECTAMENTE</option>
-                                            <option value="N">NO RESPONDIO</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label for="nueve_cl">9.- ¿Número telefónico de sus avales? *</label>
-                                        <select class="form-control mr-sm-3" autofocus type="select" id="nueve_cl" name="nueve_cl">
-                                            <option selected disabled value="">Seleccione una opción</option>
-                                            <option value="S">RESPONDIO CORRECTAMENTE</option>
-                                            <option value="N">NO RESPONDIO</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-md-6 col-md-offset-3">
-                                    <table class="table table-striped table-bordered table-hover" id="dataTables-example">
-                                        <thead>
-                                            <tr>
-                                                <th colspan="3" style="text-align: center;">Respuestas</th>
-                                            </tr>
-                                            <tr>
-                                                <th style="text-align: center;">Nombre</th>
-                                                <th style="text-align: center;">Actividad Económica</th>
-                                                <th style="text-align: center;">Teléfono</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="tbody_aval">
-                                            <?php
-                                            foreach ($Administracion[2] as $key => $value) {
-                                                $telefono_aval = "(" . substr($value['TELEFONO'], 0, 3) . ")" . " " . substr($value['TELEFONO'], 3, 3) . " - " . substr($value['TELEFONO'], 6, 4);
-                                                echo <<<HTML
-                                                <tr>
-                                                    <td>
-                                                        {$value['NOMBRE']}
-                                                    </td>
-                                                    <td>
-                                                        {$value['ACT_ECO']}
-                                                    </td>
-                                                    <td>
-                                                        $telefono_aval
-                                                        <input type="text" name="id_aval_cl_$key" id="id_aval_cl_$key" value="{$value['CODIGO']}" hidden />
-                                                        <input type="text" name="telefono_aval_cl_$key" id="telefono_aval_cl_$key" value="$telefono_aval" hidden />
-                                                    </td>
-                                                </tr>
-                                            HTML;
-                                            }
-                                            ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            <hr style="margin-top: 2px !important; margin-bottom: 2px !important;">
-                            <div class="row">
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label for="diez_cl">10.- ¿Firmó su solicitud?, ¿Cuándo firmo la solicitud? *</label>
-                                        <select class="form-control mr-sm-3" autofocus type="select" id="diez_cl" name="diez_cl">
-                                            <option selected disabled value="">Seleccione una opción</option>
-                                            <option value="S">RESPONDIO CORRECTAMENTE</option>
-                                            <option value="N">NO RESPONDIO</option>
-                                        </select>
-                                        <p style="color: #007700"><b></b></p>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label for="once_cl">11.- Me puede indicar ¿para qué utilizará su crédito? *</label>
-                                        <select class="form-control mr-sm-3" autofocus type="select" id="once_cl" name="once_cl">
-                                            <option selected disabled value="">Seleccione una opción</option>
-                                            <option value="S">RESPONDIO CORRECTAMENTE</option>
-                                            <option value="N">NO RESPONDIO</option>
-                                        </select>
-                                        <p style="color: #007700"><b></b></p>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label for="doce_cl">12.- ¿Compartirá su crédito con alguna otra persona? *</label>
-                                        <select class="form-control mr-sm-3" autofocus type="select" id="doce_cl" name="doce_cl">
-                                            <option selected disabled value="">Seleccione una opción</option>
-                                            <option value="S">NO LO COMPARTIRA</option>
-                                            <option value="N">SI LO COMPARTIRA</option>
-                                        </select>
-                                        <p style="color: #007700"><b></b></p>
+                                        <label for="cuatro_cl">4.- ¿El crédito para qué lo utilizará? *</label>
+                                        <textarea class="form-control" id="cuatro_cl" name="cuatro_cl" rows="3" placeholder="Registre lo que indique el cliente"></textarea>
                                     </div>
                                 </div>
                             </div>
+                            <?php
+                            foreach ($Administracion[2] as $key => $value) {
+                                $telefono_aval = "(" . substr($value['TELEFONO'], 0, 3) . ")" . " " . substr($value['TELEFONO'], 3, 3) . " - " . substr($value['TELEFONO'], 6, 4);
+                                echo '<input type="hidden" name="id_aval_cl_' . (int) $key . '" id="id_aval_cl_' . (int) $key . '" value="' . htmlspecialchars((string) $value['CODIGO'], ENT_QUOTES, 'UTF-8') . '" />';
+                                echo '<input type="hidden" name="telefono_aval_cl_' . (int) $key . '" id="telefono_aval_cl_' . (int) $key . '" value="' . htmlspecialchars($telefono_aval, ENT_QUOTES, 'UTF-8') . '" />';
+                            }
+                            ?>
+                            <input type="hidden" id="cinco_cl" name="cinco_cl" value="-">
+                            <input type="hidden" id="seis_cl" name="seis_cl" value="-">
+                            <input type="hidden" id="siete_cl" name="siete_cl" value="-">
+                            <input type="hidden" id="ocho_cl" name="ocho_cl" value="-">
+                            <input type="hidden" id="nueve_cl" name="nueve_cl" value="-">
+                            <input type="hidden" id="diez_cl" name="diez_cl" value="-">
+                            <input type="hidden" id="once_cl" name="once_cl" value="-">
+                            <input type="hidden" id="doce_cl" name="doce_cl" value="S">
                             <hr>
                             <div class="row">
                                 <div class="col-md-5">

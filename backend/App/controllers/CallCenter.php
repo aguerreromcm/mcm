@@ -656,20 +656,37 @@ class CallCenter extends Controller
                     })
                 }
 
+                const retiroEncuestaValidaParaVistoBueno = (r1, r2) => {
+                    if (r1 == null || r2 == null) return false
+                    const a = String(r1)
+                    const b = String(r2)
+                    if (a.length >= 3) {
+                        const q4 = b.length > 0 ? b.charAt(0) : ""
+                        return a.charAt(0) === "S" && a.charAt(1) === "S" && a.charAt(2) === "S" && q4 === "S"
+                    }
+                    return a === "S" && b === "S"
+                }
+
                 const guardaEncuestaRetiro = () => {
                     const retiro = "{$_GET['retiro']}"
                     const tipo = document.getElementById("tipo_llamada").value
                     if (tipo == "") return showError("Seleccione el tipo de llamada que realizo")
 
-                    const r1 = $("#p1").val()
-                    const r2 = $("#p2").val()
+                    const p1 = $("#ret_p1").val()
+                    const p2 = $("#ret_p2").val()
+                    const p3 = $("#ret_p3").val()
+                    const p4 = $("#ret_p4").val()
+                    const r1 = (p1 || "") + (p2 || "") + (p3 || "")
+                    const r2 = p4 || ""
                     const completo = $('input[name="completo"]:checked').val()
                     let titulo = "Llamada completa"
                     let mensaje = "Usted va a finalizar y guardar la encuesta, no podrá editar esta información en un futuro."
                     
                     if (completo == "1") {
-                        if (r1 == "") return showError("Debe seleccionar una respuesta para la pregunta 1.")
-                        if (r2 == "") return showError("Debe seleccionar una respuesta para la pregunta 2.")
+                        if (p1 == "") return showError("Debe seleccionar una respuesta para la pregunta 1.")
+                        if (p2 == "") return showError("Debe seleccionar una respuesta para la pregunta 2.")
+                        if (p3 == "") return showError("Debe seleccionar una respuesta para la pregunta 3.")
+                        if (p4 == "") return showError("Debe seleccionar una respuesta para la pregunta 4.")
                     } else {
                         titulo = "Llamada incompleta"
                         mensaje = "¿Desea registrar un intento de llamada como incompleta?"
@@ -704,7 +721,9 @@ class CallCenter extends Controller
                     const usuario = "{$_SESSION['usuario']}"
                     const estatus = $("#estatus_solicitud").val()
 
-                    if (estatus == "V" && r1 != "S" && r2 != "S") return showError("No se puede finalizar la solicitud como válida si no se respondió correctamente a todas las preguntas.");
+                    if (estatus == "V" && !retiroEncuestaValidaParaVistoBueno(r1, r2)) {
+                        return showError("No se puede finalizar la solicitud como válida si no se respondió correctamente a todas las preguntas.")
+                    }
 
                     const estatus_label = $("#estatus_solicitud option:selected").text()
                     
@@ -4501,7 +4520,8 @@ HTML;
         $encuesta->_uno = $_POST["uno_cl"];
         $encuesta->_dos = $_POST["dos_cl"];
         $encuesta->_tres = $_POST["tres_cl"];
-        $encuesta->_cuatro = $_POST["cuatro_cl"];
+        $cuatro = isset($_POST["cuatro_cl"]) ? (string) $_POST["cuatro_cl"] : "";
+        $encuesta->_cuatro = str_replace("'", "''", $cuatro);
         $encuesta->_cinco = $_POST["cinco_cl"];
         $encuesta->_seis = $_POST["seis_cl"];
         $encuesta->_siete = $_POST["siete_cl"];
