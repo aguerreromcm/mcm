@@ -17,6 +17,9 @@ class ListaNegraEmpleadosService
     private const TIPO_LN = 'LN';
     private const CAUSA_ALTA = 11;
 
+    /** Nombre del database link hacia la base Cultiva (INSERT ... CL_MARCA@DB_CULTIVA). */
+    private const DB_LINK_CULTIVA = 'DB_CULTIVA';
+
     /** @var string */
     private static $sqlInsert = <<<'SQL'
 INSERT INTO CL_MARCA (
@@ -24,6 +27,31 @@ INSERT INTO CL_MARCA (
 ) VALUES (
     :cdgem,
     (SELECT NVL(MAX(SECUENCIA), 0) + 1 FROM CL_MARCA WHERE TO_CHAR(ALTA, 'YYYYMMDD') = TO_CHAR(SYSDATE, 'YYYYMMDD')),
+    NULL,
+    :curp,
+    :tipomarca,
+    'A',
+    NULL,
+    :altape,
+    TRUNC(SYSDATE),
+    NULL,
+    NULL,
+    SYSDATE,
+    :causa,
+    NULL,
+    NULL,
+    NULL,
+    NULL
+)
+SQL;
+
+    /** Misma estructura que el INSERT local; la subconsulta de SECUENCIA usa CL_MARCA en Cultiva vía DB link. */
+    private static $sqlInsertCultiva = <<<'SQL'
+INSERT INTO CL_MARCA@DB_CULTIVA (
+    CDGEM, SECUENCIA, CDGCL, CURP, TIPOMARCA, ESTATUS, MONTOMAX, ALTAPE, ALTA, BAJAPE, BAJA, FREGISTRO, CAUSA, CAUSABAJA, CDGCLNS, CICLO, CLNS
+) VALUES (
+    :cdgem,
+    (SELECT NVL(MAX(SECUENCIA), 0) + 1 FROM CL_MARCA@DB_CULTIVA WHERE TO_CHAR(ALTA, 'YYYYMMDD') = TO_CHAR(SYSDATE, 'YYYYMMDD')),
     NULL,
     :curp,
     :tipomarca,
@@ -120,21 +148,33 @@ SQL;
     }
 
     /**
-     * Inserta un CURP en CL_MARCA (debe llamarse dentro de transacción si aplica).
+     * Inserta un CURP en CL_MARCA (MCM) y en CL_MARCA@DB_CULTIVA (Cultiva).
+     * Debe ejecutarse dentro de una transacción abierta: si falla Cultiva, el rollback revierte también MCM.
      */
     public static function insertar(Database $db, string $curpNormalizado, string $altaPe): void
     {
-        $stmt = $db->db_activa->prepare(self::$sqlInsert);
-        $ok = $stmt->execute([
+        $params = [
             'cdgem'     => self::CDGEM,
             'curp'      => $curpNormalizado,
             'tipomarca' => self::TIPO_LN,
             'altape'    => $altaPe !== '' ? $altaPe : 'SYSTEM',
             'causa'     => self::CAUSA_ALTA,
-        ]);
-        if (!$ok) {
-            $err = $stmt->errorInfo();
-            throw new \RuntimeException($err[2] ?? 'Error al insertar en CL_MARCA.');
+        ];
+
+        // 1) Alta en base local (MCM)
+        $stmtLocal = $db->db_activa->prepare(self::$sqlInsert);
+        $okLocal = $stmtLocal->execute($params);
+        if (!$okLocal) {
+            $err = $stmtLocal->errorInfo();
+            throw new \RuntimeException($err[2] ?? 'Error al insertar en CL_MARCA (MCM).');
+        }
+
+        // 2) Alta en Cultiva vía database link (misma transacción lógica en el sesión Oracle)
+        $stmtCultiva = $db->db_activa->prepare(self::$sqlInsertCultiva);
+        $okCultiva = $stmtCultiva->execute($params);
+        if (!$okCultiva) {
+            $err = $stmtCultiva->errorInfo();
+            throw new \RuntimeException($err[2] ?? 'Error al insertar en CL_MARCA@' . self::DB_LINK_CULTIVA . ' (Cultiva).');
         }
     }
 
@@ -154,7 +194,7 @@ SQL;
             $db->IniciaTransaccion();
             if (self::existeCurpEnListaNegra($db, $norm)) {
                 $db->CancelaTransaccion();
-                return Model::Responde(false, 'El CURP ya está registrado en la lista negra (TIPOMARCA LN).');
+                return Model::Responde(false, 'El CURP ya está registrado en la lista negra.');
             }
             self::insertar($db, $norm, $usuarioSesion);
             $db->ConfirmaTransaccion();
@@ -184,6 +224,7 @@ SQL;
             FROM CL_MARCA
             WHERE CDGEM = :cdgem
               AND TIPOMARCA = :tipo
+              AND CAUSA = 11
 SQL;
         $prm = ['cdgem' => self::CDGEM, 'tipo' => self::TIPO_LN];
         if ($filtro !== null && trim($filtro) !== '') {
@@ -600,14 +641,19 @@ SQL;
         $todosErrores = array_merge($formatoErrores, $duplicadosArchivo, $erroresDb);
         $omitidos = count($todosErrores);
 
-        $mensaje = sprintf(
-            'Importación finalizada. Registrados: %d. No procesados: %d (formato inválido: %d, repetido en archivo: %d, base de datos u otro: %d).',
-            $insertados,
-            $omitidos,
-            count($formatoErrores),
-            count($duplicadosArchivo),
-            count($erroresDb)
-        );
+        if ($omitidos === 0 && $insertados > 0) {
+            $mensaje = $insertados === 1
+                ? 'Importación finalizada. Se registró 1 CURP.'
+                : sprintf('Importación finalizada. Se registraron %d CURP.', $insertados);
+        } elseif ($omitidos > 0) {
+            $mensaje = sprintf(
+                'Importación finalizada. Registrados: %d. No procesados: %d.',
+                $insertados,
+                $omitidos
+            );
+        } else {
+            $mensaje = 'Importación finalizada.';
+        }
 
         $exito = $insertados > 0 || $omitidos > 0;
 

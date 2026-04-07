@@ -122,12 +122,8 @@ class Administracion extends Controller
                             if (res.success) {
                                 var okMsg = res.mensaje || "OK";
                                 $("#curp_manual").val("");
-                                cargarLista({
-                                    silencioso: true,
-                                    alListo: function() {
-                                        showSuccess(okMsg);
-                                    }
-                                });
+                                showSuccess(okMsg);
+                                cargarLista({ silencioso: true });
                             } else {
                                 showError(res.mensaje || "Error");
                             }
@@ -171,16 +167,12 @@ class Administracion extends Controller
                                 }
                                 var omit = typeof res.omitidos !== "undefined" ? res.omitidos : (res.errores ? res.errores.length : 0);
                                 $("#archivo_excel_ln").val("");
-                                cargarLista({
-                                    silencioso: true,
-                                    alListo: function() {
-                                        if (omit > 0) {
-                                            showWarning(msg);
-                                        } else {
-                                            showSuccess(msg);
-                                        }
-                                    }
-                                });
+                                if (omit > 0) {
+                                    showWarning(msg);
+                                } else {
+                                    showSuccess(msg);
+                                }
+                                cargarLista({ silencioso: true });
                             } else {
                                 var msg = res.mensaje || "Error en la importación";
                                 if (res.errores && res.errores.length) {
