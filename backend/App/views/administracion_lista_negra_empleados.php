@@ -118,11 +118,13 @@
                     <table class="table table-striped table-bordered table-hover" id="tabla-lista-negra-empleados" style="width:100%">
                         <thead>
                             <tr>
-                                <th>Secuencia</th>
+                                <th></th>
                                 <th>CURP</th>
                                 <th>Estatus</th>
                                 <th>Alta</th>
                                 <th>Baja</th>
+                                <th>Usuario Alta</th>
+                                <th>Usuario Baja</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>

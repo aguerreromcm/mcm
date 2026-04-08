@@ -70,6 +70,64 @@ INSERT INTO CL_MARCA@DB_CULTIVA (
 )
 SQL;
 
+    /** Desbloqueo (activo → baja lógica): MCM. */
+    private static $sqlUpdateBajaLocal = <<<'SQL'
+UPDATE CL_MARCA
+SET ESTATUS = 'B',
+    BAJA = TRUNC(SYSDATE),
+    BAJAPE = :bajape
+WHERE CDGEM = :cdgem
+  AND TIPOMARCA = :tipo
+  AND SECUENCIA = :secuencia
+  AND TRUNC(ALTA) = TO_DATE(:alta_dia, 'YYYY-MM-DD')
+  AND UPPER(TRIM(CURP)) = :curp
+  AND ESTATUS = 'A'
+SQL;
+
+    /** Desbloqueo: Cultiva vía DB link. */
+    private static $sqlUpdateBajaCultiva = <<<'SQL'
+UPDATE CL_MARCA@DB_CULTIVA
+SET ESTATUS = 'B',
+    BAJA = TRUNC(SYSDATE),
+    BAJAPE = :bajape
+WHERE CDGEM = :cdgem
+  AND TIPOMARCA = :tipo
+  AND UPPER(TRIM(CURP)) = :curp
+  AND CAUSA = 11
+  AND ESTATUS = 'A'
+SQL;
+
+    /** Bloqueo (baja → activo): MCM. */
+    private static $sqlUpdateBloquearLocal = <<<'SQL'
+UPDATE CL_MARCA
+SET ESTATUS = 'A',
+    ALTAPE = :altape,
+    ALTA = TRUNC(SYSDATE),
+    BAJAPE = NULL,
+    BAJA = NULL
+WHERE CDGEM = :cdgem
+  AND TIPOMARCA = :tipo
+  AND SECUENCIA = :secuencia
+  AND TRUNC(ALTA) = TO_DATE(:alta_dia, 'YYYY-MM-DD')
+  AND UPPER(TRIM(CURP)) = :curp
+  AND ESTATUS = 'B'
+SQL;
+
+    /** Bloqueo: Cultiva vía DB link. */
+    private static $sqlUpdateBloquearCultiva = <<<'SQL'
+UPDATE CL_MARCA@DB_CULTIVA
+SET ESTATUS = 'A',
+    ALTAPE = :altape,
+    ALTA = TRUNC(SYSDATE),
+    BAJAPE = NULL,
+    BAJA = NULL
+WHERE CDGEM = :cdgem
+  AND TIPOMARCA = :tipo
+  AND UPPER(TRIM(CURP)) = :curp
+  AND CAUSA = 11
+  AND ESTATUS = 'B'
+SQL;
+
     /**
      * Normaliza CURP (mayúsculas, sin espacios).
      * Usa Unicode: la Ñ cuenta como un carácter (strlen en UTF-8 cuenta bytes y fallaba la validación).
@@ -220,7 +278,15 @@ SQL;
                 TO_CHAR(TRUNC(ALTA), 'YYYY-MM-DD') AS ALTA_DIA,
                 TO_CHAR(ALTA, 'DD/MM/YYYY') AS ALTA_FMT,
                 TO_CHAR(TRUNC(BAJA), 'DD/MM/YYYY') AS BAJA_FMT,
-                FREGISTRO
+                FREGISTRO,
+                CASE
+                    WHEN ALTAPE IS NULL OR LENGTH(TRIM(ALTAPE)) = 0 THEN NULL
+                    ELSE TRIM(NVL(GET_NOMBRE_EMPLEADO(TRIM(ALTAPE)), TRIM(ALTAPE))) || ' (' || TRIM(ALTAPE) || ')'
+                END AS USUARIO_ALTA_FMT,
+                CASE
+                    WHEN BAJAPE IS NULL OR LENGTH(TRIM(BAJAPE)) = 0 THEN NULL
+                    ELSE TRIM(NVL(GET_NOMBRE_EMPLEADO(TRIM(BAJAPE)), TRIM(BAJAPE))) || ' (' || TRIM(BAJAPE) || ')'
+                END AS USUARIO_BAJA_FMT
             FROM CL_MARCA
             WHERE CDGEM = :cdgem
               AND TIPOMARCA = :tipo
@@ -242,7 +308,24 @@ SQL;
     }
 
     /**
-     * Baja lógica: ESTATUS = 'B', BAJA y BAJAPE.
+     * COUNT en Cultiva vía DB link usando PDO directo (evita bindParam defectuoso en Database::queryOne y el echo de errores que rompe el JSON).
+     *
+     * @param array<string, mixed> $params Solo claves que existen en el SQL.
+     */
+    private static function contarCultiva(Database $db, string $sql, array $params): int
+    {
+        $stmt = $db->db_activa->prepare($sql);
+        if (!$stmt->execute($params)) {
+            $err = $stmt->errorInfo();
+            throw new \RuntimeException($err[2] ?? 'Error al consultar Cultiva.');
+        }
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        return $row ? (int) ($row['CNT'] ?? 0) : 0;
+    }
+
+    /**
+     * Desbloqueo (lista negra): ESTATUS = 'B', BAJA y BAJAPE en MCM y en Cultiva (misma transacción).
      */
     public static function darBaja(int $secuencia, string $altaDiaYmd, string $curp, string $usuarioSesion): array
     {
@@ -255,32 +338,23 @@ SQL;
             return Model::Responde(false, 'Fecha de alta inválida.');
         }
 
-        $sql = <<<SQL
-            UPDATE CL_MARCA
-            SET ESTATUS = 'B',
-                BAJA = TRUNC(SYSDATE),
-                BAJAPE = :bajape
-            WHERE CDGEM = :cdgem
-              AND TIPOMARCA = :tipo
-              AND SECUENCIA = :secuencia
-              AND TRUNC(ALTA) = TO_DATE(:alta_dia, 'YYYY-MM-DD')
-              AND UPPER(TRIM(CURP)) = :curp
-              AND ESTATUS = 'A'
-SQL;
+        $params = [
+            'bajape'    => $usuarioSesion !== '' ? $usuarioSesion : 'SYSTEM',
+            'cdgem'     => self::CDGEM,
+            'tipo'      => self::TIPO_LN,
+            'secuencia' => $secuencia,
+            'alta_dia'  => $altaDiaYmd,
+            'curp'      => $norm,
+        ];
 
         $db = new Database();
         try {
             $db->AutoCommitOff();
             $db->IniciaTransaccion();
-            $stmt = $db->db_activa->prepare($sql);
-            $ok = $stmt->execute([
-                'bajape'    => $usuarioSesion !== '' ? $usuarioSesion : 'SYSTEM',
-                'cdgem'     => self::CDGEM,
-                'tipo'      => self::TIPO_LN,
-                'secuencia' => $secuencia,
-                'alta_dia'  => $altaDiaYmd,
-                'curp'      => $norm,
-            ]);
+
+            // 1) MCM
+            $stmt = $db->db_activa->prepare(self::$sqlUpdateBajaLocal);
+            $ok = $stmt->execute($params);
             if (!$ok) {
                 throw new \RuntimeException($stmt->errorInfo()[2] ?? 'Error al actualizar.');
             }
@@ -308,11 +382,140 @@ SQL;
                 $db->CancelaTransaccion();
                 return Model::Responde(false, 'El registro ya estaba dado de baja o no está activo.');
             }
+
+            // 2) Cultiva: solo parámetros del SQL remoto (OCI puede fallar si sobran claves en execute).
+            $paramsCultiva = [
+                'bajape' => $params['bajape'],
+                'cdgem'  => $params['cdgem'],
+                'tipo'   => $params['tipo'],
+                'curp'   => $params['curp'],
+            ];
+            $stmtC = $db->db_activa->prepare(self::$sqlUpdateBajaCultiva);
+            $okC = $stmtC->execute($paramsCultiva);
+            if (!$okC) {
+                throw new \RuntimeException($stmtC->errorInfo()[2] ?? 'Error al actualizar en Cultiva.');
+            }
+            $verif = self::contarCultiva(
+                $db,
+                <<<SQL
+                    SELECT COUNT(*) AS CNT FROM CL_MARCA@DB_CULTIVA
+                    WHERE CDGEM = :cdgem AND TIPOMARCA = :tipo
+                      AND UPPER(TRIM(CURP)) = :curp
+                      AND CAUSA = 11
+                      AND ESTATUS = 'B'
+                SQL,
+                [
+                    'cdgem' => $params['cdgem'],
+                    'tipo'  => $params['tipo'],
+                    'curp'  => $params['curp'],
+                ]
+            );
+            if ($verif < 1) {
+                $db->CancelaTransaccion();
+                return Model::Responde(false, 'No se pudo reflejar el desbloqueo en Cultiva.');
+            }
+
             $db->ConfirmaTransaccion();
-            return Model::Responde(true, 'Baja registrada correctamente.');
+            return Model::Responde(true, 'Desbloqueo registrado correctamente.');
         } catch (\Throwable $e) {
             $db->CancelaTransaccion();
-            return Model::Responde(false, 'No se pudo dar de baja el registro.', null, $e->getMessage());
+            return Model::Responde(false, 'No se pudo registrar el desbloqueo.', null, $e->getMessage());
+        }
+    }
+
+    /**
+     * Bloqueo (reactivar en lista negra): ESTATUS = 'A', ALTAPE, ALTA; limpia BAJAPE y BAJA en MCM y Cultiva.
+     */
+    public static function darBloquear(int $secuencia, string $altaDiaYmd, string $curp, string $usuarioSesion): array
+    {
+        $norm = self::normalizarCurp($curp);
+        $err = self::validarFormatoCurp($norm);
+        if ($err !== null) {
+            return Model::Responde(false, $err);
+        }
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $altaDiaYmd)) {
+            return Model::Responde(false, 'Fecha de alta inválida.');
+        }
+
+        $params = [
+            'altape'    => $usuarioSesion !== '' ? $usuarioSesion : 'SYSTEM',
+            'cdgem'     => self::CDGEM,
+            'tipo'      => self::TIPO_LN,
+            'secuencia' => $secuencia,
+            'alta_dia'  => $altaDiaYmd,
+            'curp'      => $norm,
+        ];
+
+        $db = new Database();
+        try {
+            $db->AutoCommitOff();
+            $db->IniciaTransaccion();
+
+            $stmt = $db->db_activa->prepare(self::$sqlUpdateBloquearLocal);
+            $ok = $stmt->execute($params);
+            if (!$ok) {
+                throw new \RuntimeException($stmt->errorInfo()[2] ?? 'Error al actualizar.');
+            }
+            if ($stmt->rowCount() === 0) {
+                $chk = $db->queryOne(
+                    <<<SQL
+                        SELECT COUNT(*) AS CNT FROM CL_MARCA
+                        WHERE CDGEM = :cdgem AND TIPOMARCA = :tipo AND SECUENCIA = :secuencia
+                          AND TRUNC(ALTA) = TO_DATE(:alta_dia, 'YYYY-MM-DD')
+                          AND UPPER(TRIM(CURP)) = :curp
+                    SQL,
+                    [
+                        'cdgem' => self::CDGEM,
+                        'tipo' => self::TIPO_LN,
+                        'secuencia' => $secuencia,
+                        'alta_dia' => $altaDiaYmd,
+                        'curp' => $norm,
+                    ]
+                );
+                if (!$chk || (int) ($chk['CNT'] ?? 0) === 0) {
+                    $db->CancelaTransaccion();
+                    return Model::Responde(false, 'No se encontró el registro indicado.');
+                }
+                $db->CancelaTransaccion();
+                return Model::Responde(false, 'El registro ya está bloqueado o no está desbloqueado.');
+            }
+
+            $paramsCultivaB = [
+                'altape' => $params['altape'],
+                'cdgem'  => $params['cdgem'],
+                'tipo'   => $params['tipo'],
+                'curp'   => $params['curp'],
+            ];
+            $stmtC = $db->db_activa->prepare(self::$sqlUpdateBloquearCultiva);
+            $okC = $stmtC->execute($paramsCultivaB);
+            if (!$okC) {
+                throw new \RuntimeException($stmtC->errorInfo()[2] ?? 'Error al actualizar en Cultiva.');
+            }
+            $verif2 = self::contarCultiva(
+                $db,
+                <<<SQL
+                    SELECT COUNT(*) AS CNT FROM CL_MARCA@DB_CULTIVA
+                    WHERE CDGEM = :cdgem AND TIPOMARCA = :tipo
+                      AND UPPER(TRIM(CURP)) = :curp
+                      AND CAUSA = 11
+                      AND ESTATUS = 'A'
+                SQL,
+                [
+                    'cdgem' => $params['cdgem'],
+                    'tipo'  => $params['tipo'],
+                    'curp'  => $params['curp'],
+                ]
+            );
+            if ($verif2 < 1) {
+                $db->CancelaTransaccion();
+                return Model::Responde(false, 'No se pudo reflejar el bloqueo en Cultiva.');
+            }
+
+            $db->ConfirmaTransaccion();
+            return Model::Responde(true, 'Bloqueo registrado correctamente.');
+        } catch (\Throwable $e) {
+            $db->CancelaTransaccion();
+            return Model::Responde(false, 'No se pudo registrar el bloqueo.', null, $e->getMessage());
         }
     }
 

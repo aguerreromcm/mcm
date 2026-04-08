@@ -72,13 +72,26 @@ class Administracion extends Controller
                                 var baja = r.BAJA_FMT || "";
                                 var sec = r.SECUENCIA != null ? r.SECUENCIA : "";
                                 var altaDia = r.ALTA_DIA || "";
+                                var usuarioAlta = r.USUARIO_ALTA_FMT || r.usuario_alta_fmt || "";
+                                var usuarioBaja = r.USUARIO_BAJA_FMT || r.usuario_baja_fmt || "";
+                                if (!usuarioAlta) {
+                                    usuarioAlta = '<span class="text-muted">—</span>';
+                                }
+                                if (!usuarioBaja) {
+                                    usuarioBaja = '<span class="text-muted">—</span>';
+                                }
+                                var estTexto = est === "A"
+                                    ? "Bloqueado"
+                                    : (est === "B" ? "Desbloqueado" : String(est || ""));
                                 var btn = "";
                                 if (est === "A") {
-                                    btn = '<button type="button" class="btn btn-warning btn-xs btn-baja-ln" data-secuencia="' + sec + '" data-alta-dia="' + altaDia + '" data-curp="' + curp.replace(/"/g, "&quot;") + '">Baja</button>';
+                                    btn = '<button type="button" class="btn btn-success btn-xs btn-desbloquear-ln" data-secuencia="' + sec + '" data-alta-dia="' + altaDia + '" data-curp="' + curp.replace(/"/g, "&quot;") + '">Desbloquear</button>';
+                                } else if (est === "B") {
+                                    btn = '<button type="button" class="btn btn-warning btn-xs btn-bloquear-ln" data-secuencia="' + sec + '" data-alta-dia="' + altaDia + '" data-curp="' + curp.replace(/"/g, "&quot;") + '">Bloquear</button>';
                                 } else {
                                     btn = '<span class="text-muted">—</span>';
                                 }
-                                return [sec, curp, est, alta, baja, btn];
+                                return [sec, curp, estTexto, alta, baja, usuarioAlta, usuarioBaja, btn];
                             });
                             var tabla = $("#" + idTablaLn).DataTable();
                             tabla.clear();
@@ -196,11 +209,13 @@ class Administracion extends Controller
                         $("#" + idTablaLn).DataTable({
                             order: [[0, "desc"]],
                             columnDefs: [
-                                { orderable: false, targets: [5] },
+                                { visible: false, searchable: false, targets: [0] },
+                                { orderable: false, targets: [7] },
                                 {
-                                    targets: 5,
+                                    targets: 7,
                                     createdCell: function(td, cellData) {
                                         $(td).css("white-space", "nowrap");
+                                        $(td).css("vertical-align", "middle");
                                         $(td).html(cellData || "");
                                     }
                                 }
@@ -219,21 +234,21 @@ class Administracion extends Controller
                     $("#btn_guardar_curp").click(guardarCurp);
                     $("#btn_subir_excel").click(subirExcel);
 
-                    $(document).on("click", ".btn-baja-ln", function() {
+                    $(document).on("click", ".btn-desbloquear-ln", function() {
                         var btn = $(this);
                         var sec = parseInt(btn.data("secuencia"), 10);
                         var altaDia = btn.data("alta-dia");
                         var curp = btn.data("curp");
                         if (!sec || !altaDia || !curp) return;
                         swal({
-                            title: "¿Dar de baja este CURP?",
+                            title: "¿Desbloquear este CURP?",
                             text: curp,
                             icon: "warning",
                             buttons: ["No", "Sí"],
                             dangerMode: true
                         }).then(function(ok) {
                             if (!ok) return;
-                            showWait("Procesando baja...");
+                            showWait("Procesando desbloqueo...");
                             $.ajax({
                                 type: "POST",
                                 url: "/Administracion/ListaNegraEmpleadosBaja/",
@@ -247,15 +262,57 @@ class Administracion extends Controller
                                         return;
                                     }
                                     if (res.success) {
-                                        showSuccess(res.mensaje || "Baja registrada");
-                                        cargarLista();
+                                        showSuccess(res.mensaje || "Desbloqueo registrado");
+                                        cargarLista({ silencioso: true });
                                     } else {
                                         showError(res.mensaje || "Error");
                                     }
                                 },
                                 error: function() {
                                     swal.close();
-                                    showError("Error al dar de baja.");
+                                    showError("Error al desbloquear.");
+                                }
+                            });
+                        });
+                    });
+
+                    $(document).on("click", ".btn-bloquear-ln", function() {
+                        var btn = $(this);
+                        var sec = parseInt(btn.data("secuencia"), 10);
+                        var altaDia = btn.data("alta-dia");
+                        var curp = btn.data("curp");
+                        if (!sec || !altaDia || !curp) return;
+                        swal({
+                            title: "¿Bloquear este CURP en la lista negra?",
+                            text: curp,
+                            icon: "warning",
+                            buttons: ["No", "Sí"],
+                            dangerMode: true
+                        }).then(function(ok) {
+                            if (!ok) return;
+                            showWait("Procesando bloqueo...");
+                            $.ajax({
+                                type: "POST",
+                                url: "/Administracion/ListaNegraEmpleadosBloquear/",
+                                contentType: "application/json; charset=UTF-8",
+                                data: JSON.stringify({ secuencia: sec, alta_dia: altaDia, curp: curp }),
+                                dataType: "json",
+                                success: function(res) {
+                                    swal.close();
+                                    try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) {
+                                        showError("Respuesta inválida");
+                                        return;
+                                    }
+                                    if (res.success) {
+                                        showSuccess(res.mensaje || "Bloqueo registrado");
+                                        cargarLista({ silencioso: true });
+                                    } else {
+                                        showError(res.mensaje || "Error");
+                                    }
+                                },
+                                error: function() {
+                                    swal.close();
+                                    showError("Error al bloquear.");
                                 }
                             });
                         });
@@ -310,6 +367,21 @@ class Administracion extends Controller
         $curp = isset($body['curp']) ? (string) $body['curp'] : '';
         $usuario = $this->__usuario ?? '';
         echo json_encode(ListaNegraEmpleadosService::darBaja($sec, $altaDia, $curp, $usuario));
+    }
+
+    /**
+     * JSON: bloquear (reactivar) un registro dado de baja.
+     */
+    public function ListaNegraEmpleadosBloquear()
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        $raw = file_get_contents('php://input');
+        $body = json_decode($raw, true) ?: [];
+        $sec = isset($body['secuencia']) ? (int) $body['secuencia'] : 0;
+        $altaDia = isset($body['alta_dia']) ? trim((string) $body['alta_dia']) : '';
+        $curp = isset($body['curp']) ? (string) $body['curp'] : '';
+        $usuario = $this->__usuario ?? '';
+        echo json_encode(ListaNegraEmpleadosService::darBloquear($sec, $altaDia, $curp, $usuario));
     }
 
     /**

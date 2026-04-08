@@ -1,0 +1,798 @@
+/**
+ * Tema oscuro automático según preferencia del sistema (sin interruptor manual).
+ * Solo aplica cuando el usuario tiene modo oscuro en el SO/navegador.
+ */
+@media (prefers-color-scheme: dark) {
+    html {
+        color-scheme: dark;
+    }
+
+    body {
+        color: #c9d1d9;
+    }
+
+    .main_container {
+        background: #1a1d21 !important;
+    }
+
+    body .container.body .right_col {
+        background: #1a1d21;
+        color: #c9d1d9;
+    }
+
+    .nav_menu {
+        background: #252930;
+        border-bottom-color: #3d444d;
+    }
+
+    .top_nav .nav > li > a:focus,
+    .top_nav .nav > li > a:hover,
+    .top_nav .nav .open > a,
+    .top_nav .nav .open > a:focus,
+    .top_nav .nav .open > a:hover {
+        background: #30363d;
+    }
+
+    .top_nav .navbar-right li a,
+    .top_nav .nav > li > a {
+        color: #c9d1d9 !important;
+    }
+
+    .dropdown-menu {
+        background-color: #252930;
+        border-color: #3d444d;
+    }
+
+    .dropdown-menu > li > a {
+        color: #c9d1d9;
+    }
+
+    .dropdown-menu > li > a:hover {
+        background-color: #30363d;
+        color: #f0f6fc;
+    }
+
+    .x_title {
+        border-bottom-color: #3d444d;
+    }
+
+    .x_title h2,
+    .x_title h3 {
+        color: #e6edf3;
+    }
+
+    .x_title span {
+        color: #8b949e;
+    }
+
+    .panel,
+    .panel-body,
+    .panel-default {
+        background-color: #22272e;
+        border-color: #3d444d;
+        color: #c9d1d9;
+    }
+
+    .panel-heading {
+        background-color: #252930;
+        border-color: #3d444d;
+        color: #e6edf3;
+    }
+
+    .text-muted {
+        color: #8b949e !important;
+    }
+
+    .table {
+        color: #c9d1d9;
+        background-color: #22272e;
+    }
+
+    .table > thead > tr > th {
+        background-color: #252930;
+        border-bottom-color: #3d444d;
+        color: #e6edf3;
+    }
+
+    .table > tbody > tr > td,
+    .table > tbody > tr > th,
+    .table > tfoot > tr > td,
+    .table > tfoot > tr > th,
+    .table > thead > tr > td,
+    .table > thead > tr > th {
+        border-color: #3d444d;
+    }
+
+    .table-bordered {
+        border-color: #3d444d;
+    }
+
+    .table-striped > tbody > tr:nth-of-type(odd) {
+        background-color: rgba(255, 255, 255, 0.04);
+    }
+
+    .table-hover > tbody > tr:hover {
+        background-color: rgba(255, 255, 255, 0.08);
+    }
+
+    /*
+     * Campos de formulario: color-scheme + Bootstrap pueden dejar texto claro sobre fondo blanco.
+     * Forzar fondo oscuro y texto legible en todos los controles de texto (incl. modales).
+     */
+    .form-control,
+    textarea,
+    textarea.form-control,
+    select.form-control,
+    select,
+    input[type="text"],
+    input[type="password"],
+    input[type="email"],
+    input[type="number"],
+    input[type="tel"],
+    input[type="url"],
+    input[type="search"],
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"],
+    input[type="month"],
+    input[type="week"] {
+        background-color: #0d1117 !important;
+        background-image: none !important;
+        color: #c9d1d9 !important;
+        border-color: #3d444d !important;
+    }
+
+    select[multiple].form-control,
+    select[multiple] {
+        background-color: #0d1117 !important;
+        color: #c9d1d9 !important;
+    }
+
+    option {
+        background-color: #0d1117;
+        color: #c9d1d9;
+    }
+
+    .form-control:focus,
+    textarea:focus,
+    select:focus,
+    input[type="text"]:focus,
+    input[type="password"]:focus,
+    input[type="email"]:focus,
+    input[type="number"]:focus,
+    input[type="tel"]:focus,
+    input[type="url"]:focus,
+    input[type="search"]:focus,
+    input[type="date"]:focus,
+    input[type="time"]:focus,
+    input[type="datetime-local"]:focus,
+    input[type="month"]:focus,
+    input[type="week"]:focus {
+        border-color: #58a6ff !important;
+        box-shadow: 0 0 0 0.2rem rgba(88, 166, 255, 0.25);
+        color: #e6edf3 !important;
+    }
+
+    .form-control::placeholder,
+    textarea::placeholder,
+    input::placeholder {
+        color: #6e7681 !important;
+    }
+
+    .form-control[disabled],
+    .form-control[readonly],
+    fieldset[disabled] .form-control,
+    textarea[disabled],
+    textarea[readonly],
+    input[disabled],
+    input[readonly] {
+        background-color: #161b22 !important;
+        color: #8b949e !important;
+    }
+
+    label,
+    .control-label,
+    .form-group label,
+    .form-horizontal .control-label {
+        color: #c9d1d9;
+    }
+
+    .help-block,
+    .checkbox label,
+    .radio label {
+        color: #8b949e;
+    }
+
+    .modal-body label,
+    .modal-body .control-label {
+        color: #c9d1d9 !important;
+    }
+
+    .modal-body .form-control,
+    .modal-body textarea,
+    .modal-body select {
+        background-color: #0d1117 !important;
+        color: #c9d1d9 !important;
+        border-color: #3d444d !important;
+    }
+
+    hr {
+        border-top-color: #3d444d !important;
+    }
+
+    .btn-default {
+        background-color: #30363d;
+        border-color: #3d444d;
+        color: #c9d1d9;
+    }
+
+    .btn-default:hover,
+    .btn-default:focus {
+        background-color: #3d444d;
+        border-color: #484f58;
+        color: #f0f6fc;
+    }
+
+    /* DataTables (controles, “Procesando…” y paginación) */
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_filter,
+    .dataTables_wrapper .dataTables_info,
+    .dataTables_wrapper .dataTables_paginate {
+        color: #c9d1d9;
+    }
+
+    /* Overlay “Procesando…” (gradiente blanco por defecto) */
+    div.dataTables_processing {
+        background: rgba(26, 29, 33, 0.92) !important;
+        background-image: none !important;
+        color: #c9d1d9 !important;
+    }
+
+    /*
+     * Paginación: DataTables + Bootstrap usa .pagination > li > a con fondo #fff.
+     * Hay que pisar fondo/borde en todos los estados (incl. Anterior / Siguiente).
+     */
+    .dataTables_wrapper .dataTables_paginate .pagination > li > a,
+    .dataTables_wrapper .dataTables_paginate .pagination > li > span {
+        background-color: #30363d !important;
+        border-color: #3d444d !important;
+        color: #58a6ff !important;
+    }
+
+    .dataTables_wrapper .dataTables_paginate .pagination > li > a:hover,
+    .dataTables_wrapper .dataTables_paginate .pagination > li > span:hover,
+    .dataTables_wrapper .dataTables_paginate .pagination > li > a:focus,
+    .dataTables_wrapper .dataTables_paginate .pagination > li > span:focus {
+        background-color: #3d444d !important;
+        border-color: #484f58 !important;
+        color: #79c0ff !important;
+    }
+
+    .dataTables_wrapper .dataTables_paginate .pagination > .active > a,
+    .dataTables_wrapper .dataTables_paginate .pagination > .active > span,
+    .dataTables_wrapper .dataTables_paginate .pagination > .active > a:hover,
+    .dataTables_wrapper .dataTables_paginate .pagination > .active > span:hover {
+        background-color: #1f6feb !important;
+        border-color: #388bfd !important;
+        color: #f0f6fc !important;
+    }
+
+    .dataTables_wrapper .dataTables_paginate .pagination > .disabled > a,
+    .dataTables_wrapper .dataTables_paginate .pagination > .disabled > span,
+    .dataTables_wrapper .dataTables_paginate .pagination > .disabled > a:hover {
+        background-color: #21262d !important;
+        border-color: #3d444d !important;
+        color: #6e7681 !important;
+    }
+
+    /* API antigua: .paginate_button en el <a> (sin lista Bootstrap) */
+    .dataTables_wrapper .dataTables_paginate a.paginate_button {
+        background-color: #30363d !important;
+        border-color: #3d444d !important;
+        color: #58a6ff !important;
+    }
+
+    .dataTables_wrapper .dataTables_paginate a.paginate_button:hover {
+        background-color: #3d444d !important;
+        color: #79c0ff !important;
+    }
+
+    .dataTables_wrapper .dataTables_paginate a.paginate_button.current {
+        background-color: #1f6feb !important;
+        border-color: #388bfd !important;
+        color: #f0f6fc !important;
+    }
+
+    .dataTables_wrapper .dataTables_paginate a.paginate_button.disabled {
+        background-color: #21262d !important;
+        color: #6e7681 !important;
+    }
+
+    /* Paginación fuera de DataTables (mismo patrón Bootstrap en contenido) */
+    .right_col .pagination > li > a,
+    .right_col .pagination > li > span {
+        background-color: #30363d !important;
+        border-color: #3d444d !important;
+        color: #58a6ff !important;
+    }
+
+    .right_col .pagination > .active > a,
+    .right_col .pagination > .active > span {
+        background-color: #1f6feb !important;
+        border-color: #388bfd !important;
+        color: #f0f6fc !important;
+    }
+
+    .right_col .pagination > .disabled > a,
+    .right_col .pagination > .disabled > span {
+        background-color: #21262d !important;
+        color: #6e7681 !important;
+        border-color: #3d444d !important;
+    }
+
+    /* Migas de pan, pestañas y grupos de input (uso frecuente con tablas/formularios) */
+    .right_col .breadcrumb {
+        background-color: #252930;
+    }
+
+    .right_col .breadcrumb > li + li:before {
+        color: #8b949e;
+    }
+
+    .right_col .breadcrumb > .active {
+        color: #8b949e;
+    }
+
+    .nav-tabs {
+        border-bottom-color: #3d444d;
+    }
+
+    .nav-tabs > li > a {
+        color: #8b949e;
+    }
+
+    .nav-tabs > li > a:hover {
+        background-color: #252930;
+        border-color: #3d444d #3d444d #3d444d;
+        color: #c9d1d9;
+    }
+
+    .nav-tabs > li.active > a,
+    .nav-tabs > li.active > a:hover,
+    .nav-tabs > li.active > a:focus {
+        color: #e6edf3;
+        background-color: #22272e;
+        border-color: #3d444d #3d444d transparent;
+    }
+
+    .input-group-addon {
+        background-color: #252930;
+        border-color: #3d444d;
+        color: #c9d1d9;
+    }
+
+    /* Scrollbars en panel principal y menú (WebKit / Blink) */
+    .left_col .mCSB_container::-webkit-scrollbar-thumb,
+    .left_col ::-webkit-scrollbar-thumb,
+    .right_col ::-webkit-scrollbar-thumb {
+        background: #3d444d;
+        border-radius: 4px;
+    }
+
+    .left_col ::-webkit-scrollbar,
+    .right_col ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .left_col ::-webkit-scrollbar-track,
+    .right_col ::-webkit-scrollbar-track {
+        background: #1a1d21;
+    }
+
+    /* Modales Bootstrap 3 */
+    .modal-backdrop {
+        background-color: #0d1117;
+    }
+
+    .modal-content {
+        background-color: #22272e;
+        border-color: #3d444d;
+        color: #c9d1d9;
+    }
+
+    .modal-header {
+        border-bottom-color: #3d444d;
+    }
+
+    .modal-header .close {
+        color: #c9d1d9;
+        text-shadow: none;
+        opacity: 0.85;
+    }
+
+    .modal-header .close:hover {
+        color: #f0f6fc;
+        opacity: 1;
+    }
+
+    .modal-title,
+    .modal-body,
+    .modal-body p,
+    .modal-body label {
+        color: #c9d1d9;
+    }
+
+    .modal-title {
+        color: #e6edf3;
+    }
+
+    .modal-body .text-muted {
+        color: #8b949e !important;
+    }
+
+    .modal-footer {
+        border-top-color: #3d444d;
+        background-color: #1f2328;
+    }
+
+    .close {
+        color: #c9d1d9;
+        text-shadow: none;
+        opacity: 0.85;
+    }
+
+    .close:hover {
+        color: #f0f6fc;
+        opacity: 1;
+    }
+
+    .btn-secondary {
+        background-color: #30363d;
+        border-color: #3d444d;
+        color: #c9d1d9;
+    }
+
+    .btn-secondary:hover {
+        background-color: #3d444d;
+        color: #f0f6fc;
+    }
+
+    /* SweetAlert (swal — /js/sweetalert.min.js) */
+    .swal-modal {
+        background-color: #22272e !important;
+        color: #c9d1d9;
+    }
+
+    .swal-title {
+        color: #e6edf3 !important;
+    }
+
+    .swal-text {
+        color: #c9d1d9 !important;
+    }
+
+    .swal-content {
+        color: #c9d1d9;
+    }
+
+    .swal-footer {
+        border-top: 1px solid #3d444d;
+        background-color: #1f2328;
+    }
+
+    .swal-button {
+        box-shadow: none;
+    }
+
+    .swal-button--cancel {
+        color: #c9d1d9 !important;
+        background-color: #30363d !important;
+    }
+
+    .swal-button--cancel:not([disabled]):hover {
+        background-color: #3d444d !important;
+    }
+
+    .swal-content__input,
+    .swal-content__textarea {
+        background-color: #0d1117 !important;
+        border-color: #3d444d !important;
+        color: #c9d1d9 !important;
+    }
+
+    .swal-icon--success__hide-corners {
+        background-color: #22272e !important;
+    }
+
+    /* SweetAlert (swal.js): los arcos animados son blancos y deben igualar el fondo del modal */
+    .swal-icon--success::before,
+    .swal-icon--success::after {
+        background-color: #22272e !important;
+    }
+
+    /* SweetAlert2 (si se carga en alguna vista) */
+    .swal2-popup {
+        background: #22272e !important;
+        color: #c9d1d9 !important;
+    }
+
+    /*
+     * Icono "success" de SweetAlert2: .swal2-success-fix y los arcos circulares usan fondo #fff
+     * para tapar la animación; en popup oscuro deben coincidir con el fondo (si no, se ve una raya).
+     * Evitar color-scheme en .swal2-container: puede alterar cómo se pinta ese blanco.
+     */
+    .swal2-icon.swal2-success .swal2-success-fix,
+    .swal2-icon.swal2-success [class^="swal2-success-circular-line"] {
+        background-color: #22272e !important;
+    }
+
+    .swal2-popup.swal2-toast .swal2-icon.swal2-success .swal2-success-fix,
+    .swal2-popup.swal2-toast .swal2-icon.swal2-success [class^="swal2-success-circular-line"] {
+        background-color: #252930 !important;
+    }
+
+    .swal2-title,
+    .swal2-html-container {
+        color: #e6edf3 !important;
+    }
+
+    .swal2-html-container {
+        color: #c9d1d9 !important;
+    }
+
+    .swal2-input,
+    .swal2-textarea,
+    .swal2-select,
+    .swal2-file {
+        background-color: #0d1117 !important;
+        border-color: #3d444d !important;
+        color: #c9d1d9 !important;
+    }
+
+    .swal2-validation-message {
+        background: #252930 !important;
+        color: #f85149 !important;
+    }
+
+    .swal2-actions {
+        border-top: 1px solid #3d444d;
+    }
+
+    .swal2-styled.swal2-cancel {
+        background-color: #30363d !important;
+        color: #c9d1d9 !important;
+    }
+
+    .swal2-close {
+        color: #8b949e !important;
+    }
+
+    .swal2-close:hover {
+        color: #f0f6fc !important;
+    }
+
+    .swal2-popup.swal2-toast {
+        background: #252930 !important;
+        color: #c9d1d9 !important;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45) !important;
+    }
+
+    /* Select2 */
+    .select2-container--default .select2-selection--single,
+    .select2-container--default .select2-selection--multiple {
+        background-color: #0d1117;
+        border-color: #3d444d;
+        color: #c9d1d9;
+    }
+
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        color: #c9d1d9;
+    }
+
+    .select2-container--default .select2-selection--multiple .select2-selection__choice {
+        background-color: #30363d;
+        border-color: #3d444d;
+        color: #c9d1d9;
+    }
+
+    .select2-dropdown {
+        background-color: #22272e;
+        border-color: #3d444d;
+        color: #c9d1d9;
+    }
+
+    .select2-container--default .select2-results__option--highlighted[aria-selected] {
+        background-color: #1f6feb !important;
+        color: #fff !important;
+    }
+
+    .select2-container--default .select2-results__option[aria-selected="true"] {
+        background-color: #252930;
+    }
+
+    .select2-search--dropdown .select2-search__field {
+        background-color: #0d1117;
+        border-color: #3d444d;
+        color: #c9d1d9;
+    }
+
+    /* Date range picker */
+    .daterangepicker {
+        background-color: #22272e;
+        border-color: #3d444d;
+        color: #c9d1d9;
+    }
+
+    .daterangepicker:before {
+        border-bottom-color: #3d444d !important;
+    }
+
+    .daterangepicker:after {
+        border-bottom-color: #22272e !important;
+    }
+
+    .daterangepicker .calendar-table {
+        background-color: #22272e;
+        border-color: #3d444d;
+    }
+
+    .daterangepicker td.off,
+    .daterangepicker td.off.in-range,
+    .daterangepicker td.off.start-date,
+    .daterangepicker td.off.end-date {
+        background-color: #1a1d21;
+        color: #6e7681;
+    }
+
+    .daterangepicker td.available:hover,
+    .daterangepicker th.available:hover {
+        background-color: #30363d;
+        color: #f0f6fc;
+    }
+
+    .daterangepicker td.active,
+    .daterangepicker td.active:hover {
+        background-color: #1f6feb;
+    }
+
+    .daterangepicker .drp-buttons {
+        border-top-color: #3d444d;
+    }
+
+    .daterangepicker .calendar-table .next span,
+    .daterangepicker .calendar-table .prev span {
+        border-color: #c9d1d9;
+    }
+
+    /* Bootstrap datetimepicker */
+    .bootstrap-datetimepicker-widget {
+        color: #c9d1d9;
+    }
+
+    .bootstrap-datetimepicker-widget.dropdown-menu {
+        background-color: #22272e;
+        border-color: #3d444d;
+    }
+
+    .bootstrap-datetimepicker-widget table td.day:hover,
+    .bootstrap-datetimepicker-widget table td.hour:hover,
+    .bootstrap-datetimepicker-widget table td.minute:hover,
+    .bootstrap-datetimepicker-widget table td.second:hover {
+        background: #30363d;
+    }
+
+    .bootstrap-datetimepicker-widget table td.active,
+    .bootstrap-datetimepicker-widget table td.active:hover {
+        background-color: #1f6feb;
+    }
+
+    /* Tooltips y popovers Bootstrap */
+    .tooltip-inner {
+        background-color: #252930;
+        color: #e6edf3;
+    }
+
+    .tooltip.top .tooltip-arrow {
+        border-top-color: #252930;
+    }
+
+    .tooltip.bottom .tooltip-arrow {
+        border-bottom-color: #252930;
+    }
+
+    .tooltip.left .tooltip-arrow {
+        border-left-color: #252930;
+    }
+
+    .tooltip.right .tooltip-arrow {
+        border-right-color: #252930;
+    }
+
+    .popover {
+        background-color: #22272e;
+        border-color: #3d444d;
+    }
+
+    .popover-title {
+        background-color: #252930;
+        border-bottom-color: #3d444d;
+        color: #e6edf3;
+    }
+
+    .popover-content {
+        color: #c9d1d9;
+    }
+
+    .popover.top > .arrow:after {
+        border-top-color: #22272e;
+    }
+
+    .popover.bottom > .arrow:after {
+        border-bottom-color: #22272e;
+    }
+
+    .popover.left > .arrow:after {
+        border-left-color: #22272e;
+    }
+
+    .popover.right > .arrow:after {
+        border-right-color: #22272e;
+    }
+
+    /* Alertify (diálogos) */
+    .alertify {
+        background: #22272e;
+        border-color: #3d444d;
+        color: #c9d1d9;
+    }
+
+    .alertify-message {
+        color: #c9d1d9;
+    }
+
+    .alertify-text {
+        color: #c9d1d9 !important;
+        background-color: #0d1117 !important;
+        border-color: #3d444d !important;
+    }
+
+    .alertify-buttons {
+        background: #1f2328 !important;
+        border-top-color: #3d444d !important;
+        box-shadow: none;
+    }
+
+    /* Alertas (SweetAlert / Bootstrap) */
+    .alert {
+        border-color: #3d444d;
+    }
+
+    .well {
+        background-color: #252930;
+        border-color: #3d444d;
+        color: #c9d1d9;
+    }
+
+    /* Enlaces en contenido principal */
+    .right_col a:not(.btn):not(.dropdown-toggle) {
+        color: #58a6ff;
+    }
+
+    .right_col a:not(.btn):not(.dropdown-toggle):hover {
+        color: #79c0ff;
+    }
+
+    /* Sidebar: ya es oscuro; suavizar contraste con el nuevo fondo */
+    .left_col {
+        background: #252a30;
+    }
+
+    .nav_title {
+        background: #1f2328;
+    }
+
+    .profile_info span {
+        color: #b1bac4;
+    }
+}
