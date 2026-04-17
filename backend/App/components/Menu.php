@@ -154,7 +154,8 @@ class Menu
             $this->enlace('Conciliación de pagos', '/Operaciones/ConciliacionPagos/', ['AMGM']),
             $this->enlace('Cierre de día', '/Operaciones/CierreDiario/', ['AMGM']),
             $this->enlace('Reporte Cliente y Aval Consolidado', '/Operaciones/ReportePC', ['ADMIN', 'PHEE', 'MCDP', 'FECR', 'ORHM']),
-            $this->enlace('Reporte Interés Devengado', '/Operaciones/ReporteInteresDevengado', ['ADMIN', 'ORHM'])
+            $this->enlace('Reporte Interés Devengado', '/Operaciones/ReporteInteresDevengado', ['ADMIN', 'ORHM']),
+            $this->enlace('Reporte Acreditado', '/Operaciones/ReporteAcreditado', ['ADMIN', 'ORHM', 'LGFR', 'MCDP', 'MAPH'])
         ];
     }
 
@@ -193,6 +194,7 @@ class Menu
         return [
             $this->enlace('Ajustar Hora de Cierre', '/Pagos/AjusteHoraCierre/', ['ADMIN', 'LGFR']),
             $this->enlace('Asignación Días Festivos', '/Pagos/DiasFestivos/', ['ADMIN', 'LGFR']),
+            $this->enlace('Lista Negra (empleados)', '/Administracion/ListaNegraEmpleados/', ['ADMIN', 'LGFR', 'MAPH', 'HSEJ', 'PHEE', 'ORHM', 'FECR']),
             $this->enlace('Reporte Usuarios SICAFIN MCM', '/Reportes/UsuariosMCM/', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM', 'FECR']),
             $this->enlace('Reporte Usuarios SICAFIN Cultiva', '/Reportes/UsuariosCultiva/', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM', 'FECR']),
             $this->enlace('Situación Cartera', '/Creditos/cierreDiario', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM', 'FECR']),

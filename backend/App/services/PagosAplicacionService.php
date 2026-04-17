@@ -58,7 +58,8 @@ class PagosAplicacionService
             }
         }
         $totalImporte = $importePend + $importeApl;
-        $totalAplicados = count($filas) - count($pendientes);
+        $totalPendientes = count($pendientes);
+        $totalAplicados = count($filas) - $totalPendientes;
 
         $ya = $repo->obtenerProcesado($fecha);
         $fechaEjec = '-';
@@ -74,12 +75,14 @@ class PagosAplicacionService
         $resumenBase = [
             'totalRegistros' => count($filas),
             'totalImporte' => round($totalImporte, 2),
-            'totalPendientes' => count($pendientes),
+            'totalPendientes' => $totalPendientes,
             'totalAplicados' => $totalAplicados,
             'importePendientes' => round($importePend, 2),
             'importeAplicados' => round($totalImporte - $importePend, 2),
             'fechaEjecucion' => $fechaEjec,
-            'estado' => $totalAplicados > 0 ? 'Parcial' : '',
+            'estado' => $totalPendientes === 0
+                ? ($totalAplicados > 0 ? 'Procesado' : '')
+                : ($totalAplicados > 0 ? 'Parcial' : 'Pendiente'),
             'mensaje' => null,
         ];
         if ($ya !== null) {
@@ -130,7 +133,9 @@ class PagosAplicacionService
         $valorConfig = $config['APLICAR_PAGOS_SOLO_FLUJO'] ?? (isset($config['aplicar_pagos']) && is_array($config['aplicar_pagos']) ? ($config['aplicar_pagos']['APLICAR_PAGOS_SOLO_FLUJO'] ?? null) : null);
         $soloFlujo = $valorConfig !== null && (filter_var($valorConfig, FILTER_VALIDATE_BOOLEAN) || $valorConfig === 'true' || $valorConfig === '1');
 
-        $identificador = date('YmdHis') . '_' . substr(str_replace(['-', ' ', ':'], '', microtime(false)), -4) . '_' . $usuario;
+        // Replica el identificador VB6: Format(Date, "DDMMYYYY") & Format(Time, "HHNNSS")
+        // (14 dígitos). Esto evita errores de parseo dentro del SP (p. ej. ORA-01830).
+        $identificador = date('dmY') . date('His');
         $idImportacion = (int) time();
         $noPagos = count($filas);
         $detalle = [];
@@ -146,16 +151,11 @@ class PagosAplicacionService
                 $totalImporte += $monto;
                 $referencia = isset($f['REFERENCIA']) ? trim((string) $f['REFERENCIA']) : '';
                 $moneda = isset($f['MONEDA']) ? trim((string) $f['MONEDA']) : 'MN';
-
-                $fechaPago = $f['FECHA'] ?? $fecha;
-                if (is_object($fechaPago)) {
-                    $fechaPago = $fechaPago->format('Y-m-d H:i:s');
-                } elseif (is_string($fechaPago) && strlen($fechaPago) <= 10) {
-                    $fechaPago = $fechaPago . ' ' . date('H:i:s');
-                }
+                $fechaPagoParaSp = isset($f['FECHA']) ? (string) $f['FECHA'] : $fecha . ' 00:00:00';
+                $monto = isset($f['MONTO']) ? (float) $f['MONTO'] : $monto;
 
                 $res = $repo->ejecutarSpImportaPago(
-                    $fechaPago,
+                    $fechaPagoParaSp,
                     $referencia,
                     (string) $monto,
                     $usuario,
@@ -169,13 +169,18 @@ class PagosAplicacionService
                     $db
                 );
 
+                // VB6 frmImportacion: si p_val (Parameters 15) es 0 o 1 → éxito ("Pago importado con éxito.");
+                // Solo si p_val no es 0 ni 1 se consulta res_impor. No exigir únicamente 1.
+                $valSp = (int) ($res['validacion'] ?? -1);
+                $spValidacionOk = ($valSp === 0 || $valSp === 1);
+
                 $detalle[] = [
                     'renglon' => $renglon1,
-                    'fecha' => $fechaPago,
+                    'fecha' => $fechaPagoParaSp,
                     'referencia' => $referencia,
                     'monto' => $monto,
                     'moneda' => $moneda,
-                    'ok' => $res['success'] && (int) $res['validacion'] === 1,
+                    'ok' => $res['success'] && $spValidacionOk,
                     'resultado' => $res['resultado'] ?? '',
                     'validacion' => $res['validacion'] ?? -1,
                 ];
@@ -183,8 +188,19 @@ class PagosAplicacionService
                 if (!$res['success']) {
                     throw new \RuntimeException('SP falló en renglón ' . $renglon1 . ': ' . ($res['resultado'] ?? 'sin mensaje'));
                 }
-                if ((int) ($res['validacion'] ?? -1) !== 1) {
-                    throw new \RuntimeException('Validación del SP en renglón ' . $renglon1 . ': ' . ($res['resultado'] ?? 'código ' . ($res['validacion'] ?? '')));
+                if (!$spValidacionOk) {
+                    $mensajeValidacion = trim((string) ($res['resultado'] ?? ''));
+                    if ($mensajeValidacion === '') {
+                        $mensajeValidacion = 'código validación ' . $valSp;
+                    }
+                    $mensajeLogVal = date('c')
+                        . ' [' . $usuario . ']'
+                        . ' Fecha=' . $fecha
+                        . ' Renglon=' . $renglon1
+                        . ' ValidacionSP=' . $valSp
+                        . ' Mensaje=' . $mensajeValidacion
+                        . "\n";
+                    @file_put_contents($logPath, $mensajeLogVal, FILE_APPEND);
                 }
 
                 if (!$soloFlujo && isset($f['CDGEM'], $f['CDGNS'], $f['CICLO'], $f['SECUENCIA'])) {
@@ -192,7 +208,8 @@ class PagosAplicacionService
                         $f['CDGEM'],
                         $f['CDGNS'],
                         $f['CICLO'],
-                        $fechaPago,
+                        // actualizarFImportacion espera una fecha tipo YYYY-MM-DD para TRUNC(FECHA).
+                        $fecha,
                         $f['SECUENCIA'],
                         $db
                     );
@@ -200,20 +217,24 @@ class PagosAplicacionService
             }
 
             if (!$soloFlujo) {
-                $detalleJson = json_encode($detalle, JSON_UNESCAPED_UNICODE);
-                $okInsert = $repo->insertarProcesado(
-                    $fecha,
-                    $noPagos,
-                    round($totalImporte, 2),
-                    $usuario,
-                    'OK',
-                    null,
-                    $detalleJson,
-                    $db
-                );
-
-                if (!$okInsert) {
-                    throw new \RuntimeException('Error al registrar PAGOS_PROCESADOS');
+                try {
+                    $detalleJson = json_encode($detalle, JSON_UNESCAPED_UNICODE);
+                    $repo->insertarProcesado(
+                        $fecha,
+                        $noPagos,
+                        round($totalImporte, 2),
+                        $usuario,
+                        'OK',
+                        null,
+                        $detalleJson,
+                        $db
+                    );
+                } catch (\Throwable $e) {
+                    @file_put_contents(
+                        $logPath,
+                        date('c') . ' [WARN] insertarProcesado falló: ' . $e->getMessage() . "\n",
+                        FILE_APPEND
+                    );
                 }
             }
 
@@ -223,18 +244,50 @@ class PagosAplicacionService
                 ? 'Flujo de prueba completado (sin cambios en BD ni registro en PAGOS_PROCESADOS).'
                 : 'Pagos aplicados correctamente.';
 
+            // Re-consultamos para que el resumen y el estatus por renglón coincidan con BD.
+            $filasActualizadas = $repo->getDatosLayoutPorFecha($fecha);
+            $pendientes = [];
+            $importePend = 0;
+            $importeApl = 0;
+            foreach ($filasActualizadas as $f) {
+                $m = (float) ($f['MONTO'] ?? 0);
+                if (isset($f['F_IMPORTACION']) && $f['F_IMPORTACION'] !== null && $f['F_IMPORTACION'] !== '') {
+                    $importeApl += $m;
+                } else {
+                    $pendientes[] = $f;
+                    $importePend += $m;
+                }
+            }
+            $totalRegistros = count($filasActualizadas);
+            $totalPendientes = count($pendientes);
+            $totalAplicados = $totalRegistros - $totalPendientes;
+            $totalImporteFinal = $importePend + $importeApl;
+
+            // Corregimos la lógica de "estado": no es "Parcial" cuando no hay pendientes.
+            if ($totalPendientes === 0) {
+                $estadoFinal = $totalAplicados > 0 ? 'Procesado' : '';
+            } elseif ($totalAplicados > 0) {
+                $estadoFinal = 'Parcial';
+            } else {
+                $estadoFinal = 'Pendiente';
+            }
+
             return Model::Responde(true, $mensajeExito, [
-                'yaProcesado' => false,
+                'yaProcesado' => $totalPendientes === 0,
                 'modoPrueba'  => $soloFlujo,
                 'resumen' => [
-                    'totalRegistros' => $noPagos,
-                    'totalImporte' => round($totalImporte, 2),
                     'usuario' => $usuario,
                     'fechaEjecucion' => date('Y-m-d H:i:s'),
-                    'estado' => 'OK',
+                    'totalRegistros' => $totalRegistros,
+                    'totalImporte' => round($totalImporteFinal, 2),
+                    'totalPendientes' => $totalPendientes,
+                    'totalAplicados' => $totalAplicados,
+                    'importePendientes' => round($importePend, 2),
+                    'importeAplicados' => round($importeApl, 2),
+                    'estado' => $estadoFinal,
                     'mensaje' => null,
                 ],
-                'filas' => $filas,
+                'filas' => $filasActualizadas,
                 'detalle' => $detalle,
             ]);
         } catch (\Throwable $e) {
@@ -246,4 +299,5 @@ class PagosAplicacionService
             return Model::Responde(false, 'Error al aplicar pagos. No se realizaron cambios.', null, $e->getMessage());
         }
     }
+
 }

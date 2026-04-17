@@ -52,6 +52,78 @@ class Operaciones extends Controller
                 let actualiza = null
                 let renueva = null
 
+                const aplicarHorasLocalesTablaCierre = (root) => {
+                    if (!root || !root.querySelectorAll) return
+                    const parseDmYHmAsUtc = (txt) => {
+                        if (!txt || txt === "-") return null
+                        const m = txt.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/)
+                        if (!m) return null
+                        const dia = parseInt(m[1], 10)
+                        const mes = parseInt(m[2], 10) - 1
+                        const anio = parseInt(m[3], 10)
+                        const hora = parseInt(m[4], 10)
+                        const minuto = parseInt(m[5], 10)
+                        return new Date(Date.UTC(anio, mes, dia, hora, minuto, 0))
+                    }
+                    root.querySelectorAll(".js-local-time").forEach((el) => {
+                        const original = (el.textContent || "").trim()
+                        const dt = parseDmYHmAsUtc(original)
+                        if (!dt || isNaN(dt.getTime())) return
+                        const dd = String(dt.getDate()).padStart(2, "0")
+                        const mm = String(dt.getMonth() + 1).padStart(2, "0")
+                        const yyyy = dt.getFullYear()
+                        const hh = String(dt.getHours()).padStart(2, "0")
+                        const mi = String(dt.getMinutes()).padStart(2, "0")
+                        el.textContent = dd + "/" + mm + "/" + yyyy + " " + hh + ":" + mi
+                    })
+                }
+
+                const escHtml = (s) => {
+                    const d = document.createElement("div")
+                    d.textContent = s == null ? "" : String(s)
+                    return d.innerHTML
+                }
+
+                const refrescarTablaUltimosCierres = () => {
+                    fetch("/operaciones/UltimosCierresCierreDia", {
+                        method: "GET",
+                        headers: { Accept: "application/json" }
+                    })
+                        .then((r) => r.json())
+                        .then((resp) => {
+                            if (!resp || !resp.success || !resp.datos) return
+                            const lista = resp.datos.ultimos5 || []
+                            const tbody = document.getElementById("tbodyUltimosCierres")
+                            if (!tbody) return
+                            if (!lista.length) {
+                                tbody.innerHTML = '<tr><td colspan="8">No hay cierres registrados.</td></tr>'
+                                return
+                            }
+                            tbody.innerHTML = lista
+                                .map((c) => {
+                                    const exito = c.EXITO !== undefined && c.EXITO !== null && String(c.EXITO) !== "0"
+                                    const estado = exito ? "OK" : "Error"
+                                    const inicio = escHtml(String(c.INICIO ?? "-"))
+                                    const fin = escHtml(String(c.FIN ?? "-"))
+                                    return (
+                                        "<tr>" +
+                                        "<td>" + escHtml(String(c.FECHA_CALCULO ?? "-")) + "</td>" +
+                                        '<td><span class="js-local-time">' + inicio + "</span></td>" +
+                                        '<td><span class="js-local-time">' + fin + "</span></td>" +
+                                        "<td>" + escHtml(String(c.USUARIO ?? "-")) + "</td>" +
+                                        "<td>" + escHtml(estado) + "</td>" +
+                                        "<td>" + escHtml(String(c.REGISTROS_PROCESADOS ?? "0")) + "</td>" +
+                                        "<td>" + escHtml(String(c.CREDITOS_DEVENGO ?? "0")) + "</td>" +
+                                        "<td>" + escHtml(String(c.MONTO_INTERESES_DEVENGADOS ?? "$ 0.00")) + "</td>" +
+                                        "</tr>"
+                                    )
+                                })
+                                .join("")
+                            aplicarHorasLocalesTablaCierre(tbody)
+                        })
+                        .catch(() => {})
+                }
+
                 const iniciaCierreDiario = () => {
                     confirmarMovimiento(
                         "Iniciar proceso de cierre diario.",
@@ -100,13 +172,30 @@ class Operaciones extends Controller
                     if (regenerar) payload.regenerar = "1"
                     consultaServidor("/operaciones/ProcesaCierreDiario", payload, (respuesta) => {
                         if (!respuesta.success) return showError(respuesta.mensaje)
+                        refrescarTablaUltimosCierres()
                         const mensaje = "El proceso de cierre diario ha sido iniciado. Al finalizar se enviará el resumen por correo."
                         showSuccess(mensaje).then(() => {
-                            ejecutando = true
-                            inicioEjecucion = fechaActualFormateada()
-                            usuarioEjecucion = "{$this->__usuario}"
-                    $("#procesar").attr("disabled", true)
-                    validaEjecucionActiva()
+                            $("#procesar").attr("disabled", true)
+                            fetch("/operaciones/ValidaCierreEnEjecucion", {
+                                method: "GET",
+                                headers: {
+                                    "Content-Type": "application/json"
+                                }
+                            })
+                                .then((response) => response.json())
+                                .then((respuesta) => {
+                                    ejecutando = respuesta.datos && Object.keys(respuesta.datos).length > 0
+                                    inicioEjecucion = ejecutando ? respuesta.datos.INICIO : null
+                                    usuarioEjecucion = ejecutando ? respuesta.datos.USUARIO : null
+                                })
+                                .catch(() => {
+                                    ejecutando = false
+                                    inicioEjecucion = null
+                                    usuarioEjecucion = null
+                                })
+                                .then(() => {
+                                    validaEjecucionActiva()
+                                })
                         })
                     })
                 }
@@ -207,9 +296,13 @@ class Operaciones extends Controller
                         .then((response) => response.json())
                         .then((respuesta) => {
                             if (!respuesta.success) return showError(respuesta.mensaje)
+                            const ejecutabaAntes = ejecutando
                             ejecutando = respuesta.datos && Object.keys(respuesta.datos).length > 0
                             inicioEjecucion = ejecutando ? respuesta.datos.INICIO : null
                             usuarioEjecucion = ejecutando ? respuesta.datos.USUARIO : null
+                            if (ejecutabaAntes && !ejecutando) {
+                                refrescarTablaUltimosCierres()
+                            }
                             validaEjecucionActiva()
                         })
                     }, 10000)
@@ -235,6 +328,28 @@ class Operaciones extends Controller
         if (ob_get_level()) ob_end_clean();
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode($resp);
+        exit;
+    }
+
+    /**
+     * GET JSON: últimos 5 cierres (misma data que la tabla al cargar la página).
+     */
+    function UltimosCierresCierreDia()
+    {
+        $this->limpiaSalidaParaJson();
+        try {
+            $resp = CierreDiaService::obtenerDatosPantalla();
+            $datos = $resp['success'] && isset($resp['datos']) ? $resp['datos'] : [];
+            $ultimos5 = isset($datos['ultimos5']) ? $datos['ultimos5'] : [];
+            $out = ['success' => true, 'datos' => ['ultimos5' => $ultimos5]];
+        } catch (\Throwable $e) {
+            $out = \Core\Model::Responde(false, 'Error al obtener cierres.', null, $e->getMessage());
+        }
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($out);
         exit;
     }
 
@@ -501,12 +616,8 @@ class Operaciones extends Controller
                         const d = respuesta.datos || {};
                         const resumen = d.resumen || {};
                         const filas = d.filas || [];
-                        document.getElementById("totalPagos").textContent = resumen.totalRegistros != null ? resumen.totalRegistros : 0;
-                        document.getElementById("importeTotal").textContent = "$ " + (resumen.totalImporte != null ? Number(resumen.totalImporte) : 0).toLocaleString("es-MX", { minimumFractionDigits: 2 });
-                        document.getElementById("totalPagosConciliados").textContent = resumen.totalConciliados != null ? resumen.totalConciliados : 0;
-                        document.getElementById("importeConciliados").textContent = "$ " + (resumen.importeConciliados != null ? Number(resumen.importeConciliados) : 0).toLocaleString("es-MX", { minimumFractionDigits: 2 });
-                        document.getElementById("totalPagosPendientes").textContent = resumen.totalNoConciliados != null ? resumen.totalNoConciliados : 0;
-                        document.getElementById("importePendientes").textContent = "$ " + (resumen.importeNoConciliados != null ? Number(resumen.importeNoConciliados) : 0).toLocaleString("es-MX", { minimumFractionDigits: 2 });
+                        document.getElementById("totalPagos").textContent = resumen.totalNoConciliados != null ? resumen.totalNoConciliados : 0;
+                        document.getElementById("importeTotal").textContent = "$ " + (resumen.importeNoConciliados != null ? Number(resumen.importeNoConciliados) : 0).toLocaleString("es-MX", { minimumFractionDigits: 2 });
                         var tabla = $("#tablaConciliacion");
                         if ($.fn.DataTable && $.fn.DataTable.isDataTable(tabla)) {
                             tabla.DataTable().destroy();
@@ -571,7 +682,12 @@ class Operaciones extends Controller
                     });
                 };
                 const conciliarPagos = () => {
-                    var checks = document.querySelectorAll("#tablaConciliacionBody .chkPagoConciliacion:checked");
+                    var checks = [];
+                    if ($.fn.DataTable && $.fn.DataTable.isDataTable("#tablaConciliacion")) {
+                        checks = $("#tablaConciliacion").DataTable().$("input.chkPagoConciliacion:checked").toArray();
+                    } else {
+                        checks = Array.from(document.querySelectorAll("#tablaConciliacionBody .chkPagoConciliacion:checked"));
+                    }
                     if (!checks || checks.length === 0) {
                         showError("Seleccione al menos un pago para conciliar.");
                         return;
@@ -599,13 +715,23 @@ class Operaciones extends Controller
                         }).done(function (respuesta) {
                             swal.close();
                             if (respuesta && respuesta.success) {
-                                showSuccess(respuesta.mensaje).then(function () {
+                                swal({
+                                    title: "Conciliación completada",
+                                    text: (respuesta.mensaje || "La conciliación se ejecutó correctamente.") + " Pagos seleccionados: " + pagos.length + ".",
+                                    icon: "success",
+                                    button: "Aceptar"
+                                }).then(function () {
                                     consultarConciliacion();
                                 });
                             } else {
                                 var msg = (respuesta && respuesta.mensaje) ? respuesta.mensaje : "Error al conciliar.";
                                 if (respuesta && respuesta.error) msg += " " + respuesta.error;
-                                showError(msg);
+                                swal({
+                                    title: "Conciliación no aplicada",
+                                    text: msg,
+                                    icon: "error",
+                                    button: "Aceptar"
+                                });
                             }
                         }).fail(function (xhr, textStatus, errorThrown) {
                             swal.close();
@@ -615,7 +741,12 @@ class Operaciones extends Controller
                                 if (xhr.responseJSON.mensaje) msg = xhr.responseJSON.mensaje;
                                 if (xhr.responseJSON.error) msg += " " + xhr.responseJSON.error;
                             } else if (xhr && xhr.responseText && xhr.responseText.length < 500) msg = xhr.responseText;
-                            showError(msg);
+                            swal({
+                                title: "Conciliación no aplicada",
+                                text: msg,
+                                icon: "error",
+                                button: "Aceptar"
+                            });
                         });
                     });
                 };
@@ -624,7 +755,11 @@ class Operaciones extends Controller
                     document.getElementById("btnConciliarPagos").onclick = conciliarPagos;
                     $(document).on("change", "#chkTodosConciliacion", function () {
                         var checked = this.checked;
-                        $("#tablaConciliacionBody .chkPagoConciliacion").each(function () { this.checked = checked; });
+                        if ($.fn.DataTable && $.fn.DataTable.isDataTable("#tablaConciliacion")) {
+                            $("#tablaConciliacion").DataTable().$("input.chkPagoConciliacion").prop("checked", checked);
+                        } else {
+                            $("#tablaConciliacionBody .chkPagoConciliacion").each(function () { this.checked = checked; });
+                        }
                     });
                 });
             </script>
@@ -992,5 +1127,119 @@ class Operaciones extends Controller
         $filas = ($resp && isset($resp['success']) && $resp['success']) ? ($resp['datos'] ?? []) : [];
 
         \PHPSpreadsheet::DescargaExcel('Reporte Interes Devengado', 'Reporte', 'Interes Devengado', $columnas, $filas);
+    }
+
+    /**
+     * Operaciones → Reporte Acreditado.
+     * Muestra el histórico del acreditado por crédito (CDGNS) en una sola pantalla:
+     * ciclos, plazo, tasa, avales, fechas, días de atraso, monto, garantía y cartera.
+     */
+    public function ReporteAcreditado()
+    {
+        $extraFooter = <<<HTML
+            <script>
+                {$this->mensajes}
+                {$this->consultaServidor}
+                {$this->configuraTabla}
+                {$this->formatoMoneda}
+
+                const idTablaAcreditado = "reporteAcreditado"
+
+                const obtenerParametrosAcreditado = () => {
+                    const credito = ($("#creditoAcreditado").val() || "").trim()
+                    return { credito }
+                }
+
+                const consultarAcreditado = () => {
+                    const params = obtenerParametrosAcreditado()
+                    if (!params.credito) {
+                        showError("Capture el crédito a consultar.")
+                        return
+                    }
+
+                    consultaServidor("/Operaciones/GetReporteAcreditado", params, (res) => {
+                        if (!res.success) return resultadoErrorAcreditado(res.mensaje)
+                        resultadoOKAcreditado(res.datos || [])
+                    })
+                }
+
+                const resultadoErrorAcreditado = (mensaje) => {
+                    $(".resultadoAcreditado").toggleClass("conDatos", false)
+                    showError(mensaje || "No fue posible obtener el reporte.").then(() => {
+                        actualizaDatosTabla(idTablaAcreditado, [])
+                    })
+                }
+
+                const resultadoOKAcreditado = (datos) => {
+                    if (!datos.length) {
+                        showInfo("No se encontró información para el crédito capturado.")
+                    }
+
+                    datos = datos.map((item) => {
+                        if (item.MONTO != null) {
+                            item.MONTO = "$ " + formatoMoneda(item.MONTO)
+                        }
+                        if (item.GARANTIA != null) {
+                            item.GARANTIA = "$ " + formatoMoneda(item.GARANTIA)
+                        } else {
+                            item.GARANTIA = "$ 0.00"
+                        }
+                        if (item.CARTERA != null) {
+                            item.CARTERA = "$ " + formatoMoneda(item.CARTERA)
+                        } else {
+                            item.CARTERA = "$ 0.00"
+                        }
+                        if (item.LIQUIDACION == null) item.LIQUIDACION = "-"
+                        if (item.AVALES == null) item.AVALES = "-"
+                        if (item.DIAS_ATRASO == null) item.DIAS_ATRASO = 0
+                        return item
+                    })
+
+                    actualizaDatosTabla(idTablaAcreditado, datos)
+                    $(".resultadoAcreditado").toggleClass("conDatos", true)
+                }
+
+                $(document).ready(() => {
+                    $("#btnConsultarAcreditado").click(consultarAcreditado)
+                    $("#creditoAcreditado").on("keypress", (e) => {
+                        if (e.which === 13) consultarAcreditado()
+                    })
+
+                    configuraTabla(idTablaAcreditado)
+                })
+            </script>
+        HTML;
+
+        View::set('header', $this->_contenedor->header($this->getExtraHeader("Reporte Acreditado")));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+
+        View::render('operaciones_reporte_acreditado');
+    }
+
+    /**
+     * POST: credito (CDGNS). Devuelve JSON con el histórico del acreditado.
+     */
+    public function GetReporteAcreditado()
+    {
+        $this->limpiaSalidaParaJson();
+
+        try {
+            $credito = isset($_POST['credito']) ? trim((string) $_POST['credito']) : '';
+
+            if ($credito === '') {
+                $resp = \Core\Model::Responde(false, 'Debe capturar el crédito.', null);
+            } else {
+                $resp = OperacionesDao::GetReporteAcreditado([
+                    'credito' => $credito,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            $resp = \Core\Model::Responde(false, 'Error al obtener el reporte: ' . $e->getMessage(), null, $e->getMessage());
+        }
+
+        if (ob_get_level()) ob_end_clean();
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($resp);
+        exit;
     }
 }

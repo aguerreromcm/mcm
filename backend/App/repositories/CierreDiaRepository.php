@@ -5,7 +5,6 @@ namespace App\repositories;
 defined("APPPATH") or die("Access denied");
 
 use Core\Database;
-use Core\App;
 
 /**
  * Repository: acceso a datos del Cierre de Día.
@@ -37,22 +36,66 @@ class CierreDiaRepository
      */
     public function validaCierreEnEjecucion()
     {
-        $qry = <<<SQL
-            SELECT
-                TO_CHAR(INICIO, 'DD/MM/YYYY HH24:MI:SS') AS INICIO,
-                TO_CHAR(FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CIERRE,
-                USUARIO
-            FROM BITACORA_CIERRE_DIARIO
-            WHERE FIN IS NULL
-        SQL;
-        return $this->sinSalida(function () use ($qry) {
-            try {
-                $db = new Database();
-                $r = $db->queryOne($qry);
-                return $r ?: [];
-            } catch (\Exception $e) {
+        return $this->sinSalida(function () {
+            $db = new Database();
+            if ($db->db_activa === null) {
                 return [];
             }
+
+            // Limpieza preventiva: si hay EXITO definido pero FIN sigue null,
+            // entonces el registro está inconsistente. Marcamos FIN para evitar falsos positivos.
+            try {
+                $db->db_activa
+                    ->prepare("UPDATE BITACORA_CIERRE_DIARIO SET FIN = SYSDATE WHERE FIN IS NULL AND EXITO IS NOT NULL")
+                    ->execute();
+            } catch (\Exception $e) {
+                // Si falla la limpieza, seguimos con la validación por estado/consistencia.
+            }
+
+            // Proceso activo (equivalente a EN_PROCESO):
+            // - fecha_inicio presente (INICIO)
+            // - fecha_fin ausente (FIN IS NULL)
+            // - estatus EN_PROCESO: en este esquema equivale a EXITO IS NULL
+            // - consistencia con la tabla de cierre: descartamos si la fecha ya fue liquidada (FECHA_LIQUIDA no es null)
+            $qryConCierrePendiente = <<<SQL
+                SELECT
+                    TO_CHAR(b.INICIO, 'DD/MM/YYYY HH24:MI:SS') AS INICIO,
+                    TO_CHAR(b.FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CIERRE,
+                    b.USUARIO
+                FROM BITACORA_CIERRE_DIARIO b
+                WHERE b.FIN IS NULL
+                  AND b.INICIO IS NOT NULL
+                  AND b.EXITO IS NULL
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM TBL_CIERRE_DIA tcd
+                      WHERE tcd.FECHA_CALC = TRUNC(b.FECHA_CALCULO)
+                        AND tcd.FECHA_LIQUIDA IS NOT NULL
+                  )
+                ORDER BY b.INICIO DESC
+                FETCH FIRST 1 ROW ONLY
+            SQL;
+
+            // Fallback por compatibilidad: si la tabla no permite consultar FECHA_LIQUIDA (o falla),
+            // al menos aplicamos el filtro estricto de FIN/INICIO/EXITO.
+            $qryFallback = <<<SQL
+                SELECT
+                    TO_CHAR(INICIO, 'DD/MM/YYYY HH24:MI:SS') AS INICIO,
+                    TO_CHAR(FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CIERRE,
+                    USUARIO
+                FROM BITACORA_CIERRE_DIARIO
+                WHERE FIN IS NULL
+                  AND INICIO IS NOT NULL
+                  AND EXITO IS NULL
+                ORDER BY INICIO DESC
+                FETCH FIRST 1 ROW ONLY
+            SQL;
+
+            $r = $db->queryOne($qryConCierrePendiente);
+            if ($r === false) {
+                $r = $db->queryOne($qryFallback);
+            }
+            return $r ?: [];
         });
     }
 
@@ -94,6 +137,7 @@ class CierreDiaRepository
         $qry = <<<SQL
             SELECT
                 TO_CHAR(FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CALCULO,
+                TO_CHAR(FECHA_CALCULO, 'YYYY-MM-DD') AS FECHA_CIERRE_ISO,
                 TO_CHAR(INICIO, 'DD/MM/YYYY HH24:MI') AS INICIO,
                 TO_CHAR(FIN, 'DD/MM/YYYY HH24:MI') AS FIN,
                 USUARIO,
@@ -215,9 +259,10 @@ class CierreDiaRepository
     }
 
     /**
-     * Resumen devengo para correo: créditos y monto (fecha = día siguiente al cierre).
+     * Resumen devengo para correo y pantalla: mismo criterio que validación manual en BD.
+     * SELECT COUNT(*), SUM(DEV_DIARIO) FROM DEVENGO_DIARIO WHERE TRUNC(FECHA_CALC) = TO_DATE(:fecha, ...)
      *
-     * @param string $fechaDevengo Y-m-d (fecha de devengo, típicamente fecha_cierre + 1)
+     * @param string $fechaDevengo Y-m-d (fecha calendario de FECHA_CALC; alinear con fecha de cierre en bitácora)
      * @return array [ 'creditos' => int, 'monto' => float ]
      */
     public function getResumenDevengo($fechaDevengo)
@@ -225,7 +270,7 @@ class CierreDiaRepository
         $qry = <<<SQL
             SELECT COUNT(*) AS CREDITOS, NVL(SUM(DEV_DIARIO), 0) AS MONTO
             FROM DEVENGO_DIARIO
-            WHERE FECHA_CALC = TO_DATE(:fecha, 'YYYY-MM-DD')
+            WHERE TRUNC(FECHA_CALC) = TO_DATE(:fecha, 'YYYY-MM-DD')
         SQL;
         return $this->sinSalida(function () use ($qry, $fechaDevengo) {
             try {
@@ -237,6 +282,98 @@ class CierreDiaRepository
                 ];
             } catch (\Exception $e) {
                 return ['creditos' => 0, 'monto' => 0];
+            }
+        });
+    }
+
+    /**
+     * Obtiene resúmenes de cierre y devengo para un conjunto de fechas en solo 2 consultas.
+     * Mantiene exactamente los mismos criterios de getResumenCierre() y getResumenDevengo().
+     *
+     * @param array $fechasIso Lista de fechas Y-m-d
+     * @return array [
+     *   'cierre' => [ 'YYYY-MM-DD' => int ],
+     *   'devengo' => [ 'YYYY-MM-DD' => ['creditos' => int, 'monto' => float] ]
+     * ]
+     */
+    public function getResumenesPorFechas(array $fechasIso)
+    {
+        $fechas = array_values(array_unique(array_filter(array_map('trim', $fechasIso), function ($f) {
+            return $f !== '';
+        })));
+
+        if (empty($fechas)) {
+            return ['cierre' => [], 'devengo' => []];
+        }
+
+        return $this->sinSalida(function () use ($fechas) {
+            try {
+                $db = new Database();
+                $binds = [];
+                $holders = [];
+                foreach ($fechas as $i => $fecha) {
+                    $k = 'f' . $i;
+                    $holders[] = "TO_DATE(:$k, 'YYYY-MM-DD')";
+                    $binds[$k] = $fecha;
+                }
+                $inList = implode(', ', $holders);
+
+                $qryCierre = <<<SQL
+                    SELECT
+                        TO_CHAR(TCD.FECHA_CALC, 'YYYY-MM-DD') AS FECHA,
+                        COUNT(*) AS TOTAL
+                    FROM TBL_CIERRE_DIA TCD
+                    WHERE TCD.FECHA_CALC IN ($inList)
+                      AND NOT EXISTS (
+                          SELECT 1 FROM PRN_LEGAL PL
+                          WHERE PL.CDGEM = TCD.CDGEM AND PL.CDGCLNS = TCD.CDGCLNS
+                            AND PL.CICLO = TCD.CICLO AND PL.CLNS = TCD.CLNS
+                            AND PL.TIPO IN ('C','Z') AND PL.ALTA < TCD.FECHA_CALC + 1
+                      )
+                    GROUP BY TO_CHAR(TCD.FECHA_CALC, 'YYYY-MM-DD')
+                SQL;
+
+                $qryDevengo = <<<SQL
+                    SELECT
+                        TO_CHAR(TRUNC(FECHA_CALC), 'YYYY-MM-DD') AS FECHA,
+                        COUNT(*) AS CREDITOS,
+                        NVL(SUM(DEV_DIARIO), 0) AS MONTO
+                    FROM DEVENGO_DIARIO
+                    WHERE TRUNC(FECHA_CALC) IN ($inList)
+                    GROUP BY TO_CHAR(TRUNC(FECHA_CALC), 'YYYY-MM-DD')
+                SQL;
+
+                $filasCierre = $db->queryAll($qryCierre, $binds);
+                $filasDevengo = $db->queryAll($qryDevengo, $binds);
+
+                $mapCierre = [];
+                if (is_array($filasCierre)) {
+                    foreach ($filasCierre as $r) {
+                        $fecha = isset($r['FECHA']) ? (string) $r['FECHA'] : '';
+                        if ($fecha === '') {
+                            continue;
+                        }
+                        $mapCierre[$fecha] = (int) ($r['TOTAL'] ?? 0);
+                    }
+                }
+
+                $mapDevengo = [];
+                if (is_array($filasDevengo)) {
+                    foreach ($filasDevengo as $r) {
+                        $fecha = isset($r['FECHA']) ? (string) $r['FECHA'] : '';
+                        if ($fecha === '') {
+                            continue;
+                        }
+                        $mapDevengo[$fecha] = [
+                            'creditos' => (int) ($r['CREDITOS'] ?? 0),
+                            'monto' => round((float) ($r['MONTO'] ?? 0), 2),
+                        ];
+                    }
+                }
+
+                return ['cierre' => $mapCierre, 'devengo' => $mapDevengo];
+            } catch (\Exception $e) {
+                return ['cierre' => [], 'devengo' => []];
             }
         });
     }
@@ -336,7 +473,6 @@ class CierreDiaRepository
     /**
      * Ejecuta el stored procedure de cierre (sp_Cierre_Dia en VB6).
      * Parámetro 0 = completo, 1 = solo pendientes / regenerar.
-     * Si CIERRE_DIA_SOLO_FLUJO = true en config, no ejecuta el SP (valida flujo sin afectar datos).
      *
      * @param string $fecha Y-m-d
      * @param int $regenerar 0 o 1
@@ -344,14 +480,6 @@ class CierreDiaRepository
      */
     public function ejecutarSpCierreDia($fecha, $regenerar = 0)
     {
-        $configCierre = $this->getConfigCierreDia();
-        $valor = isset($configCierre['CIERRE_DIA_SOLO_FLUJO']) ? trim((string) $configCierre['CIERRE_DIA_SOLO_FLUJO']) : '';
-        $soloFlujo = $valor !== '' && (filter_var($valor, FILTER_VALIDATE_BOOLEAN) || strtolower($valor) === 'true' || $valor === '1');
-
-        if ($soloFlujo) {
-            return;
-        }
-
         $db = new Database();
         if ($db->db_activa === null) {
             throw new \RuntimeException('No hay conexión a la base de datos.');
@@ -422,17 +550,4 @@ class CierreDiaRepository
         return $resultado;
     }
 
-    /**
-     * Lee la sección [cierre_dia] del configuracion.ini (getConfig() devuelve array plano sin secciones).
-     *
-     * @return array
-     */
-    private function getConfigCierreDia()
-    {
-        if (!function_exists('parse_ini_file')) {
-            return [];
-        }
-        $ini = @parse_ini_file(dirname(__DIR__) . '/config/configuracion.ini', true);
-        return isset($ini['cierre_dia']) && is_array($ini['cierre_dia']) ? $ini['cierre_dia'] : [];
-    }
 }

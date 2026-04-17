@@ -55,6 +55,7 @@ class Contenedor extends Controller
                 <link rel="stylesheet" type="text/css" href="/css/green.css">
                 <link rel="stylesheet" type="text/css" href="/css/custom.min.css">
                 <link rel="stylesheet" type="text/css" href="/css/custom_menu.css">
+                <link rel="stylesheet" type="text/css" href="/css/prefers-color-scheme-dark.css">
                 $extra 
             </head>
             <body class="nav-md">

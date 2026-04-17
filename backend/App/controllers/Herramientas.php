@@ -6,7 +6,6 @@ defined("APPPATH") or die("Access denied");
 
 use Core\View;
 use Core\Controller;
-use Core\App;
 use App\models\Herramientas as HerramientasDao;
 use App\services\AuditoriaDevengoService;
 

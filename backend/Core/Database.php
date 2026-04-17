@@ -471,36 +471,76 @@ class Database
      */
     public function spImportaPagoSOF($fechaPago, $referencia, $monto, $empresa, $cuentaBancaria, $usuario, $identificador, $renExcel, $renglon, $noPagos, $idImportacion, $moneda = 'MN')
     {
-        $periodo = 1;
+        $periodo = '1';
         $operacion = 'I';
-        $montoCancelacion = 0;
+        $montoCancelacion = '0';
         $resultado = '';
-        $validacion = 0;
+        $validacion = '0';
 
-        $sql = "BEGIN PKG_ImportaPagoSOF.spImportaPagoSOF(:p_fecha, :p_ref, :p_monto, :p_empresa, :p_cta, :p_user, :p_iden, :p_periodo, :p_oper, :p_res, :p_montocan, :p_renexcel, :p_renglon, :p_nopagos, :p_idimp, :p_val, :p_moneda); END;";
-        $stmt = $this->db_activa->prepare($sql);
-        $stmt->bindParam(':p_fecha', $fechaPago, PDO::PARAM_STR);
-        $stmt->bindParam(':p_ref', $referencia, PDO::PARAM_STR);
-        $stmt->bindParam(':p_monto', $monto, PDO::PARAM_STR);
-        $stmt->bindParam(':p_empresa', $empresa, PDO::PARAM_STR);
-        $stmt->bindParam(':p_cta', $cuentaBancaria, PDO::PARAM_STR);
-        $stmt->bindParam(':p_user', $usuario, PDO::PARAM_STR);
-        $stmt->bindParam(':p_iden', $identificador, PDO::PARAM_STR);
-        $stmt->bindParam(':p_periodo', $periodo, PDO::PARAM_STR);
-        $stmt->bindParam(':p_oper', $operacion, PDO::PARAM_STR);
-        $stmt->bindParam(':p_res', $resultado, PDO::PARAM_STR | PDO::PARAM_INPUT_OUTPUT, 100);
-        $stmt->bindParam(':p_montocan', $montoCancelacion, PDO::PARAM_INT);
-        $stmt->bindParam(':p_renexcel', $renExcel, PDO::PARAM_INT);
-        $stmt->bindParam(':p_renglon', $renglon, PDO::PARAM_INT);
-        $stmt->bindParam(':p_nopagos', $noPagos, PDO::PARAM_INT);
-        $stmt->bindParam(':p_idimp', $idImportacion, PDO::PARAM_INT);
-        $stmt->bindParam(':p_val', $validacion, PDO::PARAM_INT | PDO::PARAM_INPUT_OUTPUT);
-        $stmt->bindParam(':p_moneda', $moneda, PDO::PARAM_STR);
+        $monto = (string) $monto;
+        $idImportacion = (string) $idImportacion;
+        $fechaPago = (string) $fechaPago;
+        $referencia = (string) $referencia;
+        $empresa = (string) $empresa;
+        $cuentaBancaria = (string) $cuentaBancaria;
+        $usuario = (string) $usuario;
+        $identificador = (string) $identificador;
+        $moneda = (string) $moneda;
 
-        $ok = $stmt->execute();
+        $renExcelVal = $renExcel === null ? '' : (string) $renExcel;
+        $renglonVal = $renglon === null ? '' : (string) $renglon;
+        $noPagosVal = $noPagos === null ? '' : (string) $noPagos;
+
+        $sql = "BEGIN PKG_ImportaPagoSOF.spImportaPagoSOF(
+            TO_DATE(:p_fecha, 'YYYY/MM/DD HH24:MI:SS'),
+            :p_ref, :p_monto, :p_empresa, :p_cta, :p_user, :p_iden,
+            :p_periodo, :p_oper,
+            :p_res, :p_montocan,
+            :p_renexcel, :p_renglon, :p_nopagos, :p_idimp,
+            :p_val, :p_moneda
+        ); END;";
+
+        try {
+            $stmt = $this->db_activa->prepare($sql);
+            $stmt->bindParam(':p_fecha', $fechaPago, PDO::PARAM_STR, 30);
+            $stmt->bindParam(':p_ref', $referencia, PDO::PARAM_STR, 120);
+            $stmt->bindParam(':p_monto', $monto, PDO::PARAM_STR, 30);
+            $stmt->bindParam(':p_empresa', $empresa, PDO::PARAM_STR, 20);
+            $stmt->bindParam(':p_cta', $cuentaBancaria, PDO::PARAM_STR, 20);
+            $stmt->bindParam(':p_user', $usuario, PDO::PARAM_STR, 50);
+            $stmt->bindParam(':p_iden', $identificador, PDO::PARAM_STR, 30);
+            $stmt->bindParam(':p_periodo', $periodo, PDO::PARAM_STR, 10);
+            $stmt->bindParam(':p_oper', $operacion, PDO::PARAM_STR, 5);
+            $stmt->bindParam(':p_res', $resultado, PDO::PARAM_STR | PDO::PARAM_INPUT_OUTPUT, 4000);
+            $stmt->bindParam(':p_montocan', $montoCancelacion, PDO::PARAM_STR, 30);
+            $stmt->bindParam(':p_renexcel', $renExcelVal, PDO::PARAM_STR, 30);
+            $stmt->bindParam(':p_renglon', $renglonVal, PDO::PARAM_STR, 30);
+            $stmt->bindParam(':p_nopagos', $noPagosVal, PDO::PARAM_STR, 30);
+            $stmt->bindParam(':p_idimp', $idImportacion, PDO::PARAM_STR, 30);
+            $stmt->bindParam(':p_val', $validacion, PDO::PARAM_STR | PDO::PARAM_INPUT_OUTPUT, 20);
+            $stmt->bindParam(':p_moneda', $moneda, PDO::PARAM_STR, 10);
+
+            $ok = $stmt->execute();
+            if (!$ok) {
+                $errorInfo = $stmt->errorInfo();
+                $mensajeError = $errorInfo[2] ?? ($errorInfo[1] ?? 'execute() retornó false sin detalle');
+                return [
+                    'success' => false,
+                    'resultado' => $mensajeError,
+                    'validacion' => -1,
+                ];
+            }
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'resultado' => $e->getMessage(),
+                'validacion' => -1,
+            ];
+        }
+
         return [
-            'success' => (bool) $ok,
-            'resultado' => $resultado,
+            'success' => true,
+            'resultado' => trim((string) $resultado),
             'validacion' => (int) $validacion,
         ];
     }
@@ -531,7 +571,7 @@ class Database
         $resultado = '';
         $validacionStr = '0';
 
-        $sql = "BEGIN PKG_ImportaPagoSOF_PRUEBA.spImportaPagoSOF(:p_fecha, :p_ref, :p_monto, :p_empresa, :p_cta, :p_user, :p_iden, :p_periodo, :p_oper, :p_res, :p_montocan, :p_renexcel, :p_renglon, :p_nopagos, :p_idimp, :p_val, :p_moneda); END;";
+        $sql = "BEGIN PKG_ImportaPagoSOF_PRUEBA.spImportaPagoSOF(TO_DATE(:p_fecha, 'YYYY/MM/DD HH24:MI:SS'), :p_ref, :p_monto, :p_empresa, :p_cta, :p_user, :p_iden, :p_periodo, :p_oper, :p_res, :p_montocan, :p_renexcel, :p_renglon, :p_nopagos, :p_idimp, :p_val, :p_moneda); END;";
         $stmt = $this->db_activa->prepare($sql);
         $stmt->bindParam(':p_fecha', $fechaPago, PDO::PARAM_STR);
         $stmt->bindParam(':p_ref', $referencia, PDO::PARAM_STR);
@@ -551,7 +591,26 @@ class Database
         $stmt->bindParam(':p_val', $validacionStr, PDO::PARAM_STR | PDO::PARAM_INPUT_OUTPUT, 22);
         $stmt->bindParam(':p_moneda', $moneda, PDO::PARAM_STR);
 
-        $ok = $stmt->execute();
+        try {
+            $ok = $stmt->execute();
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'resultado' => $e->getMessage(),
+                'validacion' => -1,
+            ];
+        }
+
+        if (!$ok) {
+            $errorInfo = $stmt->errorInfo();
+            $mensajeError = $errorInfo[2] ?? ($errorInfo[1] ?? 'execute() retornó false sin detalle');
+            return [
+                'success' => false,
+                'resultado' => $mensajeError,
+                'validacion' => -1,
+            ];
+        }
+
         return [
             'success' => (bool) $ok,
             'resultado' => $resultado !== '' ? $resultado : 'OK PRUEBA (sin cambios en BD)',
@@ -576,7 +635,9 @@ class Database
      */
     public function spRedistribucionPagos($empresa, $cdgclns, $ciclo, $tipo, $fecha, $periodo, $secuencia, $monto, $cuenta, $usuario, $identificador)
     {
-        $sql = "BEGIN spRedistribucionPagos(:empresa, :cdgclns, :ciclo, :tipo, TO_DATE(:fecha, 'YYYY-MM-DD'), :periodo, :secuencia, :monto, :cuenta, :usuario, :identificador); END;";
+        // En VB6 el identificador se pasa como literal numérico (sin comillas).
+        // Para replicar ese comportamiento, lo convertimos con TO_NUMBER().
+        $sql = "BEGIN spRedistribucionPagos(:empresa, :cdgclns, :ciclo, :tipo, TO_DATE(:fecha, 'YYYY-MM-DD'), :periodo, :secuencia, :monto, :cuenta, :usuario, TO_NUMBER(:identificador)); END;";
         $stmt = $this->db_activa->prepare($sql);
         $stmt->execute([
             'empresa' => $empresa,
@@ -611,7 +672,7 @@ class Database
      */
     public function spRedistribucionPagosPrueba($empresa, $cdgclns, $ciclo, $tipo, $fecha, $periodo, $secuencia, $monto, $cuenta, $usuario, $identificador)
     {
-        $sql = "BEGIN spRedistribucionPagos_PRUEBA(:empresa, :cdgclns, :ciclo, :tipo, TO_DATE(:fecha, 'YYYY-MM-DD'), :periodo, :secuencia, :monto, :cuenta, :usuario, :identificador); END;";
+        $sql = "BEGIN spRedistribucionPagos_PRUEBA(:empresa, :cdgclns, :ciclo, :tipo, TO_DATE(:fecha, 'YYYY-MM-DD'), :periodo, :secuencia, :monto, :cuenta, :usuario, TO_NUMBER(:identificador)); END;";
         $stmt = $this->db_activa->prepare($sql);
         $stmt->execute([
             'empresa' => $empresa,

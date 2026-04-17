@@ -23,6 +23,32 @@ class CierreDiaService
     {
         $repo = new CierreDiaRepository();
         $ultimos5 = $repo->getUltimos5Cierres();
+        $fechasResumen = [];
+        foreach ($ultimos5 as $fila) {
+            $fechaIso = isset($fila['FECHA_CIERRE_ISO']) ? trim((string) $fila['FECHA_CIERRE_ISO']) : '';
+            if ($fechaIso !== '') {
+                $fechasResumen[] = $fechaIso;
+            }
+        }
+        $resumenes = $repo->getResumenesPorFechas($fechasResumen);
+        $mapCierre = isset($resumenes['cierre']) && is_array($resumenes['cierre']) ? $resumenes['cierre'] : [];
+        $mapDevengo = isset($resumenes['devengo']) && is_array($resumenes['devengo']) ? $resumenes['devengo'] : [];
+        foreach ($ultimos5 as &$fila) {
+            $fechaIso = isset($fila['FECHA_CIERRE_ISO']) ? (string) $fila['FECHA_CIERRE_ISO'] : '';
+            unset($fila['FECHA_CIERRE_ISO']);
+            if ($fechaIso !== '') {
+                $registros = isset($mapCierre[$fechaIso]) ? (int) $mapCierre[$fechaIso] : 0;
+                $resDevengo = isset($mapDevengo[$fechaIso]) && is_array($mapDevengo[$fechaIso]) ? $mapDevengo[$fechaIso] : ['creditos' => 0, 'monto' => 0];
+                $fila['REGISTROS_PROCESADOS'] = $registros;
+                $fila['CREDITOS_DEVENGO'] = (int) ($resDevengo['creditos'] ?? 0);
+                $fila['MONTO_INTERESES_DEVENGADOS'] = '$ ' . number_format((float) ($resDevengo['monto'] ?? 0), 2);
+            } else {
+                $fila['REGISTROS_PROCESADOS'] = 0;
+                $fila['CREDITOS_DEVENGO'] = 0;
+                $fila['MONTO_INTERESES_DEVENGADOS'] = '$ 0.00';
+            }
+        }
+        unset($fila);
         $enEjecucion = $repo->validaCierreEnEjecucion();
         $ejecutando = !empty($enEjecucion);
         $tiempoEstimado = $repo->tiempoEstimado();
@@ -49,7 +75,8 @@ class CierreDiaService
     }
 
     /**
-     * Validación previa antes de ejecutar: concurrencia, cierre ya ejecutado, o si puede regenerar (admin + fecha ≤ 3 días).
+     * Validación previa antes de ejecutar: concurrencia, cierre ya ejecutado, o si puede regenerar (admin).
+     * Nota: límite de 3 días para regenerar está deshabilitado temporalmente (ver bloque comentado abajo).
      *
      * @param string $fecha Y-m-d
      * @param string $perfil Perfil del usuario (ej. ADMIN)
@@ -68,22 +95,22 @@ class CierreDiaService
             return Model::Responde(false, 'Ya hay un proceso de cierre diario en ejecución, no es posible iniciar otro.', $enEjecucion, 'Concurrencia');
         }
 
-        $configCierre = self::getConfigCierreDia();
-        $soloFlujo = self::isSoloFlujo($configCierre);
-
-        if (!$soloFlujo && !$repo->existeCierreDiaAnterior($fecha)) {
+        // DESHABILITADO: esta validación interrumpía el proceso (exige filas en TBL_CIERRE_DIA del día anterior con FECHA_LIQUIDA IS NULL).
+        // Misma regla que VB6; descomentar cuando el entorno tenga el cierre previo cargado correctamente.
+        /*
+        if (!$repo->existeCierreDiaAnterior($fecha)) {
             return Model::Responde(false, 'No se puede ejecutar el cierre: no se ha realizado el Cierre del Día Anterior.', null, 'Cierre día anterior');
         }
+        */
 
         $yaEjecutado = $repo->cierreYaEjecutado($fecha);
         $esAdmin = $perfil !== '' && stripos($perfil, 'ADMIN') !== false;
-        $limite = date('Y-m-d', strtotime('-3 days'));
-        $puedeRegenerar = $esAdmin && $fecha >= $limite;
+        // Temporal: sin ventana de 3 días; el admin puede regenerar cualquier fecha ya cerrada.
+        // $limite = date('Y-m-d', strtotime('-3 days'));
+        // $puedeRegenerar = $esAdmin && $fecha >= $limite;
+        $puedeRegenerar = $esAdmin;
 
         if ($yaEjecutado && !$puedeRegenerar) {
-            if ($soloFlujo) {
-                return Model::Responde(true, 'Validación correcta (modo solo flujo: puede ejecutar para probar el correo).', ['yaEjecutado' => false, 'puedeRegenerar' => false]);
-            }
             return Model::Responde(true, 'El cierre de ese día ya fue ejecutado.', [
                 'yaEjecutado' => true,
                 'puedeRegenerar' => false,
@@ -91,7 +118,7 @@ class CierreDiaService
         }
 
         if ($yaEjecutado && $puedeRegenerar) {
-            return Model::Responde(true, 'El cierre ya fue ejecutado. Como administrador puede regenerar (últimos 3 días).', [
+            return Model::Responde(true, 'El cierre ya fue ejecutado. Como administrador puede regenerar.', [
                 'yaEjecutado' => true,
                 'puedeRegenerar' => true,
             ]);
@@ -111,20 +138,16 @@ class CierreDiaService
      */
     public static function registrarInicioYResponder($fecha, $usuario, $regenerar = 0)
     {
-        $soloFlujo = self::isSoloFlujo(self::getConfigCierreDia());
-
-        if (!$soloFlujo) {
-            $repo = new CierreDiaRepository();
-            if (!$repo->registrarInicio($fecha, $usuario)) {
-                return Model::Responde(false, 'Error al registrar el inicio del cierre.', null, 'Registro bitácora');
-            }
+        $repo = new CierreDiaRepository();
+        if (!$repo->registrarInicio($fecha, $usuario)) {
+            return Model::Responde(false, 'Error al registrar el inicio del cierre.', null, 'Registro bitácora');
         }
         return Model::Responde(true, 'El proceso de cierre diario se ha iniciado correctamente.');
     }
 
     /**
-     * Ejecuta el cierre diario en la misma petición (sin Job en segundo plano):
-     * si solo flujo solo envía correo; si no, ejecuta SPs y finaliza.
+     * Ejecuta el cierre diario en la misma petición (sin Job en segundo plano).
+     * Siempre ejecuta el proceso real; el flag solo flujo solo afecta destinatarios de correo en finalizarCierre().
      *
      * @param string $fechaCierre Y-m-d
      * @param string $usuario
@@ -133,18 +156,18 @@ class CierreDiaService
      */
     public static function ejecutarCierreDiario($fechaCierre, $usuario, $regenerar = 0)
     {
-        $soloFlujo = self::isSoloFlujo(self::getConfigCierreDia());
-
-        if ($soloFlujo) {
-            self::finalizarCierre($fechaCierre, 1);
-            return Model::Responde(true, 'Proceso de cierre (solo flujo) completado. Se envió el correo a CORREOS_DESARROLLO.');
-        }
-
         $repo = new CierreDiaRepository();
         try {
             $repo->ejecutarSpCierreDia($fechaCierre, $regenerar);
             $fechaDevengo = date('Y-m-d', strtotime($fechaCierre . ' +1 day'));
-            $repo->ejecutarSpGenDevengoDiario($fechaDevengo, $usuario);
+            // Igual que JobsCredito: si el devengo falla (p. ej. ORA-00001 duplicado en DEVENGO_DIARIO
+            // por ejecución previa o datos ya generados), no se debe abortar todo el cierre.
+            $advertenciaDevengo = '';
+            try {
+                $repo->ejecutarSpGenDevengoDiario($fechaDevengo, $usuario);
+            } catch (\Throwable $eDevengo) {
+                $advertenciaDevengo = self::mensajeAdvertenciaDevengo($eDevengo, $fechaDevengo);
+            }
             $advertenciaPld = '';
             $resRel = $repo->ejecutarSpGenAlertarRelPld($fechaCierre, $usuario);
             if (self::resultadoPldEsError($resRel)) {
@@ -157,6 +180,9 @@ class CierreDiaService
             }
             self::finalizarCierre($fechaCierre, 1);
             $mensaje = 'El cierre de día se ha completado correctamente.';
+            if ($advertenciaDevengo !== '') {
+                $mensaje .= ' Advertencia devengo: ' . $advertenciaDevengo;
+            }
             if ($advertenciaPld !== '') {
                 $mensaje .= ' Advertencia PLD: ' . $advertenciaPld;
             }
@@ -183,10 +209,9 @@ class CierreDiaService
             return;
         }
 
-        // Resumen cierre: consulta con fecha de cierre (ej. 3 marzo). Resumen intereses: consulta con fecha al día siguiente (ej. 4 marzo)
-        $fechaDevengo = date('Y-m-d', strtotime($fechaCierre . ' +1 day'));
+        // Resumen cierre: fecha de cierre. Devengo en resumen/correo: misma fecha calendario (como COUNT en BD por TRUNC(FECHA_CALC) = fecha_cierre).
         $resCierre = $repo->getResumenCierre($fechaCierre);
-        $resDevengo = $repo->getResumenDevengo($fechaDevengo);
+        $resDevengo = $repo->getResumenDevengo($fechaCierre);
 
         $registros = (int) ($resCierre['registros'] ?? 0);
         $creditos = (int) ($resDevengo['creditos'] ?? 0);
@@ -254,6 +279,30 @@ class CierreDiaService
             return $len > 0 ? $r : 'El SP devolvió un resultado vacío.';
         }
         return trim(substr($r, 2, $len - 2));
+    }
+
+    /**
+     * Mensaje breve cuando falla PKG_CIERRE.SPGENDEVENGODIARIO (duplicados, etc.).
+     *
+     * @param \Throwable $e
+     * @param string $fechaDevengo Y-m-d
+     * @return string
+     */
+    private static function mensajeAdvertenciaDevengo(\Throwable $e, $fechaDevengo)
+    {
+        $msg = $e->getMessage();
+        if (stripos($msg, 'ORA-00001') !== false && stripos($msg, 'DEVENGO_DIARIO') !== false) {
+            return 'Ya existían registros de devengo para la fecha ' . $fechaDevengo
+                . ' (clave duplicada en DEVENGO_DIARIO). El cierre principal se consideró correcto; revise consistencia si regeneró parcialmente.';
+        }
+        if (stripos($msg, 'ORA-06502') !== false && stripos($msg, 'ORA-00001') !== false) {
+            return 'Error al generar devengo (restricción única en DEVENGO_DIARIO). Fecha devengo: ' . $fechaDevengo . '.';
+        }
+        $corta = preg_replace('/\s+/', ' ', $msg);
+        if (is_string($corta) && strlen($corta) > 400) {
+            $corta = substr($corta, 0, 397) . '...';
+        }
+        return 'No se pudo ejecutar el devengo diario (' . $fechaDevengo . '): ' . ($corta ?: $msg);
     }
 
     /**
