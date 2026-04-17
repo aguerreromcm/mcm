@@ -775,4 +775,110 @@ class Operaciones extends Model
             return self::Responde(false, 'Error al consultar el reporte de interés devengado', null, $e->getMessage());
         }
     }
+
+    /**
+     * Reporte Acreditado: información histórica de un crédito (ciclos, plazos, avales,
+     * fechas, días de atraso, garantía y cartera).
+     *
+     * @param array $datos ['credito' => string]
+     */
+    public static function GetReporteAcreditado($datos)
+    {
+        $qry = <<<SQL
+            WITH CREDITOS AS (
+                SELECT
+                    PRN.CDGNS AS CREDITO
+                    ,PRN.CICLO
+                    ,PRN.CANTENTRE AS MONTO
+                    ,TO_CHAR(PRN.INICIO, 'DD/MM/YYYY') AS INICIO
+                    ,TO_CHAR(PRN.INICIO + (DECODE(NVL(PRN.PERIODICIDAD, 'S'), 'S', 7, 'C', 14, 'Q', 15, 'M', 30, 7) * NVL(PRN.PLAZO, 0)), 'DD/MM/YYYY') AS FIN
+                    ,PRN.PLAZO
+                    ,PRN.TASA
+                    ,FNCALDIASATRASO(PRN.CDGEM, PRN.CDGNS, PRN.CICLO, 'G', SYSDATE) AS DIAS_ATRASO
+                    ,PRN.SOLICITUD
+                FROM
+                    PRN
+                    INNER JOIN SN ON  SN.CDGNS = PRN.CDGNS AND SN.CICLO = PRN.CICLO
+                WHERE
+                    PRN.CDGNS = :credito
+            )
+            , AVALES AS (
+                SELECT
+                    SC.CDGNS AS CREDITO
+                    ,SC.CICLO
+                    ,LISTAGG(GET_NOMBRE_CLIENTE(SC.CDGCL), ', ')
+                        WITHIN GROUP (ORDER BY SC.CDGCL) AS AVALES
+                FROM
+                    SC
+                WHERE
+                    SC.CANTSOLIC = 9999
+                    AND SC.SITUACION = 'R'
+                GROUP BY
+                    SC.CDGNS, SC.CICLO
+            )
+            , LIQUIDACIONES AS (
+                SELECT
+                    CDGCLNS AS CREDITO
+                    ,CICLO
+                    ,TO_CHAR(FECHA_LIQUIDA, 'DD/MM/YYYY') AS LIQUIDACION
+                FROM
+                    TBL_CIERRE_DIA
+                WHERE
+                    NOT FECHA_LIQUIDA IS NULL
+            )
+            , GARANTIAS AS (
+                SELECT
+                    CDGCLNS AS CREDITO
+                    ,CICLO
+                    ,SUM(CANTIDAD) AS GARANTIA
+                FROM
+                    PAG_GAR_SIM
+                GROUP BY
+                    CDGCLNS
+                    ,CICLO
+            )
+            , CARTERA AS (
+                SELECT
+                    CDGCLNS AS CREDITO
+                    ,CICLO
+                    ,SUM(CANTIDAD) AS CARTERA
+                FROM
+                    MP
+                GROUP BY
+                    CDGCLNS
+                    ,CICLO
+            )
+            SELECT
+                C.CREDITO
+                ,C.CICLO
+                ,C.PLAZO
+                ,C.TASA
+                ,A.AVALES
+                ,C.INICIO
+                ,C.FIN
+                ,L.LIQUIDACION
+                ,C.DIAS_ATRASO
+                ,C.MONTO
+                ,G.GARANTIA
+                ,C.MONTO - NVL(CA.CARTERA, 0) AS CARTERA
+            FROM
+                CREDITOS C
+                LEFT JOIN AVALES A ON C.CREDITO = A.CREDITO AND C.CICLO = A.CICLO
+                LEFT JOIN LIQUIDACIONES L ON C.CREDITO = L.CREDITO AND C.CICLO = L.CICLO
+                LEFT JOIN GARANTIAS G ON C.CREDITO = G.CREDITO AND C.CICLO = G.CICLO
+                LEFT JOIN CARTERA CA ON C.CREDITO = CA.CREDITO AND C.CICLO = CA.CICLO
+            ORDER BY
+                C.SOLICITUD ASC
+        SQL;
+
+        $credito = isset($datos['credito']) ? trim((string) $datos['credito']) : '';
+
+        try {
+            $db = new Database();
+            $res = $db->queryAll($qry, ['credito' => $credito]);
+            return self::Responde(true, 'Consulta exitosa', $res);
+        } catch (\Exception $e) {
+            return self::Responde(false, 'Error al consultar el reporte del acreditado', null, $e->getMessage());
+        }
+    }
 }

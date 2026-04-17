@@ -1128,4 +1128,118 @@ class Operaciones extends Controller
 
         \PHPSpreadsheet::DescargaExcel('Reporte Interes Devengado', 'Reporte', 'Interes Devengado', $columnas, $filas);
     }
+
+    /**
+     * Operaciones → Reporte Acreditado.
+     * Muestra el histórico del acreditado por crédito (CDGNS) en una sola pantalla:
+     * ciclos, plazo, tasa, avales, fechas, días de atraso, monto, garantía y cartera.
+     */
+    public function ReporteAcreditado()
+    {
+        $extraFooter = <<<HTML
+            <script>
+                {$this->mensajes}
+                {$this->consultaServidor}
+                {$this->configuraTabla}
+                {$this->formatoMoneda}
+
+                const idTablaAcreditado = "reporteAcreditado"
+
+                const obtenerParametrosAcreditado = () => {
+                    const credito = ($("#creditoAcreditado").val() || "").trim()
+                    return { credito }
+                }
+
+                const consultarAcreditado = () => {
+                    const params = obtenerParametrosAcreditado()
+                    if (!params.credito) {
+                        showError("Capture el crédito a consultar.")
+                        return
+                    }
+
+                    consultaServidor("/Operaciones/GetReporteAcreditado", params, (res) => {
+                        if (!res.success) return resultadoErrorAcreditado(res.mensaje)
+                        resultadoOKAcreditado(res.datos || [])
+                    })
+                }
+
+                const resultadoErrorAcreditado = (mensaje) => {
+                    $(".resultadoAcreditado").toggleClass("conDatos", false)
+                    showError(mensaje || "No fue posible obtener el reporte.").then(() => {
+                        actualizaDatosTabla(idTablaAcreditado, [])
+                    })
+                }
+
+                const resultadoOKAcreditado = (datos) => {
+                    if (!datos.length) {
+                        showInfo("No se encontró información para el crédito capturado.")
+                    }
+
+                    datos = datos.map((item) => {
+                        if (item.MONTO != null) {
+                            item.MONTO = "$ " + formatoMoneda(item.MONTO)
+                        }
+                        if (item.GARANTIA != null) {
+                            item.GARANTIA = "$ " + formatoMoneda(item.GARANTIA)
+                        } else {
+                            item.GARANTIA = "$ 0.00"
+                        }
+                        if (item.CARTERA != null) {
+                            item.CARTERA = "$ " + formatoMoneda(item.CARTERA)
+                        } else {
+                            item.CARTERA = "$ 0.00"
+                        }
+                        if (item.LIQUIDACION == null) item.LIQUIDACION = "-"
+                        if (item.AVALES == null) item.AVALES = "-"
+                        if (item.DIAS_ATRASO == null) item.DIAS_ATRASO = 0
+                        return item
+                    })
+
+                    actualizaDatosTabla(idTablaAcreditado, datos)
+                    $(".resultadoAcreditado").toggleClass("conDatos", true)
+                }
+
+                $(document).ready(() => {
+                    $("#btnConsultarAcreditado").click(consultarAcreditado)
+                    $("#creditoAcreditado").on("keypress", (e) => {
+                        if (e.which === 13) consultarAcreditado()
+                    })
+
+                    configuraTabla(idTablaAcreditado)
+                })
+            </script>
+        HTML;
+
+        View::set('header', $this->_contenedor->header($this->getExtraHeader("Reporte Acreditado")));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+
+        View::render('operaciones_reporte_acreditado');
+    }
+
+    /**
+     * POST: credito (CDGNS). Devuelve JSON con el histórico del acreditado.
+     */
+    public function GetReporteAcreditado()
+    {
+        $this->limpiaSalidaParaJson();
+
+        try {
+            $credito = isset($_POST['credito']) ? trim((string) $_POST['credito']) : '';
+
+            if ($credito === '') {
+                $resp = \Core\Model::Responde(false, 'Debe capturar el crédito.', null);
+            } else {
+                $resp = OperacionesDao::GetReporteAcreditado([
+                    'credito' => $credito,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            $resp = \Core\Model::Responde(false, 'Error al obtener el reporte: ' . $e->getMessage(), null, $e->getMessage());
+        }
+
+        if (ob_get_level()) ob_end_clean();
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($resp);
+        exit;
+    }
 }
