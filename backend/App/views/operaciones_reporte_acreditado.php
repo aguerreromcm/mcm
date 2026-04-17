@@ -40,7 +40,7 @@
                             <th>Ciclo</th>
                             <th>Plazo</th>
                             <th>Tasa</th>
-                            <th>Avales</th>
+                            <th width="350">Avales</th>
                             <th>Inicio</th>
                             <th>Fin</th>
                             <th>Liquidación</th>
