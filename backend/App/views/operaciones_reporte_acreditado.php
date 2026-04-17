@@ -31,6 +31,11 @@
             </div>
         </div>
         <div class="panel-body resultadoAcreditado">
+            <div class="botones">
+                <button type="button" class="btn btn-success" id="btnExcelAcreditado">
+                    <span class="fa fa-file-excel-o">&nbsp;</span>Exportar a Excel
+                </button>
+            </div>
             <hr>
             <div class="row">
                 <table class="table table-striped table-bordered table-hover" id="reporteAcreditado">

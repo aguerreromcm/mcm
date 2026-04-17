@@ -1141,9 +1141,11 @@ class Operaciones extends Controller
                 {$this->mensajes}
                 {$this->consultaServidor}
                 {$this->configuraTabla}
+                {$this->descargaExcel}
                 {$this->formatoMoneda}
 
                 const idTablaAcreditado = "reporteAcreditado"
+                let hayDatosAcreditado = false
 
                 const obtenerParametrosAcreditado = () => {
                     const credito = ($("#creditoAcreditado").val() || "").trim()
@@ -1163,7 +1165,21 @@ class Operaciones extends Controller
                     })
                 }
 
+                const descargarExcelAcreditado = () => {
+                    const params = obtenerParametrosAcreditado()
+                    if (!params.credito) {
+                        showError("Capture el crédito a consultar.")
+                        return
+                    }
+                    if (!hayDatosAcreditado) {
+                        showError("Primero consulte el reporte para descargarlo.")
+                        return
+                    }
+                    descargaExcel("/Operaciones/GetReporteAcreditado_excel/?" + $.param(params))
+                }
+
                 const resultadoErrorAcreditado = (mensaje) => {
+                    hayDatosAcreditado = false
                     $(".resultadoAcreditado").toggleClass("conDatos", false)
                     showError(mensaje || "No fue posible obtener el reporte.").then(() => {
                         actualizaDatosTabla(idTablaAcreditado, [])
@@ -1171,6 +1187,7 @@ class Operaciones extends Controller
                 }
 
                 const resultadoOKAcreditado = (datos) => {
+                    hayDatosAcreditado = datos.length > 0
                     if (!datos.length) {
                         showInfo("No se encontró información para el crédito capturado.")
                     }
@@ -1201,6 +1218,7 @@ class Operaciones extends Controller
 
                 $(document).ready(() => {
                     $("#btnConsultarAcreditado").click(consultarAcreditado)
+                    $("#btnExcelAcreditado").click(descargarExcelAcreditado)
                     $("#creditoAcreditado").on("keypress", (e) => {
                         if (e.which === 13) consultarAcreditado()
                     })
@@ -1241,5 +1259,39 @@ class Operaciones extends Controller
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode($resp);
         exit;
+    }
+
+    /**
+     * Exporta a Excel el mismo dataset del reporte de acreditado.
+     * Parámetro por GET: credito (CDGNS).
+     */
+    public function GetReporteAcreditado_excel()
+    {
+        $estilos = \PHPSpreadsheet::GetEstilosExcel();
+        $texto = ['estilo' => $estilos['texto_centrado']];
+        $moneda = ['estilo' => $estilos['moneda']];
+
+        $columnas = [
+            \PHPSpreadsheet::ColumnaExcel('CREDITO', 'Crédito', $texto),
+            \PHPSpreadsheet::ColumnaExcel('CICLO', 'Ciclo', $texto),
+            \PHPSpreadsheet::ColumnaExcel('PLAZO', 'Plazo', $texto),
+            \PHPSpreadsheet::ColumnaExcel('TASA', 'Tasa', $texto),
+            \PHPSpreadsheet::ColumnaExcel('AVALES', 'Avales'),
+            \PHPSpreadsheet::ColumnaExcel('INICIO', 'Inicio', $texto),
+            \PHPSpreadsheet::ColumnaExcel('FIN', 'Fin', $texto),
+            \PHPSpreadsheet::ColumnaExcel('LIQUIDACION', 'Liquidación', $texto),
+            \PHPSpreadsheet::ColumnaExcel('DIAS_ATRASO', 'Días atraso', $texto),
+            \PHPSpreadsheet::ColumnaExcel('MONTO', 'Monto', $moneda),
+            \PHPSpreadsheet::ColumnaExcel('GARANTIA', 'Garantía', $moneda),
+            \PHPSpreadsheet::ColumnaExcel('CARTERA', 'Cartera', $moneda),
+        ];
+
+        $credito = isset($_GET['credito']) ? trim((string) $_GET['credito']) : '';
+
+        $resp = OperacionesDao::GetReporteAcreditado(['credito' => $credito]);
+        $filas = ($resp && isset($resp['success']) && $resp['success']) ? ($resp['datos'] ?? []) : [];
+
+        $sufijo = $credito !== '' ? ' ' . $credito : '';
+        \PHPSpreadsheet::DescargaExcel('Reporte Acreditado' . $sufijo, 'Reporte', 'Acreditado' . $sufijo, $columnas, $filas);
     }
 }
