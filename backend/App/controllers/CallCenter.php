@@ -668,16 +668,10 @@ class CallCenter extends Controller
                 }
 
                 const guardaEncuestaRetiro = () => {
-                    const retiro = "{$_GET['retiro']}"
-                    const tipo = document.getElementById("tipo_llamada").value
-                    if (tipo == "") return showError("Seleccione el tipo de llamada que realizo")
-
                     const p1 = $("#ret_p1").val()
                     const p2 = $("#ret_p2").val()
                     const p3 = $("#ret_p3").val()
                     const p4 = $("#ret_p4").val()
-                    const r1 = (p1 || "") + (p2 || "") + (p3 || "")
-                    const r2 = p4 || ""
                     const completo = $('input[name="completo"]:checked').val()
                     let titulo = "Llamada completa"
                     let mensaje = "Usted va a finalizar y guardar la encuesta, no podrá editar esta información en un futuro."
@@ -691,6 +685,13 @@ class CallCenter extends Controller
                         titulo = "Llamada incompleta"
                         mensaje = "¿Desea registrar un intento de llamada como incompleta?"
                     }
+
+                    const retiro = "{$_GET['retiro']}"
+                    const tipo = document.getElementById("tipo_llamada").value
+                    if (tipo == "") return showError("Seleccione el tipo de llamada que realizo")
+
+                    const r1 = p1 === "S" ? "S" : ""
+                    const r2 = p2 === "S" && p3 === "S" ? "S" : ""
 
                     confirmarMovimiento(titulo, mensaje)
                     .then(continuar => {
