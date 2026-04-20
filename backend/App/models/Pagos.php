@@ -1645,10 +1645,10 @@ sql;
         SQL;
 
         // Se añade excepcion temporal para el usuario FLHR que apoya con las pruebas
-        if ($_SESSION['cdgco'] && $_SESSION['perfil'] != 'ADMIN' && $_SESSION['usuario'] != 'FLHR') {
-            $qry = str_replace('FILTRO_SUCURSAL', 'WHERE COD_SUC = :sucursal', $qry);
+        if ($_SESSION['perfil'] != 'ADMIN' && $_SESSION['usuario'] != 'FLHR') {
+            $qry = str_replace('FILTRO_SUCURSAL', 'WHERE COD_SUC IN (SELECT CDGCO FROM PCO WHERE CDGPE = :usuario)', $qry);
             $params = [
-                'sucursal' => $_SESSION['cdgco'] ?? null,
+                'usuario' => $_SESSION['usuario'] ?? null,
             ];
         } else {
             $qry = str_replace('FILTRO_SUCURSAL', '', $qry);

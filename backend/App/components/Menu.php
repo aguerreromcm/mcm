@@ -87,8 +87,8 @@ class Menu
     {
         return [
             $this->enlace('Administración Pagos', '/Pagos/', ['ADMIN', 'MCDP', 'LVGA', 'QARO', 'FLHR']),
-            $this->enlace('Pagos App (DEMO)', '/Pagos_temporal/CorteEjecutivo/', ['ADMIN', 'FLHR']),
-            $this->enlace('Pagos App', '/Pagos/CorteEjecutivo/', ['ADMIN', 'CAJA', 'FLHR', 'HEDC', 'JULM', 'CRCV', 'LUMM', 'EMGL', 'PEAE', 'MCDP', 'LVGA']),
+            $this->enlace('Pagos App (DEMO)', '/Pagos_temporal/CorteEjecutivo/', ['AMGM', 'FLHR']),
+            $this->enlace('Pagos App', '/Pagos/CorteEjecutivo/', ['ADMIN', 'CAJA', 'FLHR', 'HEDC', 'JULM', 'CRCV', 'LUMM', 'EMGL', 'PEAE', 'MCDP', 'LVGA', 'LGFR']),
             $this->enlace('Layout Contable', '/Pagos/Layout/', ['ADMIN', 'ACALL', 'LAYOU', 'FECR']),
             $this->enlace('Registro de Pagos Caja', '/Pagos/PagosRegistro/', ['ADMIN', 'CAJA', 'LGFR', 'PLMV', 'PMAB', 'MGJC', 'AVGA', 'FLCR', 'COCS', 'GOIY', 'DAGC', 'COVG', 'TESP', 'JACJ']),
             $this->enlace('Consulta de Pagos Cliente', '/Pagos/PagosConsultaUsuarios/', ['ADMIN', 'ACALL']),
