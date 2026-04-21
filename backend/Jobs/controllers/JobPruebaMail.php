@@ -51,7 +51,7 @@ class JobsPrueba extends Job
                         <tr>
                             <td style="text-align: center">
                                 <img
-                                    src="https://18.117.29.228/img/logo.png"
+                                    src="https://18.117.29.228/img/logo.svg"
                                     alt="Empresa"
                                     style="width: 150px"
                                 />

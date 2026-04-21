@@ -254,7 +254,7 @@ class Creditos extends Controller
     {
         $extraHeader = <<<html
         <title>Actualizar Crédito</title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
         $extraFooter = <<<html
       <script>
@@ -441,7 +441,7 @@ html;
     {
         $extraHeader = <<<html
         <title>Cambio de Sucursal</title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
         $extraFooter = <<<html
       <script>

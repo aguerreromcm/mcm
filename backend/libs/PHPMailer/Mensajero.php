@@ -127,7 +127,7 @@ class Mensajero
                                 <tr>
                                     <td style="padding: 0">
                                         <img
-                                            src="https://18.117.29.228/img/logo_ico.png"
+                                            src="https://18.117.29.228/img/logo_ico.svg"
                                             alt="Logo"
                                             style="height: 55px; display: block"
                                         />

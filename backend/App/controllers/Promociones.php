@@ -27,7 +27,7 @@ class Promociones extends Controller
 
         $extraHeader = <<<html
         <title>Promociones - Telarana </title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
 
         $extraFooter = <<<html

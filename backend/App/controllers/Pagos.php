@@ -420,7 +420,7 @@ class Pagos extends Controller
     {
         $extraHeader = <<<html
         <title>Ajuste Cierre Caja</title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
 
         $extraFooter = <<<html
@@ -568,7 +568,7 @@ html;
     {
         $extraHeader = <<<html
         <title>Días Festivos</title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
 
         $extraFooter = <<<html
@@ -2151,7 +2151,7 @@ html;
     {
         $extraHeader = <<<html
         <title>Registro de Pagos</title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
 
         $extraFooter = <<<html
@@ -2632,7 +2632,7 @@ html;
 
         $extraHeader = <<<html
         <title>Layout Contable</title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
 
         $extraFooter = <<<html

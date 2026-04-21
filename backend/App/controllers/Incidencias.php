@@ -29,7 +29,7 @@ class Incidencias extends Controller
     {
         $extraHeader = <<<html
         <title>Consulta Altas Grupo Cultiva</title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
 
         $extraFooter = <<<html
@@ -135,7 +135,7 @@ html;
     {
         $extraHeader = <<<html
         <title>Consulta Altas Grupo Cultiva</title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
 
         $extraFooter = <<<html

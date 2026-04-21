@@ -445,7 +445,7 @@ class Operaciones extends Controller
      */
     public function AplicarPagos()
     {
-        $extraHeader = '<title>Aplicar Pagos</title><link rel="shortcut icon" href="/img/logo.png">';
+        $extraHeader = '<title>Aplicar Pagos</title><link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">';
         $extraFooter = <<<HTML
             <script>
                 {$this->mensajes}
@@ -588,7 +588,7 @@ class Operaciones extends Controller
      */
     public function ConciliacionPagos()
     {
-        $extraHeader = '<title>Conciliación de pagos</title><link rel="shortcut icon" href="/img/logo.png">';
+        $extraHeader = '<title>Conciliación de pagos</title><link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">';
         $extraFooter = <<<HTML
             <script>
                 {$this->mensajes}

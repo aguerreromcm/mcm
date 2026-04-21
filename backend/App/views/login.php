@@ -10,7 +10,7 @@ $anio = date('Y');
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="shortcut icon" href="/img/logo_ico.png">
+    <link rel="shortcut icon" href="/img/logo_ico.svg" type="image/x-icon">
     <title>Login | MCM </title>
 
     <!-- Bootstrap -->
@@ -30,7 +30,7 @@ $anio = date('Y');
     <div class="animate form login_form">
         <section class="login_content" style="padding: 100px 0 0;">
             <div style="text-align: center;">
-                <img src="/img/logo.png" alt="Login" width="350" height="260">
+                <img src="/img/logo.svg" alt="Login" width="350" height="260">
             </div>
             <br>
             <form id="login" action="/Login/crearSession" method="POST" class="form-horizontal" name="login">

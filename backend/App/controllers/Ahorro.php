@@ -187,7 +187,7 @@ class Ahorro extends Controller
             plantilla += '<head>'
             plantilla += '<meta charset="UTF-8">'
             plantilla += '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
-            plantilla += '<link rel="shortcut icon" href="' + host + '/img/logo_ico.png">'
+            plantilla += '<link rel="shortcut icon" href="' + host + '/img/logo_ico.svg" type="image/x-icon">'
             plantilla += '<title>' + titulo + '</title>'
             plantilla += '</head>'
             plantilla += '<body style="margin: 0; padding: 0; background-color: #333333;">'
@@ -2789,7 +2789,7 @@ class Ahorro extends Controller
                 plantilla += '<head>'
                 plantilla += '<meta charset="UTF-8">'
                 plantilla += '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
-                plantilla += '<link rel="shortcut icon" href="' + host + '/img/logo.png">'
+                plantilla += '<link rel="shortcut icon" href="' + host + '/img/logo.svg" type="image/x-icon">'
                 plantilla += '<title>Contrato ' + numero_contrato + '</title>'
                 plantilla += '</head>'
                 plantilla += '<body style="margin: 0; padding: 0; background-color: #333333;">'
@@ -3830,7 +3830,7 @@ class Ahorro extends Controller
                 plantilla += '<head>'
                 plantilla += '<meta charset="UTF-8">'
                 plantilla += '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
-                plantilla += '<link rel="shortcut icon" href="" + host + "/img/logo.png">'
+                plantilla += '<link rel="shortcut icon" href="" + host + "/img/logo.svg" type="image/x-icon">'
                 plantilla += '<title>Estado de Cuenta: ' + cliente + '</title>'
                 plantilla += '</head>'
                 plantilla += '<body style="margin: 0; padding: 0; background-color: #333333;">'
@@ -5434,7 +5434,7 @@ class Ahorro extends Controller
     {
         $extraHeader = <<<html
         <title>Caja Cobrar</title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
 
         $extraFooter = <<<html
@@ -5563,7 +5563,7 @@ html;
     {
         $extraHeader = <<<html
         <title>Reimprime Tickets</title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
 
         $extraFooter = <<<html
@@ -5716,7 +5716,7 @@ html;
     {
         $extraHeader = <<<html
         <title>Caja Cobrar</title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
 
         $extraFooter = <<<html

@@ -1140,7 +1140,7 @@ class CallCenter extends Controller
         $tabla = '';
         $extraHeader = <<<html
         <title>Consulta de Clientes Call Center</title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
         $extraFooter = <<<html
       <script>
@@ -1298,7 +1298,7 @@ html;
         $tabla = '';
         $extraHeader = <<<html
         <title>Consulta de Clientes Call Center</title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
         $extraFooter = <<<html
       <script>
@@ -2036,7 +2036,7 @@ html;
         $tabla = '';
         $extraHeader = <<<html
         <title>Consulta de Clientes Call Center</title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
         $extraFooter = <<<html
       <script>
@@ -2774,7 +2774,7 @@ html;
         $tabla = '';
         $extraHeader = <<<html
         <title>Consulta de Clientes Call Center</title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
         $extraFooter = <<<html
       <script>
@@ -2992,7 +2992,7 @@ html;
         $tabla = '';
         $extraHeader = <<<html
         <title>Administrar Sucursales/Analistas</title>
-        <link rel="shortcut icon" href="/img/logo.png">
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
 html;
         $extraFooter = <<<html
       <script>
@@ -3905,7 +3905,7 @@ HTML;
         $tabla = '';
         $extraHeader = <<<HTML
             <title>Histórico de Llamadas Analistas</title>
-            <link rel="shortcut icon" href="/img/logo.png">
+            <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
         HTML;
 
         $extraFooter = <<<HTML
