@@ -1272,6 +1272,7 @@ class Operaciones extends Controller
         $moneda = ['estilo' => $estilos['moneda']];
 
         $columnas = [
+            \PHPSpreadsheet::ColumnaExcel('CLIENTE', 'Cliente'),
             \PHPSpreadsheet::ColumnaExcel('CREDITO', 'Crédito', $texto),
             \PHPSpreadsheet::ColumnaExcel('CICLO', 'Ciclo', $texto),
             \PHPSpreadsheet::ColumnaExcel('PLAZO', 'Plazo', $texto),

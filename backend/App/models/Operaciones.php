@@ -796,9 +796,10 @@ class Operaciones extends Model
                     ,PRN.TASA
                     ,FNCALDIASATRASO(PRN.CDGEM, PRN.CDGNS, PRN.CICLO, 'G', SYSDATE) AS DIAS_ATRASO
                     ,PRN.SOLICITUD
+                    ,GET_NOMBRE_CLIENTE(SC.CDGCL) AS CLIENTE
                 FROM
                     PRN
-                    INNER JOIN SN ON  SN.CDGNS = PRN.CDGNS AND SN.CICLO = PRN.CICLO
+                    INNER JOIN SC ON  SC.CDGNS = PRN.CDGNS AND SC.CICLO = PRN.CICLO AND SC.CANTSOLIC <> 9999
                 WHERE
                     PRN.CDGNS = :credito
             )
@@ -849,7 +850,8 @@ class Operaciones extends Model
                     ,CICLO
             )
             SELECT
-                C.CREDITO
+                C.CLIENTE
+                ,C.CREDITO
                 ,C.CICLO
                 ,C.PLAZO
                 ,C.TASA

@@ -41,6 +41,7 @@
                 <table class="table table-striped table-bordered table-hover" id="reporteAcreditado">
                     <thead>
                         <tr>
+                            <th>Cliente</th>
                             <th>Crédito</th>
                             <th>Ciclo</th>
                             <th>Plazo</th>
