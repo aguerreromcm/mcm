@@ -65,8 +65,8 @@ class Contenedor extends Controller
                             <div class="left_col scroll-view">
                                 <div class="navbar nav_title" style="border: 0;"> 
                                     <a href="/Principal/" class="site_title" style="display: flex; align-items: center; justify-content: center; padding: 0; margin: 0;">
-                                        <img src="/img/logo_ico.png" alt="Inicio" width="50px" id="ico_home" style="display: none;">
-                                        <img src="/img/logo_nombre.png" alt="Inicio" width="210px" id="img_home">
+                                        <img src="/img/logo_ico.svg" alt="Inicio" width="50px" id="ico_home" style="display: none;">
+                                        <img src="/img/logo-2.svg" alt="Inicio" width="210px" id="img_home">
                                     </a>
                                 </div>
                                 <div class="clearfix"></div>
