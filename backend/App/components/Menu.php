@@ -164,7 +164,7 @@ class Menu
     {
         return [
             $this->enlace('Reporte Productora Cultiva', '/Tesoreria/ReportePC', ['ADMIN', 'PLMV', 'MCDP', 'LGFR', 'MACI', 'MGJC', 'JACJ', 'LVGA', 'FLHR']),
-            $this->enlace('Solicitudes de Retiro', '/Ahorro/Retiros/', ['ADMIN', 'CAJA', 'PLMV', 'MCDP', 'LGFR', 'MACI', 'MGJC', 'JACJ', 'LVGA', 'FLHR']),
+            $this->enlace('Solicitudes de Retiro', '/Ahorro/Retiros/', ['ADMIN', 'CAJA', 'PLMV', 'MCDP', 'LGFR', 'MACI', 'MGJC', 'JACJ', 'LVGA', 'FLHR', 'ESMM']),
         ];
     }
 
