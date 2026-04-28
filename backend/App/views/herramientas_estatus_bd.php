@@ -85,6 +85,14 @@
 </div>
 
 <style>
+/* —— Título de la página —— */
+.right_col .x_title h3 {
+    font-size: 24px;
+    font-weight: 400;
+    margin: 5px 0 6px;
+    line-height: 1.1;
+}
+
 /* —— Toolbar y timestamp —— */
 .estatus-page .estatus-toolbar {
     display: flex;
