@@ -1036,4 +1036,188 @@ SQL;
         $db = new Database();
         self::InsertarBitacora($db, $credito, $ciclo, $fechaProcesada, $tipoEjecucion, $usuario, $perfil, $resultado, $mensajeError, $ip);
     }
+
+    /**
+     * Monitoreo con los db links publicados `DB_CULTIVA` y `DB_MCM`. Siempre se
+     * intenta primero: `v$...@{dblink}`. Si Oracle devuelve **ORA-02019** (el
+     * dblink no está creado en el servidor) y la sesión es en realidad la base
+     * de ese destino (p. ej. app conectada a Cultiva sin link `DB_CULTIVA` a
+     * sí misma), se repite la misma consulta sobre la conexión actual, sin
+     * cambiar el contrato de la pantalla (dos target cultiva / mcm).
+     */
+    public static function GetEstatusBD()
+    {
+        $db = new Database();
+        if (empty($db->db_activa)) {
+            return self::Responde(false, 'Base de datos no disponible.');
+        }
+        $ident = self::ObtenerIdentidadInstanciaEstatus($db);
+        $datos = [
+            'DB_CULTIVA'  => self::GetEstatusBaseDatosDblink($db, 'DB_CULTIVA', $ident),
+            'DB_MCM'      => self::GetEstatusBaseDatosDblink($db, 'DB_MCM', $ident),
+            'consultado_en' => date('Y-m-d H:i:s'),
+        ];
+        return self::Responde(true, 'Consulta exitosa', $datos);
+    }
+
+    /**
+     * @return array{db_name: string, global_name: string, instance_name: string, haystack: string}
+     */
+    private static function ObtenerIdentidadInstanciaEstatus(Database $db): array
+    {
+        $qry = <<<'SQL'
+SELECT
+    (SELECT UPPER(TRIM(d.NAME)) FROM v$database d)            AS "DB_NAME",
+    (SELECT UPPER(TRIM(g.GLOBAL_NAME)) FROM global_name g)  AS "GLOBAL_NAME",
+    (SELECT UPPER(TRIM(i.INSTANCE_NAME)) FROM v$instance i) AS "INSTANCE_NAME"
+FROM dual
+SQL;
+        $res = self::EstatusPrimeraFilaDblink($db, $qry);
+        $row = (empty($res['error']) && \is_array($res['data'])) ? $res['data'] : [
+            'DB_NAME' => '', 'GLOBAL_NAME' => '', 'INSTANCE_NAME' => '',
+        ];
+        $h = trim(
+            (string) ($row['DB_NAME'] ?? '') . ' ' .
+            (string) ($row['GLOBAL_NAME'] ?? '') . ' ' .
+            (string) ($row['INSTANCE_NAME'] ?? '')
+        );
+        return [
+            'db_name'       => (string) ($row['DB_NAME'] ?? ''),
+            'global_name'   => (string) ($row['GLOBAL_NAME'] ?? ''),
+            'instance_name' => (string) ($row['INSTANCE_NAME'] ?? ''),
+            'haystack'      => $h,
+        ];
+    }
+
+    private static function sesionEsInstalacionMcm(array $ident): bool
+    {
+        $h = ' ' . ($ident['haystack'] ?? '') . ' ';
+        return (bool) preg_match('/\bMCM\b|MCM_|_MCM/iu', $h);
+    }
+
+    private static function sesionEsInstalacionCultiva(array $ident): bool
+    {
+        if (self::sesionEsInstalacionMcm($ident)) {
+            return false;
+        }
+        $h = $ident['haystack'] ?? '';
+        return (bool) preg_match('/CULTIVA|ESIACOM/iu', $h);
+    }
+
+    private static function puedeLecturaDirectaComoDblinkFaltante($dbLink, array $ident): bool
+    {
+        if ($dbLink === 'DB_CULTIVA') {
+            return self::sesionEsInstalacionCultiva($ident);
+        }
+        if ($dbLink === 'DB_MCM') {
+            return self::sesionEsInstalacionMcm($ident);
+        }
+        return false;
+    }
+
+    private static function GetEstatusBaseDatosDblink(Database $db, $dbLink, array $ident)
+    {
+        $qArchivoRemoto = "SELECT STATUS, ERROR FROM v\$archive_dest@{$dbLink} WHERE dest_id = 2";
+        $qArchivoLocal  = 'SELECT STATUS, ERROR FROM v$archive_dest WHERE dest_id = 2';
+
+        $qRecoveryRemoto = <<<SQL
+SELECT
+    NAME,
+    ROUND(SPACE_LIMIT / 1024 / 1024 / 1024, 2)         AS LIMITE_GB,
+    ROUND(SPACE_USED / 1024 / 1024 / 1024, 2)            AS USADO_GB,
+    ROUND((SPACE_USED / SPACE_LIMIT) * 100, 2)           AS USADO_PCT,
+    ROUND(SPACE_RECLAIMABLE / 1024 / 1024 / 1024, 2)   AS REUTILIZABLE_GB
+FROM v\$recovery_file_dest@{$dbLink}
+SQL;
+        $qRecoveryLocal = <<<'SQL'
+SELECT
+    NAME,
+    ROUND(SPACE_LIMIT / 1024 / 1024 / 1024, 2)         AS LIMITE_GB,
+    ROUND(SPACE_USED / 1024 / 1024 / 1024, 2)            AS USADO_GB,
+    ROUND((SPACE_USED / SPACE_LIMIT) * 100, 2)           AS USADO_PCT,
+    ROUND(SPACE_RECLAIMABLE / 1024 / 1024 / 1024, 2)   AS REUTILIZABLE_GB
+FROM v$recovery_file_dest
+SQL;
+
+        $a = self::EstatusDblinkConReintento02019(
+            $db,
+            $qArchivoRemoto,
+            $qArchivoLocal,
+            $ident,
+            $dbLink
+        );
+        $r = self::EstatusDblinkConReintento02019(
+            $db,
+            $qRecoveryRemoto,
+            $qRecoveryLocal,
+            $ident,
+            $dbLink
+        );
+
+        $origenA = $a['origen'] ?? 'dblink';
+        $origenR = $r['origen'] ?? 'dblink';
+        $origen = ($origenA === 'dblink' && $origenR === 'dblink') ? 'dblink' : 'sesion_02019';
+
+        return [
+            'db_link'            => $dbLink,
+            'origen_consulta'    => $origen,
+            'archive_dest'       => $a['data'],
+            'archive_error'      => $a['error'],
+            'recovery_file_dest' => $r['data'],
+            'recovery_error'     => $r['error'],
+        ];
+    }
+
+    /**
+     * @return array{data: ?array, error: ?string, origen: string}
+     */
+    private static function EstatusDblinkConReintento02019(
+        Database $db,
+        $sqlDblink,
+        $sqlMismaVistaEnSesion,
+        array $ident,
+        $dbLink
+    ) {
+        $res = self::EstatusPrimeraFilaDblink($db, $sqlDblink);
+        if ($res['error'] === null) {
+            $res['origen'] = 'dblink';
+            return $res;
+        }
+        if (stripos($res['error'], 'ORA-02019') === false) {
+            $res['origen'] = 'dblink';
+            return $res;
+        }
+        if (!self::puedeLecturaDirectaComoDblinkFaltante($dbLink, $ident)) {
+            $res['origen'] = 'dblink';
+            return $res;
+        }
+        $alt = self::EstatusPrimeraFilaDblink($db, $sqlMismaVistaEnSesion);
+        if ($alt['error'] === null) {
+            $alt['origen'] = 'sesion_02019';
+            return $alt;
+        }
+        $res['origen'] = 'dblink';
+        return $res;
+    }
+
+    /**
+     * @return array{data: ?array, error: ?string}
+     */
+    private static function EstatusPrimeraFilaDblink(Database $db, $sql)
+    {
+        try {
+            $stmt = $db->db_activa->prepare($sql);
+            $stmt->execute();
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            return [
+                'data'  => $row ?: null,
+                'error' => null,
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'data'  => null,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
 }

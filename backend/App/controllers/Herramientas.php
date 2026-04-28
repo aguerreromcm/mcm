@@ -596,6 +596,206 @@ class Herramientas extends Controller
     }
 
     /**
+     * Vista del monitor de Estatus de Base de Datos.
+     * Al cargar dispara la consulta inicial vía AJAX y permite refrescar con un botón.
+     */
+    public function EstatusBD()
+    {
+        $extraFooter = <<<HTML
+        <script>
+            {$this->mensajes}
+            (function () {
+                const PCT_VERDE   = 85;  // &lt; 85 % verde
+                const PCT_AMAR_90 = 90;  // 85&ndash;90 % amarillo; &gt; 90 rojo
+                const URL_ESTATUS = "/Herramientas/GetEstatusBD/";
+
+                function hEsc(s) {
+                    return \$("<div>").text(s === null || s === undefined ? "" : String(s)).html();
+                }
+                function gridMetricasFra(lim, u, re) {
+                    const cell = function (lbl, v) {
+                        return "<div class=\"estatus-metrica\">"
+                            + "<span class=\"estatus-metrica-lbl\">" + lbl + "</span>"
+                            + "<span class=\"estatus-metrica-val\">" + hEsc(v) + "</span></div>";
+                    };
+                    return "<div class=\"estatus-metricas-grid\" role=\"group\" aria-label=\"FRA\">"
+                        + cell("L" + "\u00ed" + "mite", lim) + cell("Usado", u) + cell("Reutilizable", re)
+                        + "</div>";
+                }
+
+                function classByPct(pct) {
+                    if (pct === null || pct === undefined || pct === "") return "estatus-warn";
+                    const p = Number(pct);
+                    if (!isFinite(p)) return "estatus-warn";
+                    if (p < PCT_VERDE) return "estatus-ok";
+                    if (p <= PCT_AMAR_90) return "estatus-warn";
+                    return "estatus-error";
+                }
+
+                function kpiClassFromArchiveStatus(status) {
+                    const u = String(status || "").toUpperCase();
+                    if (u === "VALID") return "estatus-ok";
+                    if (u === "SIN DATO") return "estatus-warn";
+                    return "estatus-error";
+                }
+
+                function pintaArchive(prefix, info) {
+                    const \$kpi    = $("#" + prefix + "-kpi-wrap");
+                    const \$status = $("#" + prefix + "-archive-status");
+                    const \$ico     = $("#" + prefix + "-archive-ico");
+                    const \$err     = $("#" + prefix + "-archive-error");
+
+                    \$kpi.removeClass("estatus-ok estatus-warn estatus-error");
+                    \$err.removeClass("estatus-alert--sql").hide().empty();
+
+                    if (info.archive_error) {
+                        \$kpi.addClass("estatus-error");
+                        \$ico.html("\u274C");
+                        \$status.text("Error de consulta");
+                        \$err.addClass("estatus-alert--sql");
+                        \$err.append(\$("<span class=\"estatus-alert-cuerpo\">").text((info.archive_error || "").trim()));
+                        \$err.show();
+                        return false;
+                    }
+                    const archive  = info.archive_dest || {};
+                    const status   = (archive.STATUS || archive.status || "SIN DATO").toString();
+                    const errorMsg = (archive.ERROR || archive.error || "").toString();
+                    const stUp  = String(status).toUpperCase();
+                    const ok    = stUp === "VALID";
+                    const kCls  = kpiClassFromArchiveStatus(status);
+                    \$kpi.addClass(kCls);
+                    if (kCls === "estatus-ok") {
+                        \$ico.html("\u2714");
+                    } else if (kCls === "estatus-warn") {
+                        \$ico.html("\u26A0\ufe0f");
+                    } else {
+                        \$ico.html("\u2715");
+                    }
+                    \$status.text(stUp === "VALID" ? "Sincronizado" : stUp);
+                    if (errorMsg) {
+                        \$err.append(\$("<span class=\"estatus-alert-cuerpo\">").text(errorMsg));
+                        \$err.show();
+                    }
+                    return ok;
+                }
+
+                function pintaRecovery(prefix, info) {
+                    const \$metric = $("#" + prefix + "-rec-metricas");
+                    const \$pct    = $("#" + prefix + "-rec-pct");
+                    const \$bar     = $("#" + prefix + "-rec-bar");
+                    const \$err    = $("#" + prefix + "-rec-error");
+
+                    \$err.removeClass("estatus-alert--sql").hide().empty();
+
+                    if (info.recovery_error) {
+                        const nd = "\u2013";
+                        \$metric.html(
+                            "<div class=\"estatus-metricas-grid estatus-metricas-grid--error\" role=\"group\">"
+                            + "<div class=\"estatus-metrica\"><span class=\"estatus-metrica-lbl\">" + "L" + "\u00ed" + "mite" + "</span>"
+                            + "<span class=\"estatus-metrica-val estatus-metrica-val--muted\">" + nd + "</span></div>"
+                            + "<div class=\"estatus-metrica\"><span class=\"estatus-metrica-lbl\">Usado</span>"
+                            + "<span class=\"estatus-metrica-val estatus-metrica-val--muted\">" + nd + "</span></div>"
+                            + "<div class=\"estatus-metrica\"><span class=\"estatus-metrica-lbl\">Reutilizable</span>"
+                            + "<span class=\"estatus-metrica-val estatus-metrica-val--muted\">" + nd + "</span></div></div>"
+                        );
+                        \$pct.text("\u2013");
+                        \$bar.css("width", "0%").removeClass().addClass("estatus-bar estatus-error");
+                        \$err.addClass("estatus-alert--sql");
+                        \$err.append(\$("<span class=\"estatus-alert-cuerpo\">").text((info.recovery_error || "").trim()));
+                        \$err.show();
+                        return null;
+                    }
+                    const r = info.recovery_file_dest || {};
+                    const limite   = r.LIMITE_GB ?? r.limite_gb ?? null;
+                    const usado    = r.USADO_GB ?? r.usado_gb ?? null;
+                    const reusable = r.REUTILIZABLE_GB ?? r.reutilizable_gb ?? null;
+                    const pct      = r.USADO_PCT ?? r.usado_pct ?? null;
+
+                    const lim = limite === null || limite === "" ? "\u2013" : (String(limite) + " GB");
+                    const u   = usado === null || usado === "" ? "\u2013" : (String(usado) + " GB");
+                    const re  = reusable === null || reusable === "" ? "\u2013" : (String(reusable) + " GB");
+                    \$metric.html(gridMetricasFra(lim, u, re));
+                    const pctText = pct === null || pct === "" ? "\u2013" : (Number(pct) + " %");
+                    \$pct.text(pctText);
+                    const cls   = classByPct(pct);
+                    const ancho = pct === null || pct === "" ? 0 : Math.min(100, Math.max(0, Number(pct)));
+                    \$bar.css("width", ancho + "%").removeClass().addClass("estatus-bar " + cls);
+                    return cls;
+                }
+
+                function pintaBase(prefix, info) {
+                    const archiveOk = pintaArchive(prefix, info);
+                    const recCls    = pintaRecovery(prefix, info);
+                    const \$card     = $("#" + prefix + "-card");
+
+                    let borde = "border-ok";
+                    if (!archiveOk || info.archive_error || info.recovery_error || recCls === "estatus-error") {
+                        borde = "border-error";
+                    } else if (recCls === "estatus-warn") {
+                        borde = "border-warn";
+                    }
+                    \$card.removeClass("border-ok border-warn border-error").addClass(borde);
+                }
+
+                function consultar() {
+                    $("#btn-actualizar").prop("disabled", true);
+                    $("#estatus-cargando").show();
+                    $("#estatus-actualizado").text("").removeClass("is-live");
+
+                    $.ajax({
+                        type: "GET",
+                        url: URL_ESTATUS,
+                        timeout: 120000,
+                        cache: false,
+                        success: function (res) {
+                            try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { res = null; }
+                            if (!res || !res.success) {
+                                showError((res && res.mensaje) || "No se pudo obtener el estatus de las bases.");
+                                return;
+                            }
+                            const datos = res.datos || {};
+                            if (datos.DB_CULTIVA) pintaBase("cultiva", datos.DB_CULTIVA);
+                            if (datos.DB_MCM)     pintaBase("mcm", datos.DB_MCM);
+                            const ts = (datos.consultado_en || "").toString();
+                            $("#estatus-actualizado").text(ts ? "Actualizado: " + ts : "").addClass("is-live");
+                        },
+                        error: function () {
+                            showError("Error al consultar el estatus de las bases. Intente de nuevo.");
+                        },
+                        complete: function () {
+                            $("#btn-actualizar").prop("disabled", false);
+                            $("#estatus-cargando").hide();
+                        }
+                    });
+                }
+
+                $(document).ready(function () {
+                    $("#btn-actualizar").on("click", consultar);
+                    consultar();
+                });
+            })();
+        </script>
+        HTML;
+        View::set('header', $this->_contenedor->header($this->GetExtraHeader("Estatus BD")));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::render('herramientas_estatus_bd');
+    }
+
+    /**
+     * Devuelve el estatus actual de las bases (DB_CULTIVA y DB_MCM) en JSON.
+     */
+    public function GetEstatusBD()
+    {
+        set_time_limit(120);
+        header('Content-Type: application/json; charset=UTF-8');
+        try {
+            echo json_encode(HerramientasDao::GetEstatusBD());
+        } catch (\Throwable $e) {
+            echo json_encode(\Core\Model::Responde(false, 'Ocurrió un error al consultar el estatus de las bases.', null, $e->getMessage()));
+        }
+    }
+
+    /**
      * JSON: procesamiento masivo.
      */
     public function ProcesarMasivo()

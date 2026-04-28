@@ -789,7 +789,19 @@
     }
 
     .nav_title {
-        background: #1f2328;
+        background: #2b3037;
+    }
+
+    /* Mejor contraste del logotipo en encabezado lateral */
+    .nav_title .site_title {
+        background: linear-gradient(180deg, #2f3540 0%, #252b33 100%);
+    }
+
+    .nav_title .site_title #img_home {
+        filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.12))
+            drop-shadow(0 0 8px rgba(0, 0, 0, 0.35))
+            contrast(1.12)
+            brightness(1.08);
     }
 
     .profile_info span {
