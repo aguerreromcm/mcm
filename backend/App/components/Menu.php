@@ -194,7 +194,7 @@ class Menu
         return [
             $this->enlace('Ajustar Hora de Cierre', '/Pagos/AjusteHoraCierre/', ['ADMIN', 'LGFR']),
             $this->enlace('Asignación Días Festivos', '/Pagos/DiasFestivos/', ['ADMIN', 'LGFR']),
-            $this->enlace('Lista Negra (empleados)', '/Administracion/ListaNegraEmpleados/', ['ADMIN', 'LGFR', 'MAPH', 'HSEJ', 'PHEE', 'ORHM', 'FECR']),
+            $this->enlace('Lista Negra (empleados)', '/Administracion/ListaNegraEmpleados/', ['ADMIN', 'LGFR', 'MAPH', 'MCDP', 'ORHM', 'FECR']),
             $this->enlace('Reporte Usuarios SICAFIN MCM', '/Reportes/UsuariosMCM/', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM', 'FECR']),
             $this->enlace('Reporte Usuarios SICAFIN Cultiva', '/Reportes/UsuariosCultiva/', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM', 'FECR']),
             $this->enlace('Situación Cartera', '/Creditos/cierreDiario', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM', 'FECR']),
