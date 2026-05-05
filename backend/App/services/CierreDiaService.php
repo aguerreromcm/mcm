@@ -222,11 +222,16 @@ class CierreDiaService
         $correosDesarrollo = isset($configCierre['CORREOS_DESARROLLO']) ? trim((string) $configCierre['CORREOS_DESARROLLO']) : '';
 
         $destinatarios = [];
-        if ($soloFlujo && $correosDesarrollo !== '') {
+        if ($soloFlujo) {
+            if ($correosDesarrollo === '') {
+                return;
+            }
             $destinatarios = array_unique(array_map('trim', explode(',', $correosDesarrollo)));
             $destinatarios = array_values(array_filter($destinatarios, function ($e) { return $e !== ''; }));
-        }
-        if (empty($destinatarios)) {
+            if (empty($destinatarios)) {
+                return;
+            }
+        } else {
             $destinatarios = $repo->getDestinatariosResumenCierreParametrosPld();
         }
 
@@ -248,7 +253,9 @@ class CierreDiaService
             \Mensajero::EnviarCorreo(
                 $destinatarios,
                 'Resumen de cierre de día - ' . $fechaFmt,
-                \Mensajero::Notificaciones($html)
+                \Mensajero::Notificaciones($html),
+                [],
+                true
             );
         }
     }

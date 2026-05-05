@@ -634,8 +634,6 @@ class Operaciones extends Controller
                             var tr = document.createElement("tr");
                             var monto = typeof f.CANTIDAD === "number" ? f.CANTIDAD : parseFloat(f.CANTIDAD) || 0;
                             var conciliado = (f.CONCILIADO || "").toString().toUpperCase() === "C";
-                            var estado = conciliado ? "Conciliado" : "Pendiente";
-                            var estadoClase = conciliado ? "label-success" : "label-warning";
                             var payload = payloadParaSp(f);
                             var chk = conciliado ? "" : "<input type=\"checkbox\" class=\"chkPagoConciliacion\" data-fila='" + JSON.stringify(payload).replace(/'/g, "&#39;") + "' />";
                             tr.innerHTML =
@@ -656,8 +654,7 @@ class Operaciones extends Controller
                                 "<td>" + (f.TASA != null ? (f.TASA !== undefined ? f.TASA : f.tasa) : "-") + "</td>" +
                                 "<td>" + (f.SECUENCIA || f.secuencia || "-") + "</td>" +
                                 "<td>" + (f.PLAZO != null ? (f.PLAZO !== undefined ? f.PLAZO : f.plazo) : "-") + "</td>" +
-                                "<td>" + (f.PERIODICIDAD || f.periodicidad || "-") + "</td>" +
-                                "<td><span class=\"label " + estadoClase + "\" style=\"border-radius: 4px; padding: 4px 8px;\">" + estado + "</span></td>";
+                                "<td>" + (f.PERIODICIDAD || f.periodicidad || "-") + "</td>";
                             tbody.appendChild(tr);
                         });
                         if ($.fn.DataTable) {

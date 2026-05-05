@@ -17,6 +17,35 @@ use App\repositories\PagosAplicacionRepository;
 class PagosAplicacionService
 {
     /**
+     * Normaliza una fecha/hora para el SP de importación con el mismo formato de VB6.
+     * VB6 envía: YYYY/MM/DD HH:NN:SS (fecha del pago + hora actual).
+     *
+     * @param mixed $valorFecha Fecha obtenida de BD/UI
+     * @param string $fechaFallback Fecha base Y-m-d
+     * @return string
+     */
+    private static function formatearFechaParaSp($valorFecha, $fechaFallback)
+    {
+        $fechaBase = '';
+        if (is_object($valorFecha) && method_exists($valorFecha, 'format')) {
+            $fechaBase = $valorFecha->format('Y/m/d');
+        } elseif (is_string($valorFecha) && trim($valorFecha) !== '') {
+            $valor = trim($valorFecha);
+            $timestamp = strtotime($valor);
+            if ($timestamp !== false) {
+                $fechaBase = date('Y/m/d', $timestamp);
+            }
+        }
+
+        if ($fechaBase === '') {
+            $timestampFallback = strtotime((string) $fechaFallback);
+            $fechaBase = $timestampFallback !== false ? date('Y/m/d', $timestampFallback) : date('Y/m/d');
+        }
+
+        return $fechaBase . date(' H:i:s');
+    }
+
+    /**
      * Valida y obtiene resumen: si la fecha ya fue procesada devuelve el resumen guardado; si no, valida y opcionalmente ejecuta.
      *
      * @param string $fecha Fecha en Y-m-d
@@ -151,7 +180,7 @@ class PagosAplicacionService
                 $totalImporte += $monto;
                 $referencia = isset($f['REFERENCIA']) ? trim((string) $f['REFERENCIA']) : '';
                 $moneda = isset($f['MONEDA']) ? trim((string) $f['MONEDA']) : 'MN';
-                $fechaPagoParaSp = isset($f['FECHA']) ? (string) $f['FECHA'] : $fecha . ' 00:00:00';
+                $fechaPagoParaSp = self::formatearFechaParaSp($f['FECHA'] ?? null, $fecha);
                 $monto = isset($f['MONTO']) ? (float) $f['MONTO'] : $monto;
 
                 $res = $repo->ejecutarSpImportaPago(

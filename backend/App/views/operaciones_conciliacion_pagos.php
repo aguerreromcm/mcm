@@ -76,7 +76,6 @@
                             <th>SecuenciaMP</th>
                             <th>Plazo</th>
                             <th>Periodicidad</th>
-                            <th>Estado</th>
                         </tr>
                     </thead>
                     <tbody id="tablaConciliacionBody">

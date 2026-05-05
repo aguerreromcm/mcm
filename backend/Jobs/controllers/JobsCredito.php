@@ -296,9 +296,7 @@ class JobsCredito extends Job
             $configCierre['CIERRE_DIA_SOLO_FLUJO'] === '1'
         );
         if ($soloFlujo) {
-            self::SaveLog('Modo solo flujo (CIERRE_DIA_SOLO_FLUJO=true): no se modifican datos ni se ejecutan SPs. Se envía correo a CORREOS_DESARROLLO.');
-            $this->finalizarCierreApp($fechaNorm, 1);
-            return;
+            self::SaveLog('Modo solo flujo (CIERRE_DIA_SOLO_FLUJO=true): se ejecuta cierre completo y el resumen se envía a CORREOS_DESARROLLO.');
         }
 
         try {

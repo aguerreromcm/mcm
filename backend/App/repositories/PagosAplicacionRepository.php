@@ -80,16 +80,25 @@ sql;
             foreach ($filas as $i => $row) {
                 if (isset($row['FECHA'])) {
                     if (is_object($row['FECHA']) && method_exists($row['FECHA'], 'format')) {
-                        $filas[$i]['FECHA'] = $row['FECHA']->format('Y-m-d H:i:s');
+                        // Formato homogéneo para evitar interpretaciones regionales ambiguas.
+                        $filas[$i]['FECHA'] = $row['FECHA']->format('Y/m/d H:i:s');
                     } elseif (is_object($row['FECHA'])) {
-                        $filas[$i]['FECHA'] = (string) $row['FECHA'];
+                        $valorFecha = (string) $row['FECHA'];
+                        $tsFecha = strtotime($valorFecha);
+                        $filas[$i]['FECHA'] = $tsFecha !== false ? date('Y/m/d H:i:s', $tsFecha) : $valorFecha;
+                    } else {
+                        $valorFecha = trim((string) $row['FECHA']);
+                        $tsFecha = strtotime($valorFecha);
+                        $filas[$i]['FECHA'] = $tsFecha !== false ? date('Y/m/d H:i:s', $tsFecha) : $valorFecha;
                     }
                 }
                 if (isset($row['F_IMPORTACION']) && $row['F_IMPORTACION'] !== null) {
                     if (is_object($row['F_IMPORTACION']) && method_exists($row['F_IMPORTACION'], 'format')) {
-                        $filas[$i]['F_IMPORTACION'] = $row['F_IMPORTACION']->format('Y-m-d H:i:s');
+                        $filas[$i]['F_IMPORTACION'] = $row['F_IMPORTACION']->format('Y/m/d H:i:s');
                     } else {
-                        $filas[$i]['F_IMPORTACION'] = (string) $row['F_IMPORTACION'];
+                        $valorImportacion = (string) $row['F_IMPORTACION'];
+                        $tsImportacion = strtotime($valorImportacion);
+                        $filas[$i]['F_IMPORTACION'] = $tsImportacion !== false ? date('Y/m/d H:i:s', $tsImportacion) : $valorImportacion;
                     }
                 } else {
                     $filas[$i]['F_IMPORTACION'] = null;

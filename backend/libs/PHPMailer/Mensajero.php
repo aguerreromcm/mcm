@@ -40,9 +40,10 @@ class Mensajero
      * @param string $asunto Asunto del correo.
      * @param string $mensaje Cuerpo del mensaje del correo. Puede contener HTML.
      * @param array|string $adjuntos (Opcional) Lista de archivos adjuntos. Puede ser un array o una cadena con un solo archivo.
+     * @param bool $enviarCopiaHistorico Si es false, no se envía copia al buzón SMTP_USER (uso típico: cierre en modo desarrollo).
      * @return bool Devuelve true si el correo se envió correctamente, false en caso contrario.
      */
-    public static function EnviarCorreo($destinatarios, $asunto, $mensaje, $adjuntos = [])
+    public static function EnviarCorreo($destinatarios, $asunto, $mensaje, $adjuntos = [], $enviarCopiaHistorico = true)
     {
 
         $mensajero = new PHPMailer(true);
@@ -79,18 +80,19 @@ class Mensajero
                 $mensajero->send();
             }
 
-            // Se crea el JSON
-            $destInfo = __DIR__ . '/destinatarios.json';
-            file_put_contents($destInfo, json_encode($destinatarios, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+            if ($enviarCopiaHistorico) {
+                // Se crea el JSON
+                $destInfo = __DIR__ . '/destinatarios.json';
+                file_put_contents($destInfo, json_encode($destinatarios, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
-            // Se envia una copia a la cuenta de SMTP para historico
-            $mensajero->clearAddresses();
-            $mensajero->addAddress(self::$SMTP_USER);
-            $mensajero->addAttachment($destInfo);
-            $mensajero->send();
+                // Se envia una copia a la cuenta de SMTP para historico
+                $mensajero->clearAddresses();
+                $mensajero->addAddress(self::$SMTP_USER);
+                $mensajero->addAttachment($destInfo);
+                $mensajero->send();
 
-            // Se eliminan los archivos temporales
-            unlink($destInfo);
+                unlink($destInfo);
+            }
 
             return true;
         } catch (Exception $e) {
