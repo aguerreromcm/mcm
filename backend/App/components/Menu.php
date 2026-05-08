@@ -150,8 +150,6 @@ class Menu
     private function opcionesOperaciones()
     {
         return [
-            $this->enlace('Aplicar Pagos', '/Operaciones/AplicarPagos/', ['AMGM']),
-            $this->enlace('Conciliación de pagos', '/Operaciones/ConciliacionPagos/', ['AMGM']),
             $this->enlace('Cierre de día', '/Operaciones/CierreDiario/', ['AMGM']),
             $this->enlace('Reporte Cliente y Aval Consolidado', '/Operaciones/ReportePC', ['ADMIN', 'PHEE', 'MCDP', 'FECR', 'ORHM']),
             $this->enlace('Reporte Interés Devengado', '/Operaciones/ReporteInteresDevengado', ['AMGM', 'ORHM']),
