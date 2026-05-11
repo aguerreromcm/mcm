@@ -8,6 +8,7 @@ use Core\Model;
 use Core\App;
 use Core\Database;
 use App\repositories\ConciliacionRepository;
+use App\repositories\PagosAplicacionRepository;
 
 /**
  * Service para Conciliación de pagos: consulta MP y ejecución de spRedistribucionPagos (réplica VB6).
@@ -23,9 +24,10 @@ class ConciliacionService
      * @param string $codigo Crédito (código ind./gpo.)
      * @param string $ciclo
      * @param string $ctaBancaria
+     * @param string $modoConciliado legacy | por_fecha (solo afecta la consulta MP en repositorio)
      * @return array { success, mensaje, datos: { filas, resumen }, error }
      */
-    public static function buscarPagosConciliacion($empresa, $fechaPago, $tipoCliente, $codigo, $ciclo, $ctaBancaria)
+    public static function buscarPagosConciliacion($empresa, $fechaPago, $tipoCliente, $codigo, $ciclo, $ctaBancaria, $modoConciliado = 'legacy')
     {
         $repo = new ConciliacionRepository();
 
@@ -48,7 +50,7 @@ class ConciliacionService
 
         $empresa = ($empresa !== '' && strtoupper($empresa) !== '(TODAS)') ? trim($empresa) : ConciliacionRepository::EMPRESA_DEFAULT;
 
-        $filas = $repo->getPagosPorConciliarMP($empresa, $fechaPago, $tipoCliente, $codigo, $ciclo, $ctaBancaria);
+        $filas = $repo->getPagosPorConciliarMP($empresa, $fechaPago, $tipoCliente, $codigo, $ciclo, $ctaBancaria, $modoConciliado);
 
         $totalRegistros = count($filas);
         $totalImporte = 0;
@@ -61,12 +63,15 @@ class ConciliacionService
             $monto = (float) ($f['CANTIDAD'] ?? 0);
             $totalImporte += $monto;
             $conciliado = isset($f['CONCILIADO']) ? trim((string) $f['CONCILIADO']) : '';
-            if (strtoupper($conciliado) === 'C') {
-                $totalConciliados++;
-                $importeConciliados += $monto;
-            } else {
+            $c = strtoupper($conciliado);
+            // Pendiente típico en MP: 'N'. Cualquier otro valor se considera ya conciliado/cerrado en flujo.
+            $esPendiente = ($c === '' || $c === 'N');
+            if ($esPendiente) {
                 $totalNoConciliados++;
                 $importeNoConciliados += $monto;
+            } else {
+                $totalConciliados++;
+                $importeConciliados += $monto;
             }
         }
 
@@ -79,7 +84,11 @@ class ConciliacionService
             'importeNoConciliados' => round($importeNoConciliados, 2),
         ];
 
-        return Model::Responde(true, $totalRegistros > 0 ? "Se encontraron un total de {$totalRegistros} pagos." : 'No hay pagos pendientes de conciliar.', [
+        $mensajeSinDatos = ($modoConciliado === 'por_fecha')
+            ? 'No se encontraron pagos en MP con los filtros indicados.'
+            : 'No hay pagos pendientes de conciliar.';
+
+        return Model::Responde(true, $totalRegistros > 0 ? "Se encontraron un total de {$totalRegistros} pagos." : $mensajeSinDatos, [
             'filas' => $filas,
             'resumen' => $resumen,
         ]);
@@ -115,7 +124,7 @@ class ConciliacionService
         foreach ($filas as $f) {
             $monto = (float) ($f['MONTO'] ?? 0);
             $totalImporte += $monto;
-            if (isset($f['F_IMPORTACION']) && $f['F_IMPORTACION'] !== null && $f['F_IMPORTACION'] !== '') {
+            if (PagosAplicacionRepository::filaMarcadaImportada($f)) {
                 $totalAplicados++;
                 $importeAplicados += $monto;
             } else {

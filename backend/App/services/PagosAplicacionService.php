@@ -61,6 +61,12 @@ class PagosAplicacionService
             return Model::Responde(false, 'La fecha es obligatoria.', null, 'Fecha vacía');
         }
 
+        $fechaNorm = PagosAplicacionRepository::coerceFechaYmD($fecha);
+        if ($fechaNorm === null) {
+            return Model::Responde(false, 'La fecha no tiene un formato válido (use YYYY-MM-DD).', null, 'Fecha inválida');
+        }
+        $fecha = $fechaNorm;
+
         $hoy = date('Y-m-d');
         if ($fecha > $hoy) {
             return Model::Responde(false, 'No se puede procesar una fecha futura.', null, 'Fecha futura');
@@ -79,7 +85,7 @@ class PagosAplicacionService
         $importeApl = 0;
         foreach ($filas as $f) {
             $m = (float) ($f['MONTO'] ?? 0);
-            if (isset($f['F_IMPORTACION']) && $f['F_IMPORTACION'] !== null && $f['F_IMPORTACION'] !== '') {
+            if (PagosAplicacionRepository::filaMarcadaImportada($f)) {
                 $importeApl += $m;
             } else {
                 $pendientes[] = $f;
@@ -119,10 +125,13 @@ class PagosAplicacionService
             $resumenBase['estado'] = $ya['ESTADO'] ?? $resumenBase['estado'];
         }
 
+        $resumenBase = array_merge($resumenBase, $repo->getResumenPorEstatusImportacion($fecha));
+
         if (!$ejecutar) {
             return Model::Responde(true, 'Datos listos para procesar.', [
                 'yaProcesado' => count($pendientes) === 0,
-                'filas' => $filas,
+                // array_values: json_encode siempre produce [] y no objeto con claves dispersas (evita que el front pierda filas).
+                'filas' => array_values($filas),
                 'resumen' => $resumenBase,
             ]);
         }
@@ -130,7 +139,7 @@ class PagosAplicacionService
         if (count($pendientes) === 0) {
             return Model::Responde(true, 'No hay pagos pendientes para esta fecha.', [
                 'yaProcesado' => true,
-                'filas' => $filas,
+                'filas' => array_values($filas),
                 'resumen' => $resumenBase,
             ]);
         }
@@ -280,7 +289,7 @@ class PagosAplicacionService
             $importeApl = 0;
             foreach ($filasActualizadas as $f) {
                 $m = (float) ($f['MONTO'] ?? 0);
-                if (isset($f['F_IMPORTACION']) && $f['F_IMPORTACION'] !== null && $f['F_IMPORTACION'] !== '') {
+                if (PagosAplicacionRepository::filaMarcadaImportada($f)) {
                     $importeApl += $m;
                 } else {
                     $pendientes[] = $f;
@@ -301,22 +310,24 @@ class PagosAplicacionService
                 $estadoFinal = 'Pendiente';
             }
 
+            $resumenEjecucion = array_merge([
+                'usuario' => $usuario,
+                'fechaEjecucion' => date('Y-m-d H:i:s'),
+                'totalRegistros' => $totalRegistros,
+                'totalImporte' => round($totalImporteFinal, 2),
+                'totalPendientes' => $totalPendientes,
+                'totalAplicados' => $totalAplicados,
+                'importePendientes' => round($importePend, 2),
+                'importeAplicados' => round($importeApl, 2),
+                'estado' => $estadoFinal,
+                'mensaje' => null,
+            ], $repo->getResumenPorEstatusImportacion($fecha));
+
             return Model::Responde(true, $mensajeExito, [
                 'yaProcesado' => $totalPendientes === 0,
                 'modoPrueba'  => $soloFlujo,
-                'resumen' => [
-                    'usuario' => $usuario,
-                    'fechaEjecucion' => date('Y-m-d H:i:s'),
-                    'totalRegistros' => $totalRegistros,
-                    'totalImporte' => round($totalImporteFinal, 2),
-                    'totalPendientes' => $totalPendientes,
-                    'totalAplicados' => $totalAplicados,
-                    'importePendientes' => round($importePend, 2),
-                    'importeAplicados' => round($importeApl, 2),
-                    'estado' => $estadoFinal,
-                    'mensaje' => null,
-                ],
-                'filas' => $filasActualizadas,
+                'resumen' => $resumenEjecucion,
+                'filas' => array_values($filasActualizadas),
                 'detalle' => $detalle,
             ]);
         } catch (\Throwable $e) {

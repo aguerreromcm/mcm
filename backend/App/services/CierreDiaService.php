@@ -128,12 +128,12 @@ class CierreDiaService
     }
 
     /**
-     * Registra el inicio del cierre y deja listo para que el Job ejecute el SP.
+     * Registra el inicio del cierre y deja listo para que el Job ejecute SP_PAGOS_CIERRE_DEVENGO.
      * No ejecuta el SP aquí (proceso pesado); el controlador lanzará el Job.
      *
      * @param string $fecha Y-m-d
      * @param string $usuario
-     * @param int $regenerar 0 o 1
+     * @param int $regenerar 0 o 1 (solo UI/admin; el SP unificado no recibe este flag)
      * @return array { success, mensaje }
      */
     public static function registrarInicioYResponder($fecha, $usuario, $regenerar = 0)
@@ -151,42 +151,16 @@ class CierreDiaService
      *
      * @param string $fechaCierre Y-m-d
      * @param string $usuario
-     * @param int $regenerar 0 o 1
+     * @param int $regenerar 0 o 1 (no enviado al SP; conservado por compatibilidad con la pantalla)
      * @return array { success, mensaje }
      */
     public static function ejecutarCierreDiario($fechaCierre, $usuario, $regenerar = 0)
     {
         $repo = new CierreDiaRepository();
         try {
-            $repo->ejecutarSpCierreDia($fechaCierre, $regenerar);
-            $fechaDevengo = date('Y-m-d', strtotime($fechaCierre . ' +1 day'));
-            // Igual que JobsCredito: si el devengo falla (p. ej. ORA-00001 duplicado en DEVENGO_DIARIO
-            // por ejecución previa o datos ya generados), no se debe abortar todo el cierre.
-            $advertenciaDevengo = '';
-            try {
-                $repo->ejecutarSpGenDevengoDiario($fechaDevengo, $usuario);
-            } catch (\Throwable $eDevengo) {
-                $advertenciaDevengo = self::mensajeAdvertenciaDevengo($eDevengo, $fechaDevengo);
-            }
-            $advertenciaPld = '';
-            $resRel = $repo->ejecutarSpGenAlertarRelPld($fechaCierre, $usuario);
-            if (self::resultadoPldEsError($resRel)) {
-                $advertenciaPld = 'Alertas PLD (Relevantes): ' . self::mensajeResultadoPld($resRel);
-            } else {
-                $resInu = $repo->ejecutarSpGenAlertaInuPld($fechaCierre, $usuario);
-                if (self::resultadoPldEsError($resInu)) {
-                    $advertenciaPld = 'Alertas PLD (Inusuales): ' . self::mensajeResultadoPld($resInu);
-                }
-            }
+            $repo->ejecutarSpPagosCierreDevengo($fechaCierre, $usuario);
             self::finalizarCierre($fechaCierre, 1);
-            $mensaje = 'El cierre de día se ha completado correctamente.';
-            if ($advertenciaDevengo !== '') {
-                $mensaje .= ' Advertencia devengo: ' . $advertenciaDevengo;
-            }
-            if ($advertenciaPld !== '') {
-                $mensaje .= ' Advertencia PLD: ' . $advertenciaPld;
-            }
-            return Model::Responde(true, $mensaje);
+            return Model::Responde(true, 'El cierre de día se ha completado correctamente.');
         } catch (\Throwable $e) {
             self::finalizarCierre($fechaCierre, 0);
             return Model::Responde(false, 'Error al ejecutar el cierre: ' . $e->getMessage(), null, $e->getMessage());
@@ -261,55 +235,30 @@ class CierreDiaService
     }
 
     /**
-     * Indica si el resultado del SP PLD indica error (como en VB6: primer carácter "0" = error).
+     * Cuatro resúmenes solo para el día de la fecha operativa (no acumulado de fechas posteriores).
      *
-     * @param string $resultado
-     * @return bool
+     * @param string $fechaYmd Y-m-d
+     * @return array Respuesta Model::Responde con datos: pagosdia, tbl_cierre_dia, devengo_diario, mp_pd
      */
-    private static function resultadoPldEsError($resultado)
+    public static function obtenerInformacionDiaResumenes($fechaYmd)
     {
-        $r = trim((string) $resultado);
-        return $r !== '' && $r[0] === '0';
-    }
+        $fechaYmd = trim((string) $fechaYmd);
+        if ($fechaYmd === '') {
+            return Model::Responde(false, 'Indique la fecha operativa.');
+        }
+        $ts = strtotime($fechaYmd);
+        if ($ts === false) {
+            return Model::Responde(false, 'Fecha no válida.');
+        }
+        $fechaYmd = date('Y-m-d', $ts);
+        try {
+            $repo = new CierreDiaRepository();
+            $datos = $repo->getInformacionDiaResumenes($fechaYmd);
 
-    /**
-     * Extrae el mensaje de error del resultado PLD (VB6: Mid(res, 3, Len(res)-2)).
-     *
-     * @param string $resultado
-     * @return string
-     */
-    private static function mensajeResultadoPld($resultado)
-    {
-        $r = (string) $resultado;
-        $len = strlen($r);
-        if ($len <= 2) {
-            return $len > 0 ? $r : 'El SP devolvió un resultado vacío.';
+            return Model::Responde(true, 'OK', $datos);
+        } catch (\Throwable $e) {
+            return Model::Responde(false, 'Error al obtener la información del día.', null, $e->getMessage());
         }
-        return trim(substr($r, 2, $len - 2));
-    }
-
-    /**
-     * Mensaje breve cuando falla PKG_CIERRE.SPGENDEVENGODIARIO (duplicados, etc.).
-     *
-     * @param \Throwable $e
-     * @param string $fechaDevengo Y-m-d
-     * @return string
-     */
-    private static function mensajeAdvertenciaDevengo(\Throwable $e, $fechaDevengo)
-    {
-        $msg = $e->getMessage();
-        if (stripos($msg, 'ORA-00001') !== false && stripos($msg, 'DEVENGO_DIARIO') !== false) {
-            return 'Ya existían registros de devengo para la fecha ' . $fechaDevengo
-                . ' (clave duplicada en DEVENGO_DIARIO). El cierre principal se consideró correcto; revise consistencia si regeneró parcialmente.';
-        }
-        if (stripos($msg, 'ORA-06502') !== false && stripos($msg, 'ORA-00001') !== false) {
-            return 'Error al generar devengo (restricción única en DEVENGO_DIARIO). Fecha devengo: ' . $fechaDevengo . '.';
-        }
-        $corta = preg_replace('/\s+/', ' ', $msg);
-        if (is_string($corta) && strlen($corta) > 400) {
-            $corta = substr($corta, 0, 397) . '...';
-        }
-        return 'No se pudo ejecutar el devengo diario (' . $fechaDevengo . '): ' . ($corta ?: $msg);
     }
 
     /**

@@ -77,9 +77,10 @@ class ConciliacionRepository
      * @param string $codigo Código cliente
      * @param string $ciclo Ciclo
      * @param string $ctaBancaria Cuenta bancaria
+     * @param string $modoConciliado legacy = VB6 (solo CONCILIADO IN N,C); por_fecha = todos los estados en MP (misma fecha/filtros)
      * @return array Lista de filas con cdgem, cdgns, cdgclns, clns, tipocte, referencia, frealdep, cantidad, conciliado, nombre, etc.
      */
-    public function getPagosPorConciliarMP($empresa, $fechaPago, $tipoCliente, $codigo, $ciclo, $ctaBancaria)
+    public function getPagosPorConciliarMP($empresa, $fechaPago, $tipoCliente, $codigo, $ciclo, $ctaBancaria, $modoConciliado = 'legacy')
     {
         $db = new Database();
         if ($db->db_activa === null) {
@@ -132,6 +133,11 @@ class ConciliacionRepository
 
         $whereInd = $condEmpresa . $condFecha . $condTipo . $condCodigo . $condCiclo . $condCta;
 
+        $modoConciliado = trim((string) $modoConciliado);
+        $filtroConc = ($modoConciliado === 'por_fecha')
+            ? ''
+            : " AND a.conciliado IN ('N','C') ";
+
         $sel = "SELECT a.cdgem, a.cdgns, a.cdgclns, a.clns,
                 DECODE(a.clns, 'G', 'Grupal', 'I', 'Individual') tipocte,
                 a.cdgcl, a.ciclo, a.periodo, c.tasa, c.plazo, c.periodicidad,
@@ -143,7 +149,7 @@ class ConciliacionRepository
                 FROM mp a
                 LEFT JOIN cl b ON b.cdgem = a.cdgem AND b.codigo = a.cdgclns
                 LEFT JOIN prc c ON a.cdgem = c.cdgem AND a.cdgclns = c.cdgcl AND a.ciclo = c.ciclo AND a.clns = c.clns
-                WHERE a.conciliado IN ('N','C') AND a.estatus = 'B' AND a.clns = 'I'
+                WHERE a.estatus = 'B' AND a.clns = 'I' " . $filtroConc . "
                 AND fnRegresaSdoIndividual(a.CDGEM,a.CDGCLNS,a.CICLO) > 0 ";
         $q1 = $sel . $whereInd;
 
@@ -158,7 +164,7 @@ class ConciliacionRepository
                 FROM mp a
                 LEFT JOIN ns b ON b.cdgem = a.cdgem AND b.codigo = a.cdgclns
                 LEFT JOIN prn c ON a.cdgem = c.cdgem AND a.cdgclns = c.cdgns AND a.ciclo = c.ciclo AND a.clns = 'G'
-                WHERE a.conciliado IN ('N','C') AND a.estatus = 'B' AND a.clns = 'G' ";
+                WHERE a.estatus = 'B' AND a.clns = 'G' " . $filtroConc . " ";
         $q2 = $sel2 . $whereInd;
 
         $query = "(" . $q1 . ") UNION ALL (" . $q2 . ") ORDER BY frealdep, cdgclns, ciclo, secuencia";

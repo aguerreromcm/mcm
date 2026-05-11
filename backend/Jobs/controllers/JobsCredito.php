@@ -236,11 +236,11 @@ class JobsCredito extends Job
     }
 
     /**
-     * Ejecuta el cierre diario (como en VB6): SP cierre, devengo, alertas PLD y finalización (bitácora + correo).
+     * Ejecuta el cierre diario: SP_PAGOS_CIERRE_DEVENGO y finalización (bitácora + correo).
      *
      * @param string $fecha Fecha en Y-m-d o DD/MM/YYYY (fecha de cierre)
-     * @param int $regenerar 0 = normal, 1 = limpiar y regenerar (admin)
-     * @param string $usuario Usuario que ejecuta (para SPGENDEVENGODIARIO y PLD)
+     * @param int $regenerar Conservado por compatibilidad con la línea de comandos (no se envía al SP unificado)
+     * @param string $usuario Usuario que ejecuta el proceso en BD
      */
     public function CierreDiario($fecha, $regenerar = 0, $usuario = '')
     {
@@ -300,29 +300,8 @@ class JobsCredito extends Job
         }
 
         try {
-            $repo->ejecutarSpCierreDia($fechaNorm, $regenerar);
-            self::SaveLog('SP de cierre ejecutado correctamente.');
-
-            $fechaDevengo = date('Y-m-d', strtotime($fechaNorm . ' +1 day'));
-            try {
-                $repo->ejecutarSpGenDevengoDiario($fechaDevengo, $usuario);
-                self::SaveLog('SPGENDEVENGODIARIO ejecutado correctamente.');
-            } catch (\Throwable $e) {
-                self::SaveLog('Advertencia SPGENDEVENGODIARIO: ' . $e->getMessage());
-            }
-
-            try {
-                $repo->ejecutarSpGenAlertarRelPld($fechaNorm, $usuario);
-                self::SaveLog('SPGENALERTARELPLD ejecutado.');
-            } catch (\Throwable $e) {
-                self::SaveLog('Advertencia SPGENALERTARELPLD: ' . $e->getMessage());
-            }
-            try {
-                $repo->ejecutarSpGenAlertaInuPld($fechaNorm, $usuario);
-                self::SaveLog('SPGENALERTAINUPLD ejecutado.');
-            } catch (\Throwable $e) {
-                self::SaveLog('Advertencia SPGENALERTAINUPLD: ' . $e->getMessage());
-            }
+            $repo->ejecutarSpPagosCierreDevengo($fechaNorm, $usuario);
+            self::SaveLog('SP_PAGOS_CIERRE_DEVENGO ejecutado correctamente.');
 
             $this->finalizarCierreApp($fechaNorm, 1);
         } catch (\Throwable $e) {
