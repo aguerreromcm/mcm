@@ -239,7 +239,10 @@ sql;
 
     /**
      * Totales por ESTATUS en IMPORTACIONPAGDET (1=Pagos, 2=Garantías, 3=Incidencias).
-     * Agrupa por cabecera IMPORTACIONPAG: primero FEC_PAGO, si no hay registros entonces FEC_CARGA.
+     * Se elige un solo criterio de fecha por lote: primero FEC_CARGA (día en que se registró el cierre
+     * en IMPORTACIONPAG, alineado con consultas típicas y con el SP), y si no hay filas se usa FEC_PAGO
+     * (día operativo del pago). Antes se hacía al revés: un lote distinto filtrado solo por FEC_PAGO
+     * podía devolver solo líneas ESTATUS=1 y mostrar todo como “Pagos”.
      */
     public function getResumenPorEstatusImportacion($fecha)
     {
@@ -264,8 +267,8 @@ sql;
 
         try {
             $filtros = [
-                "TRUNC(IP.FEC_PAGO) = TO_DATE(:f1, 'YYYY-MM-DD')",
                 "TRUNC(IP.FEC_CARGA) = TO_DATE(:f1, 'YYYY-MM-DD')",
+                "TRUNC(IP.FEC_PAGO) = TO_DATE(:f1, 'YYYY-MM-DD')",
             ];
             foreach ($filtros as $filtroFecha) {
                 $stmt = $db->db_activa->prepare(str_replace('__FECHA_FILTER__', $filtroFecha, $sql));
@@ -477,7 +480,8 @@ sql;
             if (!is_array($row)) {
                 continue;
             }
-            $est = (int) ($row['ESTATUS'] ?? $row['estatus'] ?? 0);
+            $estRaw = $row['ESTATUS'] ?? $row['estatus'] ?? 0;
+            $est = (int) round((float) (is_string($estRaw) ? trim($estRaw) : $estRaw));
             $cnt = (int) round((float) ($row['SUMA_REG'] ?? $row['suma_reg'] ?? 0));
             $monto = (float) ($row['SUMA_MONTO'] ?? $row['suma_monto'] ?? 0);
             if ($est === 1) {
