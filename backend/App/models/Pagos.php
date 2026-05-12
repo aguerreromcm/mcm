@@ -2021,7 +2021,7 @@ sql;
                 PAGOSDIA
             SET  FECHA = TO_DATE(:fecha_aplicacion, 'YYYY-MM-DD')
                 ,SECUENCIA = CASE WHEN FECHA <> TO_DATE(:fecha_aplicacion, 'YYYY-MM-DD') THEN 
-                    (SELECT NVL(MAX(SECUENCIA), 0) + 1 FROM PAGOSDIA WHERE CDGNS = :grupo AND TRUNC(FECHA) = TO_DATE(:fecha_aplicacion, 'YYYY-MM-DD'))
+                    (SELECT NVL(MAX(SECUENCIA), 0) + 1 FROM PAGOSDIA WHERE TRUNC(FECHA) = TO_DATE(:fecha_aplicacion, 'YYYY-MM-DD'))
                   ELSE SECUENCIA END
                 ,ESTATUS = 'A'
                 ,FREGISTRO = SYSDATE
