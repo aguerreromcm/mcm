@@ -8,7 +8,8 @@ use Core\Database;
 
 /**
  * Repository: acceso a datos del Cierre de Día.
- * Consultas a BITACORA_CIERRE_DIARIO, TBL_CIERRE_DIA, DEVENGO_DIARIO y ejecución de SP_PAGOS_CIERRE_DEVENGO.
+ * Consultas a BITACORA_CIERRE_DIARIO, TBL_CIERRE_DIA (resúmenes/correo), DEVENGO_DIARIO y SP_PAGOS_CIERRE_DEVENGO.
+ * Concurrencia (cierre en curso): BITACORA_CIERRE_DIARIO. «Cierre ya ejecutado» para validación previa: IMPORTACIONPAG (FEC_PAGO), sin TBL_CIERRE_DIA.
  * Sin lógica de negocio; solo SQL y llamadas a procedimientos.
  */
 class CierreDiaRepository
@@ -30,9 +31,10 @@ class CierreDiaRepository
     }
 
     /**
-     * Indica si hay un proceso de cierre en ejecución (registro con FIN IS NULL).
+     * Indica si hay un proceso de cierre en ejecución (bitácora: cierre abierto, FIN IS NULL).
+     * Primero COUNT(*) sobre BITACORA_CIERRE_DIARIO; si hay pendiente, se obtiene INICIO/USUARIO del último.
      *
-     * @return array { INICIO, USUARIO } o vacío
+     * @return array { INICIO, FECHA_CIERRE, USUARIO } o vacío
      */
     public function validaCierreEnEjecucion()
     {
@@ -52,33 +54,22 @@ class CierreDiaRepository
                 // Si falla la limpieza, seguimos con la validación por estado/consistencia.
             }
 
-            // Proceso activo (equivalente a EN_PROCESO):
-            // - fecha_inicio presente (INICIO)
-            // - fecha_fin ausente (FIN IS NULL)
-            // - estatus EN_PROCESO: en este esquema equivale a EXITO IS NULL
-            // - consistencia con la tabla de cierre: descartamos si la fecha ya fue liquidada (FECHA_LIQUIDA no es null)
+            // Proceso activo: solo bitácora (no TBL_CIERRE_DIA). Criterio: FIN IS NULL = aún no terminó.
             $qryConCierrePendiente = <<<SQL
-                SELECT
-                    TO_CHAR(b.INICIO, 'DD/MM/YYYY HH24:MI:SS') AS INICIO,
-                    TO_CHAR(b.FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CIERRE,
-                    b.USUARIO
-                FROM BITACORA_CIERRE_DIARIO b
-                WHERE b.FIN IS NULL
-                  AND b.INICIO IS NOT NULL
-                  AND b.EXITO IS NULL
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM TBL_CIERRE_DIA tcd
-                      WHERE tcd.FECHA_CALC = TRUNC(b.FECHA_CALCULO)
-                        AND tcd.FECHA_LIQUIDA IS NOT NULL
-                  )
-                ORDER BY b.INICIO DESC
-                FETCH FIRST 1 ROW ONLY
+                SELECT COUNT(*) AS TOTAL
+                FROM BITACORA_CIERRE_DIARIO
+                WHERE FIN IS NULL
+                  AND INICIO IS NOT NULL
+                  AND EXITO IS NULL
             SQL;
 
-            // Fallback por compatibilidad: si la tabla no permite consultar FECHA_LIQUIDA (o falla),
-            // al menos aplicamos el filtro estricto de FIN/INICIO/EXITO.
-            $qryFallback = <<<SQL
+            $cnt = $db->queryOne($qryConCierrePendiente);
+            $total = ($cnt !== false && isset($cnt['TOTAL'])) ? (int) $cnt['TOTAL'] : 0;
+            if ($total === 0) {
+                return [];
+            }
+
+            $qry = <<<SQL
                 SELECT
                     TO_CHAR(INICIO, 'DD/MM/YYYY HH24:MI:SS') AS INICIO,
                     TO_CHAR(FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CIERRE,
@@ -91,10 +82,7 @@ class CierreDiaRepository
                 FETCH FIRST 1 ROW ONLY
             SQL;
 
-            $r = $db->queryOne($qryConCierrePendiente);
-            if ($r === false) {
-                $r = $db->queryOne($qryFallback);
-            }
+            $r = $db->queryOne($qry);
             return $r ?: [];
         });
     }
@@ -159,43 +147,37 @@ class CierreDiaRepository
     }
 
     /**
-     * Comprueba si existe cierre del día anterior (como en VB6). Sin esto no se puede ejecutar el cierre.
+     * Comprueba si hubo un cierre exitoso del día anterior (bitácora), sin usar TBL_CIERRE_DIA.
      *
      * @param string $fechaCierre Y-m-d (fecha del cierre que se quiere ejecutar)
-     * @return bool true si hay al menos un registro para (fechaCierre - 1)
+     * @return bool true si hay al menos un cierre finalizado con éxito para (fechaCierre - 1)
      */
     public function existeCierreDiaAnterior($fechaCierre)
     {
         $fechaAnterior = date('Y-m-d', strtotime($fechaCierre . ' -1 day'));
         $qry = <<<SQL
             SELECT COUNT(*) AS TOTAL
-            FROM TBL_CIERRE_DIA
-            WHERE FECHA_LIQUIDA IS NULL AND FECHA_CALC = TO_DATE(:fecha, 'YYYY-MM-DD')
+            FROM BITACORA_CIERRE_DIARIO
+            WHERE TRUNC(FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
+              AND FIN IS NOT NULL
+              AND NVL(EXITO, 0) = 1
         SQL;
-        $ok = $this->sinSalida(function () use ($qry, $fechaAnterior) {
+
+        return $this->sinSalida(function () use ($qry, $fechaAnterior) {
             try {
                 $db = new Database();
                 $r = $db->queryOne($qry, ['fecha' => $fechaAnterior]);
-                if ($r !== false && isset($r['TOTAL'])) {
-                    return (int) $r['TOTAL'] > 0;
-                }
-            } catch (\Exception $e) {
-            }
-            $qryFallback = "SELECT COUNT(*) AS TOTAL FROM TBL_CIERRE_DIA WHERE FECHA_CALC = TO_DATE(:fecha, 'YYYY-MM-DD')";
-            try {
-                $db = new Database();
-                $r = $db->queryOne($qryFallback, ['fecha' => $fechaAnterior]);
+
                 return $r !== false && isset($r['TOTAL']) && (int) $r['TOTAL'] > 0;
             } catch (\Exception $e) {
                 return false;
             }
         });
-        return $ok;
     }
 
     /**
-     * Indica si ya existe cierre para la fecha (criterio VB6: TBL_CIERRE_DIA con FECHA_LIQUIDA IS NULL).
-     * Si la columna FECHA_LIQUIDA no existe, se usa fallback por FECHA_CALC.
+     * Indica si ya hay registros de importación de pagos para esa fecha de pago (IMPORTACIONPAG), sin TBL_CIERRE_DIA.
+     * TRUNC(FEC_PAGO) alinea el día calendario si la columna incluye hora.
      *
      * @param string $fecha Y-m-d
      * @return bool
@@ -204,23 +186,15 @@ class CierreDiaRepository
     {
         $qry = <<<SQL
             SELECT COUNT(*) AS TOTAL
-            FROM TBL_CIERRE_DIA
-            WHERE FECHA_LIQUIDA IS NULL AND FECHA_CALC = TO_DATE(:fecha, 'YYYY-MM-DD')
+            FROM IMPORTACIONPAG
+            WHERE TRUNC(FEC_PAGO) = TO_DATE(:fecha, 'YYYY-MM-DD')
         SQL;
+
         return $this->sinSalida(function () use ($qry, $fecha) {
             try {
                 $db = new Database();
                 $r = $db->queryOne($qry, ['fecha' => $fecha]);
-                if ($r !== false && isset($r['TOTAL'])) {
-                    return (int) $r['TOTAL'] > 0;
-                }
-            } catch (\Exception $e) {
-                // FECHA_LIQUIDA puede no existir en algún esquema
-            }
-            $qryFallback = "SELECT COUNT(*) AS TOTAL FROM TBL_CIERRE_DIA WHERE FECHA_CALC = TO_DATE(:fecha, 'YYYY-MM-DD')";
-            try {
-                $db = new Database();
-                $r = $db->queryOne($qryFallback, ['fecha' => $fecha]);
+
                 return $r !== false && isset($r['TOTAL']) && (int) $r['TOTAL'] > 0;
             } catch (\Exception $e) {
                 return false;
@@ -471,23 +445,48 @@ class CierreDiaRepository
     }
 
     /**
-     * Proceso unificado de cierre: importación/aplicación de pagos del día, cierre cartera y devengo (BD).
+     * Invoca SP_PAGOS_CIERRE_DEVENGO (cierre unificado en BD).
+     * Si $regenerar es true, elimina antes las filas de DEVENGO_DIARIO y TBL_CIERRE_DIA de esa fecha calendario
+     * para evitar ORA-00001 (TBL_CIERRE_DIA_PK) al volver a ejecutar el SP.
      *
-     * @param string $fecha Y-m-d (fecha de cálculo / pagos a procesar)
+     * @param string $fecha Y-m-d (fecha de cálculo / cierre)
      * @param string $usuario Usuario que ejecuta el proceso
+     * @param bool $regenerar Si true, borra devengo y cierre de cartera del día y luego ejecuta el SP
      * @throws \Throwable
      */
-    public function ejecutarSpPagosCierreDevengo($fecha, $usuario)
+    public function ejecutarSpPagosCierreDevengo($fecha, $usuario, $regenerar = false)
     {
         $db = new Database();
         if ($db->db_activa === null) {
             throw new \RuntimeException('No hay conexión a la base de datos.');
         }
+        $pdo = $db->db_activa;
         $u = trim((string) $usuario);
         if ($u === '') {
-            $u = 'SYSTEM';
+            throw new \InvalidArgumentException('Se requiere usuario para ejecutar el cierre (SP_PAGOS_CIERRE_DEVENGO).');
         }
-        $stmt = $db->db_activa->prepare(
+        $fecha = trim((string) $fecha);
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+            throw new \InvalidArgumentException('Fecha inválida para cierre (se espera YYYY-MM-DD).');
+        }
+
+        if ($regenerar) {
+            $sql = <<<PLSQL
+BEGIN
+  DELETE FROM DEVENGO_DIARIO d
+  WHERE TRUNC(d.FECHA_CALC) = TO_DATE(:f1, 'YYYY-MM-DD');
+  DELETE FROM TBL_CIERRE_DIA t
+  WHERE TRUNC(t.FECHA_CALC) = TO_DATE(:f2, 'YYYY-MM-DD');
+  SP_PAGOS_CIERRE_DEVENGO(TO_DATE(:f3, 'YYYY-MM-DD'), :usuario);
+END;
+PLSQL;
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute(['f1' => $fecha, 'f2' => $fecha, 'f3' => $fecha, 'usuario' => $u]);
+
+            return;
+        }
+
+        $stmt = $pdo->prepare(
             'BEGIN SP_PAGOS_CIERRE_DEVENGO(TO_DATE(:fecha, \'YYYY-MM-DD\'), :usuario); END;'
         );
         $stmt->execute(['fecha' => $fecha, 'usuario' => $u]);
@@ -495,13 +494,14 @@ class CierreDiaRepository
 
     /**
      * Cuatro resúmenes exclusivos del día indicado (TRUNC(campo_fecha) = fecha).
+     * Las claves y campos del array de respuesta son de negocio (sin nombres de tablas/columnas en JSON).
      *
      * @param string $fechaDesde Y-m-d (día único a consultar)
      * @return array{
-     *   pagosdia: list<array{FECHA: string, CNT: int}>,
-     *   tbl_cierre_dia: list<array{FECHA_CALC: string, CNT: int}>,
-     *   devengo_diario: list<array{FECHA_CALC: string, CNT: int}>,
-     *   mp_pd: list<array{FDEPOSITO: string, CNT: int}>
+     *   cobranza_del_dia: list<array{fecha: string, registros: int}>,
+     *   cierre_de_cartera: list<array{fecha: string, registros: int}>,
+     *   devengo_registrado: list<array{fecha: string, registros: int}>,
+     *   depositos_cuenta: list<array{fecha: string, registros: int}>
      * }
      */
     public function getInformacionDiaResumenes($fechaDesde)
@@ -509,10 +509,10 @@ class CierreDiaRepository
         return $this->sinSalida(function () use ($fechaDesde) {
             $fechaDesde = trim((string) $fechaDesde);
             $vacio = [
-                'pagosdia' => [],
-                'tbl_cierre_dia' => [],
-                'devengo_diario' => [],
-                'mp_pd' => [],
+                'cobranza_del_dia' => [],
+                'cierre_de_cartera' => [],
+                'devengo_registrado' => [],
+                'depositos_cuenta' => [],
             ];
             if ($fechaDesde === '') {
                 return $vacio;
@@ -534,7 +534,7 @@ ORDER BY TRUNC(PGD.FECHA) DESC
 SQL;
 
             $qTblCierre = <<<'SQL'
-SELECT TO_CHAR(TRUNC(t.FECHA_CALC), 'DD/MM/YYYY') AS FECHA_CALC, COUNT(*) AS CNT
+SELECT TO_CHAR(TRUNC(t.FECHA_CALC), 'DD/MM/YYYY') AS FECHA, COUNT(*) AS CNT
 FROM TBL_CIERRE_DIA t
 WHERE TRUNC(t.FECHA_CALC) = TO_DATE(:f1, 'YYYY-MM-DD')
 GROUP BY TRUNC(t.FECHA_CALC)
@@ -542,7 +542,7 @@ ORDER BY TRUNC(t.FECHA_CALC) DESC
 SQL;
 
             $qDevengo = <<<'SQL'
-SELECT TO_CHAR(TRUNC(d.FECHA_CALC), 'DD/MM/YYYY') AS FECHA_CALC, COUNT(*) AS CNT
+SELECT TO_CHAR(TRUNC(d.FECHA_CALC), 'DD/MM/YYYY') AS FECHA, COUNT(*) AS CNT
 FROM DEVENGO_DIARIO d
 WHERE TRUNC(d.FECHA_CALC) = TO_DATE(:f1, 'YYYY-MM-DD')
 GROUP BY TRUNC(d.FECHA_CALC)
@@ -550,7 +550,7 @@ ORDER BY TRUNC(d.FECHA_CALC) DESC
 SQL;
 
             $qMpPd = <<<'SQL'
-SELECT TO_CHAR(TRUNC(m.FDEPOSITO), 'DD/MM/YYYY') AS FDEPOSITO, COUNT(*) AS CNT
+SELECT TO_CHAR(TRUNC(m.FDEPOSITO), 'DD/MM/YYYY') AS FECHA, COUNT(*) AS CNT
 FROM mp m
 WHERE TRUNC(m.FDEPOSITO) = TO_DATE(:f1, 'YYYY-MM-DD')
   AND m.TIPO = 'PD'
@@ -558,15 +558,15 @@ GROUP BY TRUNC(m.FDEPOSITO)
 ORDER BY TRUNC(m.FDEPOSITO) DESC
 SQL;
 
-            $normaliza = function (array $filas, $claveFecha) {
+            $normaliza = function (array $filas) {
                 $out = [];
                 foreach ($filas as $row) {
                     if (!is_array($row)) {
                         continue;
                     }
-                    $fecha = isset($row[$claveFecha]) ? (string) $row[$claveFecha] : '';
+                    $fecha = isset($row['FECHA']) ? (string) $row['FECHA'] : (isset($row['fecha']) ? (string) $row['fecha'] : '');
                     $cnt = isset($row['CNT']) ? (int) $row['CNT'] : (isset($row['cnt']) ? (int) $row['cnt'] : 0);
-                    $out[] = [$claveFecha => $fecha, 'CNT' => $cnt];
+                    $out[] = ['fecha' => $fecha, 'registros' => $cnt];
                 }
 
                 return $out;
@@ -575,15 +575,15 @@ SQL;
             try {
                 $st = $pdo->prepare($qPagosdia);
                 $st->execute($param);
-                $pagosdia = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC), 'FECHA');
+                $cobranza = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC));
             } catch (\Throwable $e) {
-                $pagosdia = [];
+                $cobranza = [];
             }
 
             try {
                 $st = $pdo->prepare($qTblCierre);
                 $st->execute($param);
-                $tblCierre = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC), 'FECHA_CALC');
+                $tblCierre = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC));
             } catch (\Throwable $e) {
                 $tblCierre = [];
             }
@@ -591,7 +591,7 @@ SQL;
             try {
                 $st = $pdo->prepare($qDevengo);
                 $st->execute($param);
-                $devengo = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC), 'FECHA_CALC');
+                $devengo = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC));
             } catch (\Throwable $e) {
                 $devengo = [];
             }
@@ -599,16 +599,16 @@ SQL;
             try {
                 $st = $pdo->prepare($qMpPd);
                 $st->execute($param);
-                $mpPd = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC), 'FDEPOSITO');
+                $mpPd = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC));
             } catch (\Throwable $e) {
                 $mpPd = [];
             }
 
             return [
-                'pagosdia' => $pagosdia,
-                'tbl_cierre_dia' => $tblCierre,
-                'devengo_diario' => $devengo,
-                'mp_pd' => $mpPd,
+                'cobranza_del_dia' => $cobranza,
+                'cierre_de_cartera' => $tblCierre,
+                'devengo_registrado' => $devengo,
+                'depositos_cuenta' => $mpPd,
             ];
         });
     }

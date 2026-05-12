@@ -83,7 +83,7 @@
                     <div class="cierre-bloque-botones">
                         <button type="button" class="btn btn-default" id="btnBuscarFecha">Buscar</button>
                         <button type="button" class="btn btn-primary" id="procesar">Generar cierre</button>
-                        <button type="button" class="btn btn-info" id="btnInfoDiaCierre" title="Muestra los conteos del día seleccionado en las tablas clave de operación">Resumen de Cierre</button>
+                        <button type="button" class="btn btn-info" id="btnInfoDiaCierre" title="Muestra conteos del día seleccionado (cobranza, cierre de cartera, devengo y depósitos)">Resumen de Cierre</button>
                     </div>
                 </div>
             </div>
@@ -281,36 +281,36 @@
                     <h4 class="modal-title" id="modalInfoDiaCierreTitle">Resumen de Cierre <small id="modalInfoDiaFechaLabel" class="text-muted"></small></h4>
                 </div>
                 <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
-                    <p class="text-muted small" style="margin-bottom: 14px;">Este resumen muestra, para la fecha operativa seleccionada, cuántos registros existen en PAGOSDIA (P/X/G), TBL_CIERRE_DIA, DEVENGO_DIARIO y MP (tipo PD).</p>
+                    <p class="text-muted small" style="margin-bottom: 14px;">Para la fecha operativa elegida se muestran cuántos movimientos quedaron registrados en cuatro bloques: cobranza del día (pagos, garantías y operaciones equivalentes), cierre de cartera de créditos, intereses devengados del día y depósitos reflejados en cuenta.</p>
 
-                    <h5 class="subtitulo" style="margin-top: 0;">PAGOSDIA <small class="text-muted">(TIPO IN P, X, G)</small></h5>
+                    <h5 class="subtitulo" style="margin-top: 0;">Cobranza del día</h5>
                     <div class="table-responsive">
                         <table class="table table-striped table-bordered table-condensed">
-                            <thead><tr><th>Fecha</th><th>Registros</th></tr></thead>
+                            <thead><tr><th>Fecha operativa</th><th>Registros</th></tr></thead>
                             <tbody id="tbodyInfoDiaPagosdia"><tr><td colspan="2">Sin datos.</td></tr></tbody>
                         </table>
                     </div>
 
-                    <h5 class="subtitulo">TBL_CIERRE_DIA</h5>
+                    <h5 class="subtitulo">Cierre de cartera</h5>
                     <div class="table-responsive">
                         <table class="table table-striped table-bordered table-condensed">
-                            <thead><tr><th>Fecha cálculo</th><th>Registros</th></tr></thead>
+                            <thead><tr><th>Fecha de cierre</th><th>Registros</th></tr></thead>
                             <tbody id="tbodyInfoDiaTblCierre"><tr><td colspan="2">Sin datos.</td></tr></tbody>
                         </table>
                     </div>
 
-                    <h5 class="subtitulo">DEVENGO_DIARIO</h5>
+                    <h5 class="subtitulo">Intereses devengados</h5>
                     <div class="table-responsive">
                         <table class="table table-striped table-bordered table-condensed">
-                            <thead><tr><th>Fecha cálculo</th><th>Registros</th></tr></thead>
+                            <thead><tr><th>Fecha de cálculo</th><th>Registros</th></tr></thead>
                             <tbody id="tbodyInfoDiaDevengo"><tr><td colspan="2">Sin datos.</td></tr></tbody>
                         </table>
                     </div>
 
-                    <h5 class="subtitulo">MP <small class="text-muted">(TIPO = PD)</small></h5>
+                    <h5 class="subtitulo">Depósitos en cuenta</h5>
                     <div class="table-responsive">
                         <table class="table table-striped table-bordered table-condensed">
-                            <thead><tr><th>F. depósito</th><th>Registros</th></tr></thead>
+                            <thead><tr><th>Fecha de depósito</th><th>Registros</th></tr></thead>
                             <tbody id="tbodyInfoDiaMpPd"><tr><td colspan="2">Sin datos.</td></tr></tbody>
                         </table>
                     </div>
@@ -620,7 +620,7 @@
             return d.innerHTML;
         };
 
-        const pintarTablaInfoDia = (tbodyId, filas, colFecha) => {
+        const pintarTablaInfoDia = (tbodyId, filas) => {
             const tbody = document.getElementById(tbodyId);
             if (!tbody) return;
             if (!filas || !filas.length) {
@@ -628,8 +628,8 @@
                 return;
             }
             tbody.innerHTML = filas.map((r) => {
-                const f = r[colFecha] != null ? r[colFecha] : (r[colFecha.toLowerCase()] != null ? r[colFecha.toLowerCase()] : "-");
-                const c = r.CNT != null ? r.CNT : (r.cnt != null ? r.cnt : "0");
+                const f = r.fecha != null ? r.fecha : (r.FECHA != null ? r.FECHA : "-");
+                const c = r.registros != null ? r.registros : (r.CNT != null ? r.CNT : (r.cnt != null ? r.cnt : "0"));
                 return "<tr><td>" + escHtml(f) + "</td><td>" + escHtml(c) + "</td></tr>";
             }).join("");
         };
@@ -664,10 +664,10 @@
                     return;
                 }
                 const d = resp.datos;
-                pintarTablaInfoDia("tbodyInfoDiaPagosdia", d.pagosdia || [], "FECHA");
-                pintarTablaInfoDia("tbodyInfoDiaTblCierre", d.tbl_cierre_dia || [], "FECHA_CALC");
-                pintarTablaInfoDia("tbodyInfoDiaDevengo", d.devengo_diario || [], "FECHA_CALC");
-                pintarTablaInfoDia("tbodyInfoDiaMpPd", d.mp_pd || [], "FDEPOSITO");
+                pintarTablaInfoDia("tbodyInfoDiaPagosdia", d.cobranza_del_dia || d.pagosdia || []);
+                pintarTablaInfoDia("tbodyInfoDiaTblCierre", d.cierre_de_cartera || d.tbl_cierre_dia || []);
+                pintarTablaInfoDia("tbodyInfoDiaDevengo", d.devengo_registrado || d.devengo_diario || []);
+                pintarTablaInfoDia("tbodyInfoDiaMpPd", d.depositos_cuenta || d.mp_pd || []);
             }).fail(() => {
                 if (typeof showError === "function") showError("Error de conexión al consultar información del día.");
                 tbodies.forEach((id) => {

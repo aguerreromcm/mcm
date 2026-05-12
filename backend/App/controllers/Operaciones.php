@@ -354,7 +354,7 @@ class Operaciones extends Controller
     }
 
     /**
-     * POST/GET: fecha (Y-m-d). JSON: resúmenes PAGOSDIA, TBL_CIERRE_DIA, DEVENGO_DIARIO, mp (PD) solo para ese día.
+     * POST/GET: fecha (Y-m-d). JSON: conteos del día (cobranza, cierre de cartera, devengo, depósitos) sin exponer nombres físicos de tablas.
      */
     function InformacionDiaCierre()
     {

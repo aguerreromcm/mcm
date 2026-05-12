@@ -95,8 +95,8 @@ class CierreDiaService
             return Model::Responde(false, 'Ya hay un proceso de cierre diario en ejecución, no es posible iniciar otro.', $enEjecucion, 'Concurrencia');
         }
 
-        // DESHABILITADO: esta validación interrumpía el proceso (exige filas en TBL_CIERRE_DIA del día anterior con FECHA_LIQUIDA IS NULL).
-        // Misma regla que VB6; descomentar cuando el entorno tenga el cierre previo cargado correctamente.
+        // Opcional: exige cierre exitoso del día previo registrado en BITACORA_CIERRE_DIARIO (no usa TBL_CIERRE_DIA).
+        // Descomentar si en producción debe bloquearse sin cierre previo en bitácora.
         /*
         if (!$repo->existeCierreDiaAnterior($fecha)) {
             return Model::Responde(false, 'No se puede ejecutar el cierre: no se ha realizado el Cierre del Día Anterior.', null, 'Cierre día anterior');
@@ -147,18 +147,17 @@ class CierreDiaService
 
     /**
      * Ejecuta el cierre diario en la misma petición (sin Job en segundo plano).
-     * Siempre ejecuta el proceso real; el flag solo flujo solo afecta destinatarios de correo en finalizarCierre().
      *
      * @param string $fechaCierre Y-m-d
      * @param string $usuario
-     * @param int $regenerar 0 o 1 (no enviado al SP; conservado por compatibilidad con la pantalla)
+     * @param int $regenerar 0 o 1: si no es 0, borra devengo y TBL_CIERRE_DIA del día antes del SP (regenerar)
      * @return array { success, mensaje }
      */
     public static function ejecutarCierreDiario($fechaCierre, $usuario, $regenerar = 0)
     {
         $repo = new CierreDiaRepository();
         try {
-            $repo->ejecutarSpPagosCierreDevengo($fechaCierre, $usuario);
+            $repo->ejecutarSpPagosCierreDevengo($fechaCierre, $usuario, $regenerar !== 0);
             self::finalizarCierre($fechaCierre, 1);
             return Model::Responde(true, 'El cierre de día se ha completado correctamente.');
         } catch (\Throwable $e) {
@@ -238,7 +237,7 @@ class CierreDiaService
      * Cuatro resúmenes solo para el día de la fecha operativa (no acumulado de fechas posteriores).
      *
      * @param string $fechaYmd Y-m-d
-     * @return array Respuesta Model::Responde con datos: pagosdia, tbl_cierre_dia, devengo_diario, mp_pd
+     * @return array Respuesta Model::Responde con datos: cobranza_del_dia, cierre_de_cartera, devengo_registrado, depositos_cuenta (cada lista: fecha, registros)
      */
     public static function obtenerInformacionDiaResumenes($fechaYmd)
     {

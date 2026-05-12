@@ -239,7 +239,7 @@ class JobsCredito extends Job
      * Ejecuta el cierre diario: SP_PAGOS_CIERRE_DEVENGO y finalización (bitácora + correo).
      *
      * @param string $fecha Fecha en Y-m-d o DD/MM/YYYY (fecha de cierre)
-     * @param int $regenerar Conservado por compatibilidad con la línea de comandos (no se envía al SP unificado)
+     * @param int $regenerar Si distinto de 0, borra DEVENGO_DIARIO y TBL_CIERRE_DIA del día y ejecuta el SP
      * @param string $usuario Usuario que ejecuta el proceso en BD
      */
     public function CierreDiario($fecha, $regenerar = 0, $usuario = '')
@@ -300,7 +300,7 @@ class JobsCredito extends Job
         }
 
         try {
-            $repo->ejecutarSpPagosCierreDevengo($fechaNorm, $usuario);
+            $repo->ejecutarSpPagosCierreDevengo($fechaNorm, $usuario, $regenerar !== 0);
             self::SaveLog('SP_PAGOS_CIERRE_DEVENGO ejecutado correctamente.');
 
             $this->finalizarCierreApp($fechaNorm, 1);
