@@ -39,7 +39,7 @@ class AhorroConsulta extends Model
             'fechaF' => $datos['fechaF']
         ];
 
-        if ($_SESSION['perfil'] === 'ADMIN') {
+        if ($_SESSION['perfil'] === 'ADMIN' || $_SESSION['usuario'] === 'CILA') {
             $qry = str_replace('FILTRO_USUARIO', '', $qry);
         } else {
             $qry = str_replace('FILTRO_USUARIO', 'AND RA.CDGPE_ADMINISTRADORA = :cdgpe', $qry);
