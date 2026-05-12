@@ -18,6 +18,44 @@ class ConciliacionRepository
     const EMPRESA_DEFAULT = 'EMPFIN';
 
     /**
+     * Convierte una fecha de entrada a Y-m-d para usarla en binds TO_DATE.
+     *
+     * @param string $fecha
+     * @return string
+     */
+    private function normalizarFechaYmd($fecha)
+    {
+        $fecha = trim((string) $fecha);
+        if ($fecha === '') {
+            return '';
+        }
+        $timestamp = strtotime($fecha);
+        if ($timestamp === false) {
+            return $fecha;
+        }
+        return date('Y-m-d', $timestamp);
+    }
+
+    /**
+     * Convierte una fecha de entrada a Y/m/d para llamadas de SP (formato VB6).
+     *
+     * @param string $fecha
+     * @return string
+     */
+    private function normalizarFechaYmSlashd($fecha)
+    {
+        $fecha = trim((string) $fecha);
+        if ($fecha === '') {
+            return '';
+        }
+        $timestamp = strtotime($fecha);
+        if ($timestamp === false) {
+            return $fecha;
+        }
+        return date('Y/m/d', $timestamp);
+    }
+
+    /**
      * Obtiene los movimientos de pagos por fecha (PAGOSDIA, misma fuente que Aplicar Pagos).
      *
      * @param string $fecha Fecha en Y-m-d
@@ -39,9 +77,10 @@ class ConciliacionRepository
      * @param string $codigo Código cliente
      * @param string $ciclo Ciclo
      * @param string $ctaBancaria Cuenta bancaria
+     * @param string $modoConciliado legacy = VB6 (solo CONCILIADO IN N,C); por_fecha = todos los estados en MP (misma fecha/filtros)
      * @return array Lista de filas con cdgem, cdgns, cdgclns, clns, tipocte, referencia, frealdep, cantidad, conciliado, nombre, etc.
      */
-    public function getPagosPorConciliarMP($empresa, $fechaPago, $tipoCliente, $codigo, $ciclo, $ctaBancaria)
+    public function getPagosPorConciliarMP($empresa, $fechaPago, $tipoCliente, $codigo, $ciclo, $ctaBancaria, $modoConciliado = 'legacy')
     {
         $db = new Database();
         if ($db->db_activa === null) {
@@ -52,7 +91,7 @@ class ConciliacionRepository
         if ($empresa === '' || strtoupper($empresa) === '(TODAS)') {
             $empresa = self::EMPRESA_DEFAULT;
         }
-        $fechaPago = trim((string) $fechaPago);
+        $fechaPago = $this->normalizarFechaYmd($fechaPago);
         $tipoCliente = trim((string) $tipoCliente);
         if (strtoupper($tipoCliente) === '(TODOS)' || $tipoCliente === '') {
             $tipoCliente = '';
@@ -68,7 +107,8 @@ class ConciliacionRepository
         $condFecha = '';
         if ($fechaPago !== '') {
             $params['fecha'] = $fechaPago;
-            $condFecha = " AND a.frealdep = TO_DATE(:fecha, 'YYYY-MM-DD') ";
+            // Si FREALDEP tiene hora, la comparación exacta por datetime deja pagos fuera.
+            $condFecha = " AND TRUNC(a.frealdep) = TO_DATE(:fecha, 'YYYY-MM-DD') ";
         }
         $condTipo = '';
         if ($tipoCliente !== '') {
@@ -93,18 +133,23 @@ class ConciliacionRepository
 
         $whereInd = $condEmpresa . $condFecha . $condTipo . $condCodigo . $condCiclo . $condCta;
 
+        $modoConciliado = trim((string) $modoConciliado);
+        $filtroConc = ($modoConciliado === 'por_fecha')
+            ? ''
+            : " AND a.conciliado IN ('N','C') ";
+
         $sel = "SELECT a.cdgem, a.cdgns, a.cdgclns, a.clns,
                 DECODE(a.clns, 'G', 'Grupal', 'I', 'Individual') tipocte,
                 a.cdgcl, a.ciclo, a.periodo, c.tasa, c.plazo, c.periodicidad,
                 a.secuencia, a.referencia, a.cdgcb, a.tipo,
-                TO_CHAR(a.frealdep, 'YYYY-MM-DD') AS frealdep,
+                TO_CHAR(a.frealdep, 'YYYY/MM/DD') AS frealdep,
                 a.cantidad, a.modo, a.conciliado, a.estatus, a.actualizarpe,
                 a.secuenciaim, a.fechaim,
                 NVL(RTRIM(LTRIM(b.nombre1 || ' ' || b.nombre2)), '') || ' ' || NVL(RTRIM(LTRIM(b.primape || ' ' || b.segape)), '') AS nombre
                 FROM mp a
                 LEFT JOIN cl b ON b.cdgem = a.cdgem AND b.codigo = a.cdgclns
                 LEFT JOIN prc c ON a.cdgem = c.cdgem AND a.cdgclns = c.cdgcl AND a.ciclo = c.ciclo AND a.clns = c.clns
-                WHERE a.conciliado IN ('N','C') AND a.estatus = 'B' AND a.clns = 'I'
+                WHERE a.estatus = 'B' AND a.clns = 'I' " . $filtroConc . "
                 AND fnRegresaSdoIndividual(a.CDGEM,a.CDGCLNS,a.CICLO) > 0 ";
         $q1 = $sel . $whereInd;
 
@@ -112,14 +157,14 @@ class ConciliacionRepository
                 DECODE(a.clns, 'G', 'Grupal', 'I', 'Individual') tipocte,
                 a.cdgcl, a.ciclo, a.periodo, c.tasa, c.plazo, c.periodicidad,
                 a.secuencia, a.referencia, a.cdgcb, a.tipo,
-                TO_CHAR(a.frealdep, 'YYYY-MM-DD') AS frealdep,
+                TO_CHAR(a.frealdep, 'YYYY/MM/DD') AS frealdep,
                 a.cantidad, a.modo, a.conciliado, a.estatus, a.actualizarpe,
                 a.secuenciaim, a.fechaim,
                 RTRIM(LTRIM(b.nombre)) AS nombre
                 FROM mp a
                 LEFT JOIN ns b ON b.cdgem = a.cdgem AND b.codigo = a.cdgclns
                 LEFT JOIN prn c ON a.cdgem = c.cdgem AND a.cdgclns = c.cdgns AND a.ciclo = c.ciclo AND a.clns = 'G'
-                WHERE a.conciliado IN ('N','C') AND a.estatus = 'B' AND a.clns = 'G' ";
+                WHERE a.estatus = 'B' AND a.clns = 'G' " . $filtroConc . " ";
         $q2 = $sel2 . $whereInd;
 
         $query = "(" . $q1 . ") UNION ALL (" . $q2 . ") ORDER BY frealdep, cdgclns, ciclo, secuencia";
@@ -172,7 +217,7 @@ class ConciliacionRepository
         if ($tipo === '' && isset($pago['TIPOCTE'])) {
             $tipo = strtoupper(substr(trim((string) $pago['TIPOCTE']), 0, 1)) === 'G' ? 'G' : 'I';
         }
-        $fecha = trim((string) ($pago['FREALDEP'] ?? ''));
+        $fecha = $this->normalizarFechaYmSlashd($pago['FREALDEP'] ?? '');
         $periodo = isset($pago['PERIODO']) ? (int) $pago['PERIODO'] : 0;
         $secuencia = trim((string) ($pago['SECUENCIA'] ?? ''));
         $monto = isset($pago['CANTIDAD']) ? (float) $pago['CANTIDAD'] : 0;
@@ -222,7 +267,7 @@ class ConciliacionRepository
             $cdgclns = trim((string) ($pago['CDGCLNS'] ?? ''));
             $ciclo = trim((string) ($pago['CICLO'] ?? ''));
             $clns = trim((string) ($pago['CLNS'] ?? ($pago['TIPOCTE'] ?? '')));
-            $frealdep = trim((string) ($pago['FREALDEP'] ?? ''));
+            $frealdep = $this->normalizarFechaYmSlashd($pago['FREALDEP'] ?? '');
             $periodoSet = array_key_exists('PERIODO', $pago);
             $periodo = $periodoSet ? (int) $pago['PERIODO'] : null;
             $secuencia = trim((string) ($pago['SECUENCIA'] ?? ''));
@@ -239,7 +284,7 @@ class ConciliacionRepository
                       AND cdgclns = :cdgclns
                       AND ciclo = :ciclo
                       AND clns = :clns
-                      AND TRUNC(frealdep) = TO_DATE(:frealdep, 'YYYY-MM-DD')
+                      AND TRUNC(frealdep) = TO_DATE(:frealdep, 'YYYY/MM/DD')
                       AND periodo = :periodo
                       AND secuencia = :secuencia";
 

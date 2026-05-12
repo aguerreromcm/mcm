@@ -8,6 +8,7 @@ use Core\Model;
 use Core\App;
 use Core\Database;
 use App\repositories\ConciliacionRepository;
+use App\repositories\PagosAplicacionRepository;
 
 /**
  * Service para Conciliación de pagos: consulta MP y ejecución de spRedistribucionPagos (réplica VB6).
@@ -23,9 +24,10 @@ class ConciliacionService
      * @param string $codigo Crédito (código ind./gpo.)
      * @param string $ciclo
      * @param string $ctaBancaria
+     * @param string $modoConciliado legacy | por_fecha (solo afecta la consulta MP en repositorio)
      * @return array { success, mensaje, datos: { filas, resumen }, error }
      */
-    public static function buscarPagosConciliacion($empresa, $fechaPago, $tipoCliente, $codigo, $ciclo, $ctaBancaria)
+    public static function buscarPagosConciliacion($empresa, $fechaPago, $tipoCliente, $codigo, $ciclo, $ctaBancaria, $modoConciliado = 'legacy')
     {
         $repo = new ConciliacionRepository();
 
@@ -48,7 +50,7 @@ class ConciliacionService
 
         $empresa = ($empresa !== '' && strtoupper($empresa) !== '(TODAS)') ? trim($empresa) : ConciliacionRepository::EMPRESA_DEFAULT;
 
-        $filas = $repo->getPagosPorConciliarMP($empresa, $fechaPago, $tipoCliente, $codigo, $ciclo, $ctaBancaria);
+        $filas = $repo->getPagosPorConciliarMP($empresa, $fechaPago, $tipoCliente, $codigo, $ciclo, $ctaBancaria, $modoConciliado);
 
         $totalRegistros = count($filas);
         $totalImporte = 0;
@@ -61,12 +63,15 @@ class ConciliacionService
             $monto = (float) ($f['CANTIDAD'] ?? 0);
             $totalImporte += $monto;
             $conciliado = isset($f['CONCILIADO']) ? trim((string) $f['CONCILIADO']) : '';
-            if (strtoupper($conciliado) === 'C') {
-                $totalConciliados++;
-                $importeConciliados += $monto;
-            } else {
+            $c = strtoupper($conciliado);
+            // Pendiente típico en MP: 'N'. Cualquier otro valor se considera ya conciliado/cerrado en flujo.
+            $esPendiente = ($c === '' || $c === 'N');
+            if ($esPendiente) {
                 $totalNoConciliados++;
                 $importeNoConciliados += $monto;
+            } else {
+                $totalConciliados++;
+                $importeConciliados += $monto;
             }
         }
 
@@ -79,7 +84,11 @@ class ConciliacionService
             'importeNoConciliados' => round($importeNoConciliados, 2),
         ];
 
-        return Model::Responde(true, $totalRegistros > 0 ? "Se encontraron un total de {$totalRegistros} pagos." : 'No hay pagos pendientes de conciliar.', [
+        $mensajeSinDatos = ($modoConciliado === 'por_fecha')
+            ? 'No se encontraron pagos en MP con los filtros indicados.'
+            : 'No hay pagos pendientes de conciliar.';
+
+        return Model::Responde(true, $totalRegistros > 0 ? "Se encontraron un total de {$totalRegistros} pagos." : $mensajeSinDatos, [
             'filas' => $filas,
             'resumen' => $resumen,
         ]);
@@ -115,7 +124,7 @@ class ConciliacionService
         foreach ($filas as $f) {
             $monto = (float) ($f['MONTO'] ?? 0);
             $totalImporte += $monto;
-            if (isset($f['F_IMPORTACION']) && $f['F_IMPORTACION'] !== null && $f['F_IMPORTACION'] !== '') {
+            if (PagosAplicacionRepository::filaMarcadaImportada($f)) {
                 $totalAplicados++;
                 $importeAplicados += $monto;
             } else {
@@ -177,13 +186,35 @@ class ConciliacionService
 
             // Snapshot previo para detectar si realmente se afectó MP.
             $estadoAntes = $repo->obtenerEstadosConciliacionPagos($pagos, $db);
+            $totalSeleccionados = count($pagos);
+            $totalProcesados = 0;
+            $totalDuplicadosCierreDia = 0;
 
             foreach ($pagos as $i => $pago) {
                 if (!is_array($pago)) {
                     $db->CancelaTransaccion();
                     return Model::Responde(false, 'Datos del pago no válidos.', null, 'Pago no es array');
                 }
-                $repo->ejecutarSpRedistribucionPagos($pago, $usuario, $identificador, $db);
+                try {
+                    $repo->ejecutarSpRedistribucionPagos($pago, $usuario, $identificador, $db);
+                    $totalProcesados++;
+                } catch (\Throwable $e) {
+                    $mensajeError = (string) $e->getMessage();
+                    $esDuplicadoCierreDia = stripos($mensajeError, 'ORA-00001') !== false
+                        && stripos($mensajeError, 'TBL_CIERRE_DIA_PK') !== false;
+                    if ($esDuplicadoCierreDia) {
+                        $totalDuplicadosCierreDia++;
+                        $totalProcesados++;
+                        @file_put_contents(
+                            $logPath,
+                            date('c') . ' [' . $usuario . '] WARN duplicado CIERRE_DIA omitido en pago idx=' . $i . ' msg=' . $mensajeError . "\n",
+                            FILE_APPEND
+                        );
+                        // Mantener comportamiento operativo: no detener todo el lote por un registro duplicado.
+                        continue;
+                    }
+                    throw $e;
+                }
             }
 
             // Snapshot posterior (aún dentro de la transacción) para validar afectación.
@@ -191,9 +222,8 @@ class ConciliacionService
 
             $db->ConfirmaTransaccion();
 
-            $n = count($pagos);
             $afectados = 0;
-            for ($idx = 0; $idx < $n; $idx++) {
+            for ($idx = 0; $idx < $totalSeleccionados; $idx++) {
                 $a = $estadoAntes[$idx] ?? ['encontrado' => false, 'conciliado' => null, 'estatus' => null];
                 $d = $estadoDespues[$idx] ?? ['encontrado' => false, 'conciliado' => null, 'estatus' => null];
                 if (empty($a['encontrado']) || empty($d['encontrado'])) {
@@ -204,23 +234,37 @@ class ConciliacionService
                 }
             }
 
-            $mensajeLog = date('c') . ' [' . $usuario . '] soloFlujo=' . ($soloFlujo ? '1' : '0') . ' pagos=' . $n . ' afectados=' . $afectados . "\n";
+            $mensajeLog = date('c')
+                . ' [' . $usuario . ']'
+                . ' soloFlujo=' . ($soloFlujo ? '1' : '0')
+                . ' seleccionados=' . $totalSeleccionados
+                . ' procesados=' . $totalProcesados
+                . ' duplicados=' . $totalDuplicadosCierreDia
+                . ' afectados=' . $afectados
+                . "\n";
             @file_put_contents($logPath, $mensajeLog, FILE_APPEND);
 
             if ($soloFlujo) {
                 return Model::Responde(true, 'Conciliación en modo solo flujo completada (sin cambios aplicados).');
             }
 
-            if ($afectados === 0) {
-                return Model::Responde(
-                    false,
-                    'No se aplicaron cambios en BD durante la conciliación (0 pagos afectado(s)).',
-                    null,
-                    'Sin afectación'
-                );
+            // Comportamiento VB6: si el proceso termina sin error fatal, se considera completado.
+            if ($totalProcesados <= 0) {
+                return Model::Responde(false, 'No fue posible procesar pagos en la conciliación.', null, 'Sin procesamiento');
             }
 
-            return Model::Responde(true, "Conciliación aplicada correctamente. Pagos afectados: {$afectados} de {$n}.");
+            $mensaje = "Conciliación completada. Pagos procesados: {$totalProcesados} de {$totalSeleccionados}.";
+            $mensaje .= " Pagos afectados: {$afectados}.";
+            if ($totalDuplicadosCierreDia > 0) {
+                $mensaje .= " Duplicados en CIERRE_DIA omitidos: {$totalDuplicadosCierreDia}.";
+            }
+
+            return Model::Responde(true, $mensaje, [
+                'seleccionados' => $totalSeleccionados,
+                'procesados' => $totalProcesados,
+                'afectados' => $afectados,
+                'duplicadosCierreDia' => $totalDuplicadosCierreDia,
+            ]);
         } catch (\InvalidArgumentException $e) {
             if (isset($db) && $db->db_activa !== null) {
                 $db->CancelaTransaccion();

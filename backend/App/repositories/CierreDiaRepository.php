@@ -8,7 +8,7 @@ use Core\Database;
 
 /**
  * Repository: acceso a datos del Cierre de Día.
- * Consultas a BITACORA_CIERRE_DIARIO, TBL_CIERRE_DIA, DEVENGO_DIARIO y ejecución del SP de cierre.
+ * Consultas a BITACORA_CIERRE_DIARIO, TBL_CIERRE_DIA, DEVENGO_DIARIO y ejecución de SP_PAGOS_CIERRE_DEVENGO.
  * Sin lógica de negocio; solo SQL y llamadas a procedimientos.
  */
 class CierreDiaRepository
@@ -471,83 +471,146 @@ class CierreDiaRepository
     }
 
     /**
-     * Ejecuta el stored procedure de cierre (sp_Cierre_Dia en VB6).
-     * Parámetro 0 = completo, 1 = solo pendientes / regenerar.
+     * Proceso unificado de cierre: importación/aplicación de pagos del día, cierre cartera y devengo (BD).
      *
-     * @param string $fecha Y-m-d
-     * @param int $regenerar 0 o 1
+     * @param string $fecha Y-m-d (fecha de cálculo / pagos a procesar)
+     * @param string $usuario Usuario que ejecuta el proceso
      * @throws \Throwable
      */
-    public function ejecutarSpCierreDia($fecha, $regenerar = 0)
+    public function ejecutarSpPagosCierreDevengo($fecha, $usuario)
     {
         $db = new Database();
         if ($db->db_activa === null) {
             throw new \RuntimeException('No hay conexión a la base de datos.');
         }
-        $stmt = $db->db_activa->prepare("BEGIN SP_CIERRE_DIA(TO_DATE(:fecha, 'YYYY-MM-DD'), :regenerar); END;");
-        $stmt->execute(['fecha' => $fecha, 'regenerar' => (int) $regenerar]);
+        $u = trim((string) $usuario);
+        if ($u === '') {
+            $u = 'SYSTEM';
+        }
+        $stmt = $db->db_activa->prepare(
+            'BEGIN SP_PAGOS_CIERRE_DEVENGO(TO_DATE(:fecha, \'YYYY-MM-DD\'), :usuario); END;'
+        );
+        $stmt->execute(['fecha' => $fecha, 'usuario' => $u]);
     }
 
     /**
-     * Genera devengo diario para el día siguiente al cierre (como en VB6: PKG_CIERRE.SPGENDEVENGODIARIO).
+     * Cuatro resúmenes exclusivos del día indicado (TRUNC(campo_fecha) = fecha).
      *
-     * @param string $fechaDevengo Y-m-d (fecha_cierre + 1)
-     * @param string $usuario
+     * @param string $fechaDesde Y-m-d (día único a consultar)
+     * @return array{
+     *   pagosdia: list<array{FECHA: string, CNT: int}>,
+     *   tbl_cierre_dia: list<array{FECHA_CALC: string, CNT: int}>,
+     *   devengo_diario: list<array{FECHA_CALC: string, CNT: int}>,
+     *   mp_pd: list<array{FDEPOSITO: string, CNT: int}>
+     * }
      */
-    public function ejecutarSpGenDevengoDiario($fechaDevengo, $usuario)
+    public function getInformacionDiaResumenes($fechaDesde)
     {
-        $db = new Database();
-        if ($db->db_activa === null) {
-            throw new \RuntimeException('No hay conexión a la base de datos.');
-        }
-        $stmt = $db->db_activa->prepare("BEGIN PKG_CIERRE.SPGENDEVENGODIARIO('EMPFIN', TO_DATE(:fecha, 'YYYY-MM-DD'), :usuario); END;");
-        $stmt->execute(['fecha' => $fechaDevengo, 'usuario' => $usuario]);
-    }
+        return $this->sinSalida(function () use ($fechaDesde) {
+            $fechaDesde = trim((string) $fechaDesde);
+            $vacio = [
+                'pagosdia' => [],
+                'tbl_cierre_dia' => [],
+                'devengo_diario' => [],
+                'mp_pd' => [],
+            ];
+            if ($fechaDesde === '') {
+                return $vacio;
+            }
+            $db = new Database();
+            if ($db->db_activa === null) {
+                return $vacio;
+            }
+            $pdo = $db->db_activa;
+            $param = ['f1' => $fechaDesde];
 
-    /**
-     * Alertas Relevantes PLD (como en VB6: SPGENALERTARELPLD).
-     *
-     * @param string $fecha Y-m-d (fecha de cierre)
-     * @param string $usuario
-     * @return string Mensaje resultado del SP
-     */
-    public function ejecutarSpGenAlertarRelPld($fecha, $usuario)
-    {
-        $db = new Database();
-        if ($db->db_activa === null) {
-            throw new \RuntimeException('No hay conexión a la base de datos.');
-        }
-        $resultado = '';
-        $stmt = $db->db_activa->prepare("BEGIN SPGENALERTARELPLD(:empresa, TO_DATE(:fecha, 'YYYY-MM-DD'), :usuario, :resultado); END;");
-        $stmt->bindValue(':empresa', 'EMPFIN');
-        $stmt->bindValue(':fecha', $fecha);
-        $stmt->bindValue(':usuario', $usuario);
-        $stmt->bindParam(':resultado', $resultado, \PDO::PARAM_STR, 200);
-        $stmt->execute();
-        return $resultado;
-    }
+            $qPagosdia = <<<'SQL'
+SELECT TO_CHAR(TRUNC(PGD.FECHA), 'DD/MM/YYYY') AS FECHA, COUNT(*) AS CNT
+FROM PAGOSDIA PGD
+WHERE TRUNC(PGD.FECHA) = TO_DATE(:f1, 'YYYY-MM-DD')
+  AND PGD.TIPO IN ('P', 'X', 'G')
+GROUP BY TRUNC(PGD.FECHA)
+ORDER BY TRUNC(PGD.FECHA) DESC
+SQL;
 
-    /**
-     * Alertas Inusuales PLD (como en VB6: SPGENALERTAINUPLD).
-     *
-     * @param string $fecha Y-m-d (fecha de cierre)
-     * @param string $usuario
-     * @return string Mensaje resultado del SP
-     */
-    public function ejecutarSpGenAlertaInuPld($fecha, $usuario)
-    {
-        $db = new Database();
-        if ($db->db_activa === null) {
-            throw new \RuntimeException('No hay conexión a la base de datos.');
-        }
-        $resultado = '';
-        $stmt = $db->db_activa->prepare("BEGIN SPGENALERTAINUPLD(:empresa, TO_DATE(:fecha, 'YYYY-MM-DD'), :usuario, :resultado); END;");
-        $stmt->bindValue(':empresa', 'EMPFIN');
-        $stmt->bindValue(':fecha', $fecha);
-        $stmt->bindValue(':usuario', $usuario);
-        $stmt->bindParam(':resultado', $resultado, \PDO::PARAM_STR, 200);
-        $stmt->execute();
-        return $resultado;
+            $qTblCierre = <<<'SQL'
+SELECT TO_CHAR(TRUNC(t.FECHA_CALC), 'DD/MM/YYYY') AS FECHA_CALC, COUNT(*) AS CNT
+FROM TBL_CIERRE_DIA t
+WHERE TRUNC(t.FECHA_CALC) = TO_DATE(:f1, 'YYYY-MM-DD')
+GROUP BY TRUNC(t.FECHA_CALC)
+ORDER BY TRUNC(t.FECHA_CALC) DESC
+SQL;
+
+            $qDevengo = <<<'SQL'
+SELECT TO_CHAR(TRUNC(d.FECHA_CALC), 'DD/MM/YYYY') AS FECHA_CALC, COUNT(*) AS CNT
+FROM DEVENGO_DIARIO d
+WHERE TRUNC(d.FECHA_CALC) = TO_DATE(:f1, 'YYYY-MM-DD')
+GROUP BY TRUNC(d.FECHA_CALC)
+ORDER BY TRUNC(d.FECHA_CALC) DESC
+SQL;
+
+            $qMpPd = <<<'SQL'
+SELECT TO_CHAR(TRUNC(m.FDEPOSITO), 'DD/MM/YYYY') AS FDEPOSITO, COUNT(*) AS CNT
+FROM mp m
+WHERE TRUNC(m.FDEPOSITO) = TO_DATE(:f1, 'YYYY-MM-DD')
+  AND m.TIPO = 'PD'
+GROUP BY TRUNC(m.FDEPOSITO)
+ORDER BY TRUNC(m.FDEPOSITO) DESC
+SQL;
+
+            $normaliza = function (array $filas, $claveFecha) {
+                $out = [];
+                foreach ($filas as $row) {
+                    if (!is_array($row)) {
+                        continue;
+                    }
+                    $fecha = isset($row[$claveFecha]) ? (string) $row[$claveFecha] : '';
+                    $cnt = isset($row['CNT']) ? (int) $row['CNT'] : (isset($row['cnt']) ? (int) $row['cnt'] : 0);
+                    $out[] = [$claveFecha => $fecha, 'CNT' => $cnt];
+                }
+
+                return $out;
+            };
+
+            try {
+                $st = $pdo->prepare($qPagosdia);
+                $st->execute($param);
+                $pagosdia = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC), 'FECHA');
+            } catch (\Throwable $e) {
+                $pagosdia = [];
+            }
+
+            try {
+                $st = $pdo->prepare($qTblCierre);
+                $st->execute($param);
+                $tblCierre = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC), 'FECHA_CALC');
+            } catch (\Throwable $e) {
+                $tblCierre = [];
+            }
+
+            try {
+                $st = $pdo->prepare($qDevengo);
+                $st->execute($param);
+                $devengo = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC), 'FECHA_CALC');
+            } catch (\Throwable $e) {
+                $devengo = [];
+            }
+
+            try {
+                $st = $pdo->prepare($qMpPd);
+                $st->execute($param);
+                $mpPd = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC), 'FDEPOSITO');
+            } catch (\Throwable $e) {
+                $mpPd = [];
+            }
+
+            return [
+                'pagosdia' => $pagosdia,
+                'tbl_cierre_dia' => $tblCierre,
+                'devengo_diario' => $devengo,
+                'mp_pd' => $mpPd,
+            ];
+        });
     }
 
 }

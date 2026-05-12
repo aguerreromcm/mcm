@@ -17,6 +17,35 @@ use App\repositories\PagosAplicacionRepository;
 class PagosAplicacionService
 {
     /**
+     * Normaliza una fecha/hora para el SP de importación con el mismo formato de VB6.
+     * VB6 envía: YYYY/MM/DD HH:NN:SS (fecha del pago + hora actual).
+     *
+     * @param mixed $valorFecha Fecha obtenida de BD/UI
+     * @param string $fechaFallback Fecha base Y-m-d
+     * @return string
+     */
+    private static function formatearFechaParaSp($valorFecha, $fechaFallback)
+    {
+        $fechaBase = '';
+        if (is_object($valorFecha) && method_exists($valorFecha, 'format')) {
+            $fechaBase = $valorFecha->format('Y/m/d');
+        } elseif (is_string($valorFecha) && trim($valorFecha) !== '') {
+            $valor = trim($valorFecha);
+            $timestamp = strtotime($valor);
+            if ($timestamp !== false) {
+                $fechaBase = date('Y/m/d', $timestamp);
+            }
+        }
+
+        if ($fechaBase === '') {
+            $timestampFallback = strtotime((string) $fechaFallback);
+            $fechaBase = $timestampFallback !== false ? date('Y/m/d', $timestampFallback) : date('Y/m/d');
+        }
+
+        return $fechaBase . date(' H:i:s');
+    }
+
+    /**
      * Valida y obtiene resumen: si la fecha ya fue procesada devuelve el resumen guardado; si no, valida y opcionalmente ejecuta.
      *
      * @param string $fecha Fecha en Y-m-d
@@ -31,6 +60,12 @@ class PagosAplicacionService
         if (trim($fecha) === '') {
             return Model::Responde(false, 'La fecha es obligatoria.', null, 'Fecha vacía');
         }
+
+        $fechaNorm = PagosAplicacionRepository::coerceFechaYmD($fecha);
+        if ($fechaNorm === null) {
+            return Model::Responde(false, 'La fecha no tiene un formato válido (use YYYY-MM-DD).', null, 'Fecha inválida');
+        }
+        $fecha = $fechaNorm;
 
         $hoy = date('Y-m-d');
         if ($fecha > $hoy) {
@@ -50,7 +85,7 @@ class PagosAplicacionService
         $importeApl = 0;
         foreach ($filas as $f) {
             $m = (float) ($f['MONTO'] ?? 0);
-            if (isset($f['F_IMPORTACION']) && $f['F_IMPORTACION'] !== null && $f['F_IMPORTACION'] !== '') {
+            if (PagosAplicacionRepository::filaMarcadaImportada($f)) {
                 $importeApl += $m;
             } else {
                 $pendientes[] = $f;
@@ -90,10 +125,13 @@ class PagosAplicacionService
             $resumenBase['estado'] = $ya['ESTADO'] ?? $resumenBase['estado'];
         }
 
+        $resumenBase = array_merge($resumenBase, $repo->getResumenPorEstatusImportacion($fecha));
+
         if (!$ejecutar) {
             return Model::Responde(true, 'Datos listos para procesar.', [
                 'yaProcesado' => count($pendientes) === 0,
-                'filas' => $filas,
+                // array_values: json_encode siempre produce [] y no objeto con claves dispersas (evita que el front pierda filas).
+                'filas' => array_values($filas),
                 'resumen' => $resumenBase,
             ]);
         }
@@ -101,7 +139,7 @@ class PagosAplicacionService
         if (count($pendientes) === 0) {
             return Model::Responde(true, 'No hay pagos pendientes para esta fecha.', [
                 'yaProcesado' => true,
-                'filas' => $filas,
+                'filas' => array_values($filas),
                 'resumen' => $resumenBase,
             ]);
         }
@@ -151,7 +189,7 @@ class PagosAplicacionService
                 $totalImporte += $monto;
                 $referencia = isset($f['REFERENCIA']) ? trim((string) $f['REFERENCIA']) : '';
                 $moneda = isset($f['MONEDA']) ? trim((string) $f['MONEDA']) : 'MN';
-                $fechaPagoParaSp = isset($f['FECHA']) ? (string) $f['FECHA'] : $fecha . ' 00:00:00';
+                $fechaPagoParaSp = self::formatearFechaParaSp($f['FECHA'] ?? null, $fecha);
                 $monto = isset($f['MONTO']) ? (float) $f['MONTO'] : $monto;
 
                 $res = $repo->ejecutarSpImportaPago(
@@ -251,7 +289,7 @@ class PagosAplicacionService
             $importeApl = 0;
             foreach ($filasActualizadas as $f) {
                 $m = (float) ($f['MONTO'] ?? 0);
-                if (isset($f['F_IMPORTACION']) && $f['F_IMPORTACION'] !== null && $f['F_IMPORTACION'] !== '') {
+                if (PagosAplicacionRepository::filaMarcadaImportada($f)) {
                     $importeApl += $m;
                 } else {
                     $pendientes[] = $f;
@@ -272,22 +310,24 @@ class PagosAplicacionService
                 $estadoFinal = 'Pendiente';
             }
 
+            $resumenEjecucion = array_merge([
+                'usuario' => $usuario,
+                'fechaEjecucion' => date('Y-m-d H:i:s'),
+                'totalRegistros' => $totalRegistros,
+                'totalImporte' => round($totalImporteFinal, 2),
+                'totalPendientes' => $totalPendientes,
+                'totalAplicados' => $totalAplicados,
+                'importePendientes' => round($importePend, 2),
+                'importeAplicados' => round($importeApl, 2),
+                'estado' => $estadoFinal,
+                'mensaje' => null,
+            ], $repo->getResumenPorEstatusImportacion($fecha));
+
             return Model::Responde(true, $mensajeExito, [
                 'yaProcesado' => $totalPendientes === 0,
                 'modoPrueba'  => $soloFlujo,
-                'resumen' => [
-                    'usuario' => $usuario,
-                    'fechaEjecucion' => date('Y-m-d H:i:s'),
-                    'totalRegistros' => $totalRegistros,
-                    'totalImporte' => round($totalImporteFinal, 2),
-                    'totalPendientes' => $totalPendientes,
-                    'totalAplicados' => $totalAplicados,
-                    'importePendientes' => round($importePend, 2),
-                    'importeAplicados' => round($importeApl, 2),
-                    'estado' => $estadoFinal,
-                    'mensaje' => null,
-                ],
-                'filas' => $filasActualizadas,
+                'resumen' => $resumenEjecucion,
+                'filas' => array_values($filasActualizadas),
                 'detalle' => $detalle,
             ]);
         } catch (\Throwable $e) {

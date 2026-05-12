@@ -353,6 +353,23 @@ class Operaciones extends Controller
         exit;
     }
 
+    /**
+     * POST/GET: fecha (Y-m-d). JSON: resúmenes PAGOSDIA, TBL_CIERRE_DIA, DEVENGO_DIARIO, mp (PD) solo para ese día.
+     */
+    function InformacionDiaCierre()
+    {
+        $this->limpiaSalidaParaJson();
+        $fecha = isset($_POST['fecha']) ? trim((string) $_POST['fecha']) : (isset($_GET['fecha']) ? trim((string) $_GET['fecha']) : '');
+        $resp = CierreDiaService::obtenerInformacionDiaResumenes($fecha);
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        echo json_encode($resp, JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     function ValidacionPreviaCierre()
     {
         $this->limpiaSalidaParaJson();
@@ -440,117 +457,6 @@ class Operaciones extends Controller
     ////////////////////////////////////////////////////////////////////
 
     /**
-     * Operaciones → Aplicar Pagos.
-     * Vista: input fecha única, misma tabla/estilo que Layout Contable, resumen debajo.
-     */
-    public function AplicarPagos()
-    {
-        $extraHeader = '<title>Aplicar Pagos</title><link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">';
-        $extraFooter = <<<HTML
-            <script>
-                {$this->mensajes}
-                {$this->confirmarMovimiento}
-                const ejecutarAplicarPagos = (ejecutar) => {
-                    const fecha = document.getElementById("fechaAplicar").value;
-                    if (!fecha) {
-                        showError("Seleccione una fecha.");
-                        return;
-                    }
-                    swal({ text: "Procesando la solicitud, espere un momento...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
-                    $.ajax({
-                        url: "/Operaciones/ProcesarAplicarPagos/",
-                        type: "POST",
-                        data: { fecha: fecha, ejecutar: ejecutar ? 1 : 0 },
-                        dataType: "json",
-                        timeout: 3600000
-                    }).done(function (respuesta) {
-                        swal.close();
-                        if (!respuesta || !respuesta.success) {
-                            var msg = (respuesta && respuesta.mensaje) ? respuesta.mensaje : "Error en la respuesta.";
-                            if (respuesta && respuesta.error && respuesta.error.length > 0) msg += " Detalle: " + respuesta.error;
-                            showError(msg);
-                            return;
-                        }
-                        const d = respuesta.datos || {};
-                        const resumen = d.resumen || {};
-                        const filas = d.filas || [];
-                        const totalReg = resumen.totalRegistros != null ? resumen.totalRegistros : filas.length;
-                        const totalImp = resumen.totalImporte != null ? Number(resumen.totalImporte) : 0;
-                        const yaProcesado = !!d.yaProcesado;
-                        const pendientes = resumen.totalPendientes != null ? resumen.totalPendientes : (yaProcesado ? 0 : totalReg);
-                        const aplicados = resumen.totalAplicados != null ? resumen.totalAplicados : (yaProcesado ? totalReg : 0);
-                        const importePend = resumen.importePendientes != null ? Number(resumen.importePendientes) : (yaProcesado ? 0 : totalImp);
-                        const importeApl = resumen.importeAplicados != null ? Number(resumen.importeAplicados) : (yaProcesado ? totalImp : 0);
-                        document.getElementById("totalPagosPendientes").textContent = pendientes;
-                        document.getElementById("importePendientes").textContent = "$ " + importePend.toLocaleString("es-MX", { minimumFractionDigits: 2 });
-                        document.getElementById("totalPagosAplicados").textContent = aplicados;
-                        document.getElementById("importeAplicados").textContent = "$ " + importeApl.toLocaleString("es-MX", { minimumFractionDigits: 2 });
-                        document.getElementById("totalPagos").textContent = totalReg;
-                        document.getElementById("importeTotal").textContent = "$ " + totalImp.toLocaleString("es-MX", { minimumFractionDigits: 2 });
-                        document.getElementById("estadoAplicar").textContent = d.modoPrueba ? "Modo prueba (sin cambios en BD)" : (resumen.estado || (yaProcesado ? "Procesado" : "Pendiente"));
-                        document.getElementById("fechaAplicacion").textContent = resumen.fechaEjecucion || "-";
-                        var tabla = $("#tablaAplicarPagos");
-                        if ($.fn.DataTable && $.fn.DataTable.isDataTable(tabla)) {
-                            tabla.DataTable().destroy();
-                            tabla.find("tbody").empty();
-                        }
-                        var tbody = document.getElementById("tablaAplicarPagosBody");
-                        tbody.innerHTML = "";
-                        filas.forEach(function (f) {
-                            var tr = document.createElement("tr");
-                            var monto = typeof f.MONTO === "number" ? f.MONTO : parseFloat(f.MONTO) || 0;
-                            var aplicado = f.F_IMPORTACION && f.F_IMPORTACION !== null && String(f.F_IMPORTACION).trim() !== "";
-                            var estado = aplicado ? "Aplicado" : "Pendiente";
-                            var estadoClase = aplicado ? "label-success" : "label-warning";
-                            tr.innerHTML = "<td>" + (f.FECHA || "-") + "</td><td>" + (f.REFERENCIA || "-") + "</td><td>$ " + monto.toLocaleString("es-MX", { minimumFractionDigits: 2 }) + "</td><td>" + (f.MONEDA || "MN") + "</td><td><span class=\"label " + estadoClase + "\" style=\"border-radius: 4px; padding: 4px 8px;\">" + estado + "</span></td>";
-                            tbody.appendChild(tr);
-                        });
-                        if ($.fn.DataTable) {
-                            tabla.DataTable({
-                                lengthMenu: [[20, 50, -1], [20, 50, "Todos"]],
-                                pageLength: 20,
-                                order: false,
-                                language: {
-                                    emptyTable: "No hay datos disponibles",
-                                    paginate: { previous: "Anterior", next: "Siguiente" },
-                                    info: "Mostrando _START_ a _END_ de _TOTAL_ registros",
-                                    infoEmpty: "Sin registros",
-                                    zeroRecords: "No se encontraron registros",
-                                    lengthMenu: "Mostrar _MENU_ registros",
-                                    search: "Buscar:"
-                                }
-                            });
-                        }
-                        if (ejecutar && !d.yaProcesado) showSuccess(respuesta.mensaje);
-                    }).fail(function (xhr, textStatus, errorThrown) {
-                        swal.close();
-                        var msg = "Ocurrió un error al procesar la solicitud.";
-                        if (textStatus === "timeout") {
-                            msg = "La solicitud tardó demasiado (timeout). El proceso puede seguir ejecutándose en el servidor. Revise PAGOS_PROCESADOS o intente de nuevo.";
-                        } else if (xhr.responseJSON) {
-                            if (xhr.responseJSON.mensaje) msg = xhr.responseJSON.mensaje;
-                            if (xhr.responseJSON.error) msg += " Detalle: " + xhr.responseJSON.error;
-                        } else if (xhr.responseText && xhr.responseText.length < 500) msg = xhr.responseText;
-                        showError(msg);
-                    });
-                };
-                document.addEventListener("DOMContentLoaded", function () {
-                    document.getElementById("fechaAplicar").max = new Date().toISOString().split("T")[0];
-                    document.getElementById("btnConsultarAplicar").onclick = function () { ejecutarAplicarPagos(false); };
-                    document.getElementById("btnAplicarPagos").onclick = function () {
-                        confirmarMovimiento("Aplicar pagos", "¿Ejecutar aplicación de pagos para la fecha seleccionada? No podrá reprocesar la misma fecha.").then(function (ok) { if (ok) ejecutarAplicarPagos(true); });
-                    };
-                });
-            </script>
-        HTML;
-
-        View::set('header', $this->_contenedor->header($extraHeader));
-        View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::set('fechaActual', date('Y-m-d'));
-        View::render('operaciones_aplicar_pagos');
-    }
-
-    /**
      * POST: fecha, ejecutar (0|1). Valida y opcionalmente ejecuta; devuelve JSON con resumen y filas.
      */
     public function ProcesarAplicarPagos()
@@ -584,193 +490,6 @@ class Operaciones extends Controller
     }
 
     /**
-     * Pantalla Conciliación de pagos (réplica VB6: filtros + consulta MP).
-     */
-    public function ConciliacionPagos()
-    {
-        $extraHeader = '<title>Conciliación de pagos</title><link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">';
-        $extraFooter = <<<HTML
-            <script>
-                {$this->mensajes}
-                {$this->confirmarMovimiento}
-                const consultarConciliacion = () => {
-                    const fecha = document.getElementById("fechaConciliacion").value || "";
-                    const codigo = document.getElementById("codigoConciliacion").value ? document.getElementById("codigoConciliacion").value.trim() : "";
-                    const ciclo = document.getElementById("cicloConciliacion").value ? document.getElementById("cicloConciliacion").value.trim() : "";
-                    const ctaBancaria = document.getElementById("ctaBancariaConciliacion").value ? document.getElementById("ctaBancariaConciliacion").value.trim() : "";
-                    swal({ text: "Consultando, espere un momento...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
-                    $.ajax({
-                        url: "/Operaciones/ConsultarConciliacion/",
-                        type: "POST",
-                        data: { fecha: fecha, codigo: codigo, ciclo: ciclo, ctaBancaria: ctaBancaria },
-                        dataType: "json",
-                        timeout: 60000
-                    }).done(function (respuesta) {
-                        swal.close();
-                        if (!respuesta || !respuesta.success) {
-                            var msg = (respuesta && respuesta.mensaje) ? respuesta.mensaje : "Error en la respuesta.";
-                            if (respuesta && respuesta.error && respuesta.error.length > 0) msg += " Detalle: " + respuesta.error;
-                            showError(msg);
-                            return;
-                        }
-                        const d = respuesta.datos || {};
-                        const resumen = d.resumen || {};
-                        const filas = d.filas || [];
-                        document.getElementById("totalPagos").textContent = resumen.totalNoConciliados != null ? resumen.totalNoConciliados : 0;
-                        document.getElementById("importeTotal").textContent = "$ " + (resumen.importeNoConciliados != null ? Number(resumen.importeNoConciliados) : 0).toLocaleString("es-MX", { minimumFractionDigits: 2 });
-                        var tabla = $("#tablaConciliacion");
-                        if ($.fn.DataTable && $.fn.DataTable.isDataTable(tabla)) {
-                            tabla.DataTable().destroy();
-                            tabla.find("tbody").empty();
-                        }
-                        var tbody = document.getElementById("tablaConciliacionBody");
-                        tbody.innerHTML = "";
-                        var payloadParaSp = function(f) {
-                            var tipo = (f.CLNS || "").toString().trim();
-                            if (tipo === "" && f.TIPOCTE) tipo = (f.TIPOCTE + "").toUpperCase().indexOf("GRUPAL") >= 0 ? "G" : "I";
-                            return { CDGEM: f.CDGEM || "", CDGCLNS: f.CDGCLNS || "", CICLO: f.CICLO || "", CLNS: tipo || "I", FREALDEP: f.FREALDEP || "", PERIODO: f.PERIODO != null ? f.PERIODO : 0, SECUENCIA: f.SECUENCIA || "", CANTIDAD: typeof f.CANTIDAD === "number" ? f.CANTIDAD : parseFloat(f.CANTIDAD) || 0, CDGCB: f.CDGCB || "" };
-                        };
-                        filas.forEach(function (f, idx) {
-                            var tr = document.createElement("tr");
-                            var monto = typeof f.CANTIDAD === "number" ? f.CANTIDAD : parseFloat(f.CANTIDAD) || 0;
-                            var conciliado = (f.CONCILIADO || "").toString().toUpperCase() === "C";
-                            var estado = conciliado ? "Conciliado" : "Pendiente";
-                            var estadoClase = conciliado ? "label-success" : "label-warning";
-                            var payload = payloadParaSp(f);
-                            var chk = conciliado ? "" : "<input type=\"checkbox\" class=\"chkPagoConciliacion\" data-fila='" + JSON.stringify(payload).replace(/'/g, "&#39;") + "' />";
-                            tr.innerHTML =
-                                "<td>" + chk + "</td>" +
-                                "<td>" + (idx + 1) + "</td>" +
-                                "<td>" + (f.CDGEM || f.cdgem || "-") + "</td>" +
-                                "<td>" + (f.FREALDEP || f.frealdep || "-") + "</td>" +
-                                "<td>" + (f.REFERENCIA || f.referencia || "-") + "</td>" +
-                                "<td>" + (f.TIPOCTE || f.tipocte || "-") + "</td>" +
-                                "<td>" + (f.CDGCLNS || f.cdgclns || "-") + "</td>" +
-                                "<td>" + (f.CICLO || f.ciclo || "-") + "</td>" +
-                                "<td>" + (f.PERIODO != null ? (f.PERIODO !== undefined ? f.PERIODO : f.periodo) : "-") + "</td>" +
-                                "<td>" + (f.SECUENCIAIM || f.secuenciaim || "-") + "</td>" +
-                                "<td>" + (f.NOMBRE || f.nombre || "-") + "</td>" +
-                                "<td>$ " + monto.toLocaleString("es-MX", { minimumFractionDigits: 2 }) + "</td>" +
-                                "<td>" + (f.CDGCB || f.cdgcb || "-") + "</td>" +
-                                "<td>" + (f.CDGNS || f.cdgns || "-") + "</td>" +
-                                "<td>" + (f.TASA != null ? (f.TASA !== undefined ? f.TASA : f.tasa) : "-") + "</td>" +
-                                "<td>" + (f.SECUENCIA || f.secuencia || "-") + "</td>" +
-                                "<td>" + (f.PLAZO != null ? (f.PLAZO !== undefined ? f.PLAZO : f.plazo) : "-") + "</td>" +
-                                "<td>" + (f.PERIODICIDAD || f.periodicidad || "-") + "</td>" +
-                                "<td><span class=\"label " + estadoClase + "\" style=\"border-radius: 4px; padding: 4px 8px;\">" + estado + "</span></td>";
-                            tbody.appendChild(tr);
-                        });
-                        if ($.fn.DataTable) {
-                            tabla.DataTable({
-                                lengthMenu: [[20, 50, 100, -1], [20, 50, 100, "Todos"]],
-                                pageLength: 20,
-                                order: [[3, "asc"]],
-                                language: {
-                                    emptyTable: "No hay datos disponibles",
-                                    paginate: { previous: "Anterior", next: "Siguiente" },
-                                    info: "Mostrando _START_ a _END_ de _TOTAL_ registros",
-                                    infoEmpty: "Sin registros",
-                                    zeroRecords: "No se encontraron registros",
-                                    lengthMenu: "Mostrar _MENU_ registros",
-                                    search: "Buscar:"
-                                }
-                            });
-                        }
-                    }).fail(function () {
-                        swal.close();
-                        showError("Error de conexión al consultar.");
-                    });
-                };
-                const conciliarPagos = () => {
-                    var checks = [];
-                    if ($.fn.DataTable && $.fn.DataTable.isDataTable("#tablaConciliacion")) {
-                        checks = $("#tablaConciliacion").DataTable().$("input.chkPagoConciliacion:checked").toArray();
-                    } else {
-                        checks = Array.from(document.querySelectorAll("#tablaConciliacionBody .chkPagoConciliacion:checked"));
-                    }
-                    if (!checks || checks.length === 0) {
-                        showError("Seleccione al menos un pago para conciliar.");
-                        return;
-                    }
-                    var pagos = [];
-                    checks.forEach(function (el) {
-                        try {
-                            var data = el.getAttribute("data-fila");
-                            if (data) pagos.push(JSON.parse(data.replace(/&#39;/g, "'")));
-                        } catch (e) {}
-                    });
-                    if (pagos.length === 0) {
-                        showError("No se pudieron leer los datos de los pagos seleccionados.");
-                        return;
-                    }
-                    confirmarMovimiento("Conciliar pagos", "¿Ejecutar conciliación de " + pagos.length + " pago(s) seleccionado(s)?").then(function (ok) {
-                        if (!ok) return;
-                        swal({ text: "Conciliando, espere...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
-                        $.ajax({
-                            url: "/Operaciones/ConciliarPagos/",
-                            type: "POST",
-                            data: { pagos: JSON.stringify(pagos) },
-                            dataType: "json",
-                            timeout: 3600000
-                        }).done(function (respuesta) {
-                            swal.close();
-                            if (respuesta && respuesta.success) {
-                                swal({
-                                    title: "Conciliación completada",
-                                    text: (respuesta.mensaje || "La conciliación se ejecutó correctamente.") + " Pagos seleccionados: " + pagos.length + ".",
-                                    icon: "success",
-                                    button: "Aceptar"
-                                }).then(function () {
-                                    consultarConciliacion();
-                                });
-                            } else {
-                                var msg = (respuesta && respuesta.mensaje) ? respuesta.mensaje : "Error al conciliar.";
-                                if (respuesta && respuesta.error) msg += " " + respuesta.error;
-                                swal({
-                                    title: "Conciliación no aplicada",
-                                    text: msg,
-                                    icon: "error",
-                                    button: "Aceptar"
-                                });
-                            }
-                        }).fail(function (xhr, textStatus, errorThrown) {
-                            swal.close();
-                            var msg = "Error de conexión al conciliar.";
-                            if (textStatus === "timeout") msg = "La solicitud tardó demasiado (timeout). El proceso puede seguir ejecutándose en el servidor. Revise la conciliación o intente de nuevo.";
-                            else if (xhr && xhr.responseJSON) {
-                                if (xhr.responseJSON.mensaje) msg = xhr.responseJSON.mensaje;
-                                if (xhr.responseJSON.error) msg += " " + xhr.responseJSON.error;
-                            } else if (xhr && xhr.responseText && xhr.responseText.length < 500) msg = xhr.responseText;
-                            swal({
-                                title: "Conciliación no aplicada",
-                                text: msg,
-                                icon: "error",
-                                button: "Aceptar"
-                            });
-                        });
-                    });
-                };
-                $(document).ready(function () {
-                    document.getElementById("btnConsultarConciliacion").onclick = consultarConciliacion;
-                    document.getElementById("btnConciliarPagos").onclick = conciliarPagos;
-                    $(document).on("change", "#chkTodosConciliacion", function () {
-                        var checked = this.checked;
-                        if ($.fn.DataTable && $.fn.DataTable.isDataTable("#tablaConciliacion")) {
-                            $("#tablaConciliacion").DataTable().$("input.chkPagoConciliacion").prop("checked", checked);
-                        } else {
-                            $("#tablaConciliacionBody .chkPagoConciliacion").each(function () { this.checked = checked; });
-                        }
-                    });
-                });
-            </script>
-        HTML;
-
-        View::set('header', $this->_contenedor->header($extraHeader));
-        View::set('footer', $this->_contenedor->footer($extraFooter));
-        View::render('operaciones_conciliacion_pagos');
-    }
-
-    /**
      * POST: empresa, fecha, tipoCliente, codigo, ciclo, ctaBancaria. Devuelve JSON con resumen y filas (consulta MP, solo lectura).
      */
     public function ConsultarConciliacion()
@@ -782,7 +501,11 @@ class Operaciones extends Controller
             $codigo = isset($_POST['codigo']) ? trim((string) $_POST['codigo']) : '';
             $ciclo = isset($_POST['ciclo']) ? trim((string) $_POST['ciclo']) : '';
             $ctaBancaria = isset($_POST['ctaBancaria']) ? trim((string) $_POST['ctaBancaria']) : '';
-            $respuesta = ConciliacionService::buscarPagosConciliacion($empresa, $fecha, $tipoCliente, $codigo, $ciclo, $ctaBancaria);
+            $modo = isset($_POST['modoConciliado']) ? trim((string) $_POST['modoConciliado']) : 'legacy';
+            if ($modo !== 'por_fecha') {
+                $modo = 'legacy';
+            }
+            $respuesta = ConciliacionService::buscarPagosConciliacion($empresa, $fecha, $tipoCliente, $codigo, $ciclo, $ctaBancaria, $modo);
         } catch (\Throwable $e) {
             $respuesta = [
                 'success' => false,
