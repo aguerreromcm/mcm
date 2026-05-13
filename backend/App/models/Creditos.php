@@ -130,8 +130,15 @@ sql;
         return $mysqli->queryAll($query);
     }
 
-    public static function SelectSucursalAllCreditoCambioSuc($noCredito)
+    public static function SelectSucursalAllCreditoCambioSuc($noCredito, $ciclo = null)
     {
+        $noCredito = self::normalizarNumeroCredito($noCredito);
+        if ($noCredito === '') {
+            return null;
+        }
+
+        $ciclo = $ciclo !== null ? trim((string) $ciclo) : '';
+        $filtroCiclo = $ciclo !== '' ? "       AND SC.CICLO = '$ciclo'\n" : '';
 
         $query = <<<sql
         SELECT 
@@ -153,7 +160,7 @@ sql;
 		SN, SC, SC Q2, PRN 
 	WHERE
 		SC.CDGNS = '$noCredito'
-		AND SC.CDGNS = Q2.CDGNS
+$filtroCiclo		AND SC.CDGNS = Q2.CDGNS
 		AND SC.CICLO = Q2.CICLO
 		AND SC.CDGCL <> Q2.CDGCL
 		AND SC.CDGNS = SN.CDGNS
@@ -174,6 +181,20 @@ sql;
 
         $mysqli = new Database();
         return $mysqli->queryOne($query);
+    }
+
+    private static function normalizarNumeroCredito($noCredito): string
+    {
+        $noCredito = trim((string) $noCredito);
+        if ($noCredito === '') {
+            return '';
+        }
+
+        if (ctype_digit($noCredito) && strlen($noCredito) < 6) {
+            return str_pad($noCredito, 6, '0', STR_PAD_LEFT);
+        }
+
+        return $noCredito;
     }
 
     public static function ListaSucursales()

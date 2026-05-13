@@ -9,6 +9,7 @@ use \Core\MasterDom;
 use \App\controllers\Contenedor;
 use \Core\Controller;
 use \App\models\Creditos as CreditosDao;
+use \App\services\CambioSucursalService;
 
 class Creditos extends Controller
 {
@@ -487,13 +488,14 @@ html;
      
       </script>
 html;
+        $extraFooter .= $this->extraFooterTablaCambioSucursal();
 
-        $credito = $_GET['Credito'];
+        $credito = trim((string) ($_GET['Credito'] ?? ''));
 
-        if ($credito != '') {
+        if ($credito !== '') {
             $credito_cambio = CreditosDao::SelectSucursalAllCreditoCambioSuc($credito);
 
-            if ($credito_cambio['CLIENTE'] != '') {
+            if (is_array($credito_cambio) && trim((string) ($credito_cambio['CLIENTE'] ?? '')) !== '') {
                 $sucursales = CreditosDao::ListaSucursales();
                 $ComboSucursal = '';
                 foreach ($sucursales as $key => $val2) {
@@ -521,9 +523,16 @@ html;
                 View::render("cambio_sucursal_busqueda_message");
             }
         } else {
+            $mensajeError = '';
+            if (!empty($_SESSION['cambio_sucursal_masivo_error'])) {
+                $mensajeError = (string) $_SESSION['cambio_sucursal_masivo_error'];
+                unset($_SESSION['cambio_sucursal_masivo_error']);
+            }
+
             View::set('header', $this->_contenedor->header($extraHeader));
             View::set('footer', $this->_contenedor->footer($extraFooter));
             View::set('credito', $credito);
+            View::set('mensaje_error', $mensajeError);
             View::render("cambio_sucursal_all");
         }
     }
@@ -547,6 +556,178 @@ html;
         } else {
             return '0';
         }
+    }
+
+    public function CambioSucursalLayout()
+    {
+        $estilos = \PHPSpreadsheet::GetEstilosExcel();
+        $texto = ['estilo' => $estilos['texto_centrado']];
+        $columnas = [
+            \PHPSpreadsheet::ColumnaExcel('GRUPO', '[GRUPO]', $texto),
+            \PHPSpreadsheet::ColumnaExcel('CICLO', 'CICLO', $texto),
+            \PHPSpreadsheet::ColumnaExcel('ASESOR', '[ASESOR]', $texto),
+            \PHPSpreadsheet::ColumnaExcel('EMPRESA', '[EMPRESA]', $texto),
+            \PHPSpreadsheet::ColumnaExcel('NOM_SUCURSAL', '[NOM_SUCURSAL]'),
+        ];
+        $filas = [];
+        \PHPSpreadsheet::DescargaExcel('layout_cambio_sucursal', 'CambioSucursal', 'Capture un crédito por fila. [ASESOR] y [EMPRESA] son informativas.', $columnas, $filas);
+    }
+
+    public function CambioSucursalCargaMasiva()
+    {
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            header('Location: /Creditos/CambioSucursal/');
+            exit;
+        }
+
+        if (!isset($_FILES['archivo']) || !is_uploaded_file($_FILES['archivo']['tmp_name'])) {
+            $this->redirigirCambioSucursalConError('No se recibió el archivo Excel.');
+        }
+
+        if ($_FILES['archivo']['error'] !== UPLOAD_ERR_OK) {
+            $this->redirigirCambioSucursalConError('Error al subir el archivo (código ' . (int) $_FILES['archivo']['error'] . ').');
+        }
+
+        $tmp = $_FILES['archivo']['tmp_name'];
+        $nombre = isset($_FILES['archivo']['name']) ? (string) $_FILES['archivo']['name'] : '';
+        $ext = strtolower((string) pathinfo($nombre, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['xlsx', 'xls', 'xlsm', 'xltx', 'xltm'], true)) {
+            $this->redirigirCambioSucursalConError('El archivo debe ser Excel (.xls o .xlsx).');
+        }
+
+        $dirTmp = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'tmp';
+        if (!is_dir($dirTmp)) {
+            @mkdir($dirTmp, 0755, true);
+        }
+        $dest = $dirTmp . DIRECTORY_SEPARATOR . 'cambio_sucursal_' . uniqid('', true) . '.' . $ext;
+        $okMove = @move_uploaded_file($tmp, $dest);
+        if (!$okMove) {
+            $okMove = @copy($tmp, $dest);
+        }
+        if (!$okMove || !is_readable($dest)) {
+            $fallback = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'cambio_sucursal_' . uniqid('', true) . '.' . $ext;
+            $okMove = @copy($tmp, $fallback);
+            if ($okMove && is_readable($fallback)) {
+                $dest = $fallback;
+            } else {
+                $this->redirigirCambioSucursalConError('No se pudo guardar el archivo recibido para procesarlo.');
+            }
+        }
+
+        try {
+            $resultado = CambioSucursalService::cargaMasivaDesdeArchivo($dest);
+        } finally {
+            @unlink($dest);
+        }
+
+        $this->guardarResultadoMasivoCambioSucursal($resultado);
+    }
+
+    public function CambioSucursalResultadoMasivo()
+    {
+        if (empty($_SESSION['cambio_sucursal_masivo_resultado'])) {
+            header('Location: /Creditos/CambioSucursal/');
+            exit;
+        }
+
+        $resultado = $_SESSION['cambio_sucursal_masivo_resultado'];
+        unset($_SESSION['cambio_sucursal_masivo_resultado']);
+
+        $extraHeader = <<<html
+        <title>Cambio de Sucursal</title>
+        <link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">
+html;
+
+        View::set('header', $this->_contenedor->header($extraHeader));
+        View::set('footer', $this->_contenedor->footer($this->extraFooterTablaCambioSucursal()));
+        View::set('credito', '');
+        View::set('resumen', $resultado['resumen'] ?? '');
+        View::set('detalle_error', $resultado['detalle_error'] ?? '');
+        View::set('actualizados', $resultado['actualizados'] ?? []);
+        View::set('errores', $resultado['errores'] ?? []);
+        View::set('procesados', (int) ($resultado['procesados'] ?? 0));
+        View::set('omitidos', (int) ($resultado['omitidos'] ?? 0));
+        View::set('exito', !empty($resultado['exito']));
+        View::render('cambio_sucursal_masivo_resultado');
+    }
+
+    private function extraFooterTablaCambioSucursal(): string
+    {
+        return <<<'html'
+      <script>
+        const idTablaCambioSucursal = "tabla-cambio-sucursal-creditos";
+
+        function inicializarTablaCambioSucursalCreditos() {
+            if (typeof $ === "undefined" || !$.fn.DataTable) {
+                return;
+            }
+
+            const selector = "#" + idTablaCambioSucursal;
+            const tabla = $(selector);
+            if (!tabla.length || $.fn.DataTable.isDataTable(selector)) {
+                return;
+            }
+
+            const conAccion = tabla.data("conAccion") === 1 || tabla.data("conAccion") === "1";
+            const opciones = {
+                pageLength: 15,
+                lengthMenu: [[15, 40, -1], [15, 40, "Todos"]],
+                order: [],
+                autoWidth: false,
+                language: {
+                    emptyTable: "Sin registros",
+                    paginate: { previous: "Anterior", next: "Siguiente" },
+                    info: "Mostrando de _START_ a _END_ de _TOTAL_ registros",
+                    infoEmpty: "Sin registros para mostrar",
+                    zeroRecords: "No se encontraron registros",
+                    lengthMenu: "Mostrar _MENU_ registros",
+                    search: "Buscar en página:"
+                }
+            };
+
+            if (conAccion) {
+                opciones.columnDefs = [
+                    { orderable: false, targets: [6] },
+                    {
+                        targets: 6,
+                        createdCell: function (td) {
+                            $(td).css("white-space", "nowrap");
+                            $(td).css("vertical-align", "middle");
+                        }
+                    }
+                ];
+            }
+
+            tabla.DataTable(opciones);
+        }
+
+        $(document).ready(inicializarTablaCambioSucursalCreditos);
+      </script>
+html;
+    }
+
+    private function redirigirCambioSucursalConError(string $mensaje): void
+    {
+        $_SESSION['cambio_sucursal_masivo_error'] = $mensaje;
+        header('Location: /Creditos/CambioSucursal/');
+        exit;
+    }
+
+    private function guardarResultadoMasivoCambioSucursal(array $resultado): void
+    {
+        $datos = $resultado['datos'] ?? [];
+        $_SESSION['cambio_sucursal_masivo_resultado'] = [
+            'resumen' => $resultado['mensaje'] ?? '',
+            'detalle_error' => $resultado['error'] ?? '',
+            'actualizados' => $datos['actualizados'] ?? [],
+            'errores' => $datos['errores'] ?? [],
+            'procesados' => (int) ($datos['procesados'] ?? 0),
+            'omitidos' => (int) ($datos['omitidos'] ?? 0),
+            'exito' => !empty($resultado['success']),
+        ];
+
+        header('Location: /Creditos/CambioSucursalResultadoMasivo/');
+        exit;
     }
     ////////////////////////////////////////////////////
     public function UpdateCredito()

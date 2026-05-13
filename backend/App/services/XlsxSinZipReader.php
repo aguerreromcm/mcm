@@ -18,6 +18,26 @@ final class XlsxSinZipReader
      */
     public static function valoresColumnaA(string $rutaArchivo): ?array
     {
+        $matriz = self::matrizPrimeraHoja($rutaArchivo);
+        if ($matriz === null) {
+            return null;
+        }
+
+        $textos = [];
+        foreach ($matriz as $fila => $columnas) {
+            $textos[] = trim((string) ($columnas[1] ?? ''));
+        }
+
+        return $textos;
+    }
+
+    /**
+     * Matriz de la primera hoja: fila 1-based => columna 1-based => texto.
+     *
+     * @return array<int, array<int, string>>|null
+     */
+    public static function matrizPrimeraHoja(string $rutaArchivo): ?array
+    {
         if (!extension_loaded('zlib')) {
             return null;
         }
@@ -34,7 +54,7 @@ final class XlsxSinZipReader
         $ss = self::extraerEntradaZip($bin, 'xl/sharedStrings.xml');
         $shared = $ss !== null && $ss !== '' ? self::parseSharedStrings($ss) : [];
 
-        return self::parseColumnaA($hoja, $shared);
+        return self::parseHojaCompleta($hoja, $shared);
     }
 
     private static function obtenerXmlPrimeraHoja(string $bin): ?string
@@ -197,6 +217,80 @@ final class XlsxSinZipReader
         }
 
         return $n;
+    }
+
+    /**
+     * @param list<string> $sharedStrings
+     * @return array<int, array<int, string>>
+     */
+    private static function parseHojaCompleta(string $sheetXml, array $sharedStrings): array
+    {
+        $dom = new \DOMDocument();
+        if (@$dom->loadXML($sheetXml) === false) {
+            return [];
+        }
+        $xp = new \DOMXPath($dom);
+        $rows = $xp->query('//*[local-name()="sheetData"]//*[local-name()="row"]');
+        if ($rows === false || $rows->length === 0) {
+            return [];
+        }
+
+        /** @var array<int, array<int, string>> $porFila */
+        $porFila = [];
+
+        $implicitRow = 0;
+        for ($ri = 0; $ri < $rows->length; $ri++) {
+            $rowEl = $rows->item($ri);
+            if (!$rowEl instanceof \DOMElement) {
+                continue;
+            }
+            $implicitRow++;
+            $rowNumFromAttr = (int) $rowEl->getAttribute('r');
+            $filaFila = $rowNumFromAttr > 0 ? $rowNumFromAttr : $implicitRow;
+
+            $cells = $xp->query('.//*[local-name()="c"]', $rowEl);
+            if ($cells === false || $cells->length === 0) {
+                continue;
+            }
+
+            $prevCol = 0;
+
+            for ($ci = 0; $ci < $cells->length; $ci++) {
+                $c = $cells->item($ci);
+                if (!$c instanceof \DOMElement) {
+                    continue;
+                }
+                $ref = $c->getAttribute('r');
+                if ($ref !== '') {
+                    if (!preg_match('/^([A-Z]+)(\d+)$/i', $ref, $m)) {
+                        continue;
+                    }
+                    $colIdx = self::columnLettersToIndex($m[1]);
+                    $fila = (int) $m[2];
+                    $prevCol = $colIdx;
+                } else {
+                    $colIdx = $prevCol + 1;
+                    $prevCol = $colIdx;
+                    $fila = $filaFila;
+                }
+
+                if ($colIdx < 1) {
+                    continue;
+                }
+
+                $texto = trim(self::valorCeldaDom($xp, $c, $sharedStrings));
+                if ($texto === '') {
+                    continue;
+                }
+
+                if (!isset($porFila[$fila])) {
+                    $porFila[$fila] = [];
+                }
+                $porFila[$fila][$colIdx] = $texto;
+            }
+        }
+
+        return $porFila;
     }
 
     /**
