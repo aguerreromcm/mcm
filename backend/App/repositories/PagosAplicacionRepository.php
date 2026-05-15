@@ -239,10 +239,7 @@ sql;
 
     /**
      * Totales por ESTATUS en IMPORTACIONPAGDET (1=Pagos, 2=Garantías, 3=Incidencias).
-     * Se elige un solo criterio de fecha por lote: primero FEC_CARGA (día en que se registró el cierre
-     * en IMPORTACIONPAG, alineado con consultas típicas y con el SP), y si no hay filas se usa FEC_PAGO
-     * (día operativo del pago). Antes se hacía al revés: un lote distinto filtrado solo por FEC_PAGO
-     * podía devolver solo líneas ESTATUS=1 y mostrar todo como “Pagos”.
+     * Misma lógica que el resumen operativo: fecha del pago en cabecera (TRUNC(P.FEC_PAGO)), no FEC_CARGA.
      */
     public function getResumenPorEstatusImportacion($fecha)
     {
@@ -257,31 +254,21 @@ sql;
 
         $sql = <<<'sql'
 SELECT D.ESTATUS AS ESTATUS,
-       SUM(CASE WHEN NVL(D.NO_REGISTROS, 0) > 0 THEN NVL(D.NO_REGISTROS, 0) ELSE 1 END) AS SUMA_REG,
-       SUM(NVL(D.MONTO, 0)) AS SUMA_MONTO
+       SUM(D.NO_REGISTROS) AS SUMA_REG,
+       SUM(D.MONTO) AS SUMA_MONTO
 FROM IMPORTACIONPAGDET D
-INNER JOIN IMPORTACIONPAG IP ON IP.ID_IMPORTACION = D.ID_IMPORTACION
-WHERE __FECHA_FILTER__
+INNER JOIN IMPORTACIONPAG P ON D.ID_IMPORTACION = P.ID_IMPORTACION
+WHERE TRUNC(P.FEC_PAGO) = TO_DATE(:f1, 'YYYY-MM-DD')
 GROUP BY D.ESTATUS
+ORDER BY D.ESTATUS
 sql;
 
         try {
-            $filtros = [
-                "TRUNC(IP.FEC_CARGA) = TO_DATE(:f1, 'YYYY-MM-DD')",
-                "TRUNC(IP.FEC_PAGO) = TO_DATE(:f1, 'YYYY-MM-DD')",
-            ];
-            foreach ($filtros as $filtroFecha) {
-                $stmt = $db->db_activa->prepare(str_replace('__FECHA_FILTER__', $filtroFecha, $sql));
-                $stmt->execute(['f1' => $fecha]);
-                $filas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-                $out = $this->acumularGrupoImportacion(is_array($filas) ? $filas : []);
-                $n = $out['registrosPagos'] + $out['registrosGarantias'] + $out['registrosIncidencias'];
-                if ($n > 0) {
-                    return $out;
-                }
-            }
+            $stmt = $db->db_activa->prepare($sql);
+            $stmt->execute(['f1' => $fecha]);
+            $filas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
-            return self::resumenPorEstatusVacio();
+            return $this->acumularGrupoImportacion(is_array($filas) ? $filas : []);
         } catch (\Throwable $e) {
             return self::resumenPorEstatusVacio();
         }

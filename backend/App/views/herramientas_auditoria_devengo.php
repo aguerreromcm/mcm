@@ -26,7 +26,7 @@
                                 <th>CREDITO</th>
                                 <th>CICLO</th>
                                 <th>FECHA FALTANTE</th>
-                                <th>DEVENGO DIARIO</th>
+                                <th>DEVENGO&nbsp;DIARIO</th>
                                 <th>NOMBRE</th>
                                 <th>Acciones</th>
                             </tr>
@@ -55,6 +55,25 @@
     vertical-align: middle !important;
 }
 
+#muestra-auditoria-devengo thead th {
+    vertical-align: middle !important;
+    line-height: 1.2;
+}
+
+#muestra-auditoria-devengo thead th.sorting,
+#muestra-auditoria-devengo thead th.sorting_asc,
+#muestra-auditoria-devengo thead th.sorting_desc {
+    padding-right: 22px;
+    background-position: center right;
+}
+
+#muestra-auditoria-devengo th:nth-child(5),
+#muestra-auditoria-devengo td:nth-child(5) {
+    width: 135px;
+    text-align: center;
+    white-space: nowrap;
+}
+
 #muestra-auditoria-devengo th:nth-child(1),
 #muestra-auditoria-devengo td:nth-child(1) {
     width: 42px;
@@ -75,12 +94,6 @@
 #muestra-auditoria-devengo th:nth-child(4),
 #muestra-auditoria-devengo td:nth-child(4) {
     width: 125px;
-    text-align: center;
-}
-
-#muestra-auditoria-devengo th:nth-child(5),
-#muestra-auditoria-devengo td:nth-child(5) {
-    width: 120px;
     text-align: center;
 }
 
@@ -183,6 +196,156 @@
         return /^\d+$/.test(texto);
     }
 
+    function obtenerFechaFaltanteYmd(item) {
+        if (!item) return "";
+        var fecha = item.FECHA_CALC_ISO || item.FECHA_CALC || item.FECHA_FALTANTE || item.FECHA_FALT || "";
+        if (!fecha) return "";
+        if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return fecha;
+        var partes = String(fecha).split("/");
+        if (partes.length === 3) {
+            return partes[2] + "-" + partes[1].padStart(2, "0") + "-" + partes[0].padStart(2, "0");
+        }
+        return "";
+    }
+
+    function esFechaMesAnterior(fechaYmd) {
+        if (!fechaYmd) return false;
+        var hoy = new Date();
+        var partes = fechaYmd.split("-");
+        if (partes.length !== 3) return false;
+        var anio = Number(partes[0]);
+        var mes = Number(partes[1]);
+        if (!Number.isFinite(anio) || !Number.isFinite(mes)) return false;
+        var anioActual = hoy.getFullYear();
+        var mesActual = hoy.getMonth() + 1;
+        return anio < anioActual || (anio === anioActual && mes < mesActual);
+    }
+
+    function esVentanaConfirmacionMesAnterior() {
+        var dia = new Date().getDate();
+        return dia >= 1 && dia <= 10;
+    }
+
+    function requiereConfirmacionMesAnterior(registros) {
+        if (!Array.isArray(registros) || !registros.length) return false;
+        if (!esVentanaConfirmacionMesAnterior()) return false;
+        return registros.some(function(item) {
+            return esFechaMesAnterior(obtenerFechaFaltanteYmd(item));
+        });
+    }
+
+    function preguntarModoRegistroMesAnterior() {
+        return swal({
+            title: "Devengo de mes anterior",
+            text: "¿Desea registrar el devengo en la fecha real faltante o en el primer día del mes actual?",
+            icon: "warning",
+            buttons: {
+                cancel: {
+                    text: "Fecha real faltante",
+                    value: "REAL",
+                    visible: true
+                },
+                confirm: {
+                    text: "Primer día del mes actual",
+                    value: "MES_ACTUAL"
+                }
+            },
+            dangerMode: true
+        });
+    }
+
+    function resolverModoRegistroAntesDeProcesar(registros) {
+        if (!requiereConfirmacionMesAnterior(registros)) {
+            return Promise.resolve(null);
+        }
+        return preguntarModoRegistroMesAnterior().then(function(modo) {
+            if (!modo) return null;
+            return modo === "MES_ACTUAL" ? "MES_ACTUAL" : "REAL";
+        });
+    }
+
+    function aplicarModoRegistro(registros, modo) {
+        if (!modo) return registros;
+        return registros.map(function(item) {
+            if (!esFechaMesAnterior(obtenerFechaFaltanteYmd(item))) {
+                return item;
+            }
+            var copia = Object.assign({}, item);
+            copia.modo_registro = modo;
+            return copia;
+        });
+    }
+
+    function enviarProcesamientoIndividual(fila, modoRegistro, idx) {
+        var payload = { fila: fila };
+        if (modoRegistro) payload.modo_registro = modoRegistro;
+        swal({ text: "Procesando...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
+        $.ajax({
+            type: "POST",
+            url: "/Herramientas/ProcesarIndividual/",
+            contentType: "application/json",
+            data: JSON.stringify(payload),
+            timeout: 120000,
+            success: function(res) {
+                swal.close();
+                try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { showToast("Error al procesar respuesta", "error"); return; }
+
+                if (res.success) {
+                    if (res.insertados > 0) {
+                        showToast(res.mensaje, "success");
+                        eliminarRegistrosLocales(function(item, itemIdx) {
+                            return itemIdx === idx;
+                        });
+                    } else {
+                        showToast(res.mensaje, "warning");
+                    }
+                } else {
+                    showToast(res.mensaje, "error");
+                }
+            },
+            error: function() {
+                swal.close();
+                showError("Error de conexión o tiempo agotado.");
+            }
+        });
+    }
+
+    function enviarProcesamientoMasivo(registros, indicesSeleccionados) {
+        var $btnMasivo = $("#btn_masivo");
+        $btnMasivo.prop("disabled", true);
+        swal({ text: "Procesando " + registros.length + " registro(s)...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
+        $.ajax({
+            type: "POST",
+            url: "/Herramientas/ProcesarMasivo/",
+            contentType: "application/json",
+            data: JSON.stringify({ registros: registros }),
+            timeout: 300000,
+            success: function(res) {
+                swal.close();
+                $btnMasivo.prop("disabled", false);
+                try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { showToast("Error al procesar la respuesta", "error"); return; }
+
+                if (res.success) {
+                    if (res.insertados > 0) {
+                        showToast(res.mensaje, "success");
+                        eliminarRegistrosLocales(function(item, idx) {
+                            return indicesSeleccionados.indexOf(idx) !== -1;
+                        });
+                    } else {
+                        showToast(res.mensaje, "warning");
+                    }
+                } else {
+                    showToast(res.mensaje, "error");
+                }
+            },
+            error: function() {
+                swal.close();
+                $btnMasivo.prop("disabled", false);
+                showToast("Error de conexión o tiempo agotado.", "error");
+            }
+        });
+    }
+
     function eliminarRegistrosLocales(predicate) {
         if (!Array.isArray(window._devengosFaltantesDatos)) {
             return;
@@ -239,38 +402,9 @@
         }
         swal({ title: "Se procesarán " + registros.length + " registros. ¿Continuar?", icon: "warning", buttons: ["No", "Sí"], dangerMode: true }).then(function(ok) {
             if (!ok) return;
-            var $btnMasivo = $("#btn_masivo");
-            $btnMasivo.prop("disabled", true);
-            swal({ text: "Procesando " + registros.length + " registro(s)...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
-            $.ajax({
-                type: "POST",
-                url: "/Herramientas/ProcesarMasivo/",
-                contentType: "application/json",
-                data: JSON.stringify({ registros: registros }),
-                timeout: 300000,
-                success: function(res) {
-                    swal.close();
-                    $btnMasivo.prop("disabled", false);
-                    try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { showToast("Error al procesar la respuesta", "error"); return; }
-
-                    if (res.success) {
-                        if (res.insertados > 0) {
-                            showToast(res.mensaje, "success");
-                            eliminarRegistrosLocales(function(item, idx) {
-                                return indicesSeleccionados.indexOf(idx) !== -1;
-                            });
-                        } else {
-                            showToast(res.mensaje, "warning");
-                        }
-                    } else {
-                        showToast(res.mensaje, "error");
-                    }
-                },
-                error: function() {
-                    swal.close();
-                    $btnMasivo.prop("disabled", false);
-                    showToast("Error de conexión o tiempo agotado.", "error");
-                }
+            resolverModoRegistroAntesDeProcesar(registros).then(function(modo) {
+                if (modo === null && requiereConfirmacionMesAnterior(registros)) return;
+                enviarProcesamientoMasivo(aplicarModoRegistro(registros, modo), indicesSeleccionados);
             });
         });
     });
@@ -295,7 +429,7 @@
             { width: "90px" },
             { width: "70px" },
             { width: "125px" },
-            { width: "120px" },
+            { width: "135px" },
             { width: null },
             { width: "110px" }
         ],
@@ -342,34 +476,10 @@
         var fila = datos[idx];
         swal({ title: "¿Deseas procesar este devengo?", icon: "warning", buttons: ["No", "Sí"], dangerMode: true }).then(function(ok) {
             if (!ok) return;
-            swal({ text: "Procesando...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false });
-            $.ajax({
-                type: "POST",
-                url: "/Herramientas/ProcesarIndividual/",
-                contentType: "application/json",
-                data: JSON.stringify({ fila: fila }),
-                timeout: 120000,
-                success: function(res) {
-                    swal.close();
-                    try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { showToast("Error al procesar respuesta", "error"); return; }
-
-                    if (res.success) {
-                        if (res.insertados > 0) {
-                            showToast(res.mensaje, "success");
-                            eliminarRegistrosLocales(function(item, itemIdx) {
-                                return itemIdx === idx;
-                            });
-                        } else {
-                            showToast(res.mensaje, "warning");
-                        }
-                    } else {
-                        showToast(res.mensaje, "error");
-                    }
-                },
-                error: function() {
-                    swal.close();
-                    showError("Error de conexión o tiempo agotado.");
-                }
+            resolverModoRegistroAntesDeProcesar([fila]).then(function(modo) {
+                if (modo === null && requiereConfirmacionMesAnterior([fila])) return;
+                var filaProcesar = aplicarModoRegistro([fila], modo)[0];
+                enviarProcesamientoIndividual(filaProcesar, modo, idx);
             });
         });
     });

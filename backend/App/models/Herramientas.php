@@ -122,8 +122,8 @@ PARAMETROS AS (
     JOIN MP ON PRN.CDGEM = MP.CDGEM AND PRN.CDGNS = MP.CDGCLNS AND PRN.CICLO = MP.CICLO AND MP.TIPO = 'IN'
     JOIN CF ON PRN.CDGEM = CF.CDGEM AND PRN.CDGFDI = CF.CDGFDI
     WHERE PRN.CDGEM = 'EMPFIN'
-      AND PRN.CDGNS = :credito
-      AND PRN.CICLO = :ciclo
+      AND (:credito IS NULL OR PRN.CDGNS = :credito)
+      AND (:ciclo IS NULL OR PRN.CICLO = :ciclo)
 ),
 DATOS_CREDITO AS (
     SELECT
@@ -211,6 +211,13 @@ WHERE NOT EXISTS (
     WHERE DD.CDGCLNS = R.CREDITO AND DD.CICLO = R.CICLO AND DD.CDGEM = R.CDGEM
       AND TRUNC(DD.FECHA_CALC) = TO_DATE(R.FECHA_CALC_ISO, 'YYYY-MM-DD')
 )
+AND NOT EXISTS (
+    SELECT 1 FROM BITACORA_AUDITORIA_DEVENGO B
+    WHERE B.CREDITO = R.CREDITO
+      AND B.CICLO = R.CICLO
+      AND B.FECHA_PROCESADA = TO_DATE(R.FECHA_CALC_ISO, 'YYYY-MM-DD')
+      AND B.RESULTADO = 'OK'
+)
 ORDER BY R.CREDITO, R.CICLO, R.FECHA_CALC_ISO
 SQL;
 
@@ -239,7 +246,8 @@ SQL;
         string $usuario,
         string $perfil,
         string $ip,
-        string $tipoEjecucion = 'INDIVIDUAL'
+        string $tipoEjecucion = 'INDIVIDUAL',
+        string $modoRegistro = 'REAL'
     ): array {
         $credito = trim((string) ($fila['CREDITO'] ?? $fila['CDGCLNS'] ?? $fila['credito'] ?? ''));
         $ciclo = trim((string) ($fila['CICLO'] ?? $fila['ciclo'] ?? ''));
@@ -265,9 +273,11 @@ SQL;
 
             self::ObtenerBloqueo($db, $credito, $ciclo);
 
-            $insertados = self::InsertarFilasDevengo($db, [$fila], $usuario);
+            $insertados = self::ProcesarFilaDevengoConPolitica($db, $fila, $usuario, $modoRegistro);
 
-            self::InsertarBitacora($db, $credito, $ciclo, $fechaCorte, $tipoEjecucion, $usuario, $perfil, 'OK', null, $ip);
+            if ($insertados > 0) {
+                self::InsertarBitacora($db, $credito, $ciclo, $fechaCorte, $tipoEjecucion, $usuario, $perfil, 'OK', null, $ip);
+            }
             $db->ConfirmaTransaccion();
 
             $mensaje = $insertados > 0 ? "$insertados devengos procesados correctamente" : "No había devengos pendientes";
@@ -332,11 +342,20 @@ SQL;
                 if (!$r['success']) throw new \Exception("Crédito $credito ciclo $ciclo fecha $fechaCalc: " . $r['mensaje']);
             }
 
-            $insertados = self::InsertarFilasDevengo($db, $registros, $usuario);
-
-            foreach (array_keys($paresValidados) as $key) {
-                list($credito, $ciclo) = explode('|', $key, 2);
-                self::InsertarBitacora($db, $credito, $ciclo, date('Y-m-d'), 'MASIVO', $usuario, $perfil, 'OK', null, $ip);
+            $insertados = 0;
+            foreach ($registros as $fila) {
+                $credito = trim((string) ($fila['CREDITO'] ?? $fila['CDGCLNS'] ?? $fila['credito'] ?? ''));
+                $ciclo = trim((string) ($fila['CICLO'] ?? $fila['ciclo'] ?? ''));
+                $fechaCalc = trim((string) ($fila['FECHA_CALC_ISO'] ?? $fila['FECHA_CALC'] ?? date('Y-m-d')));
+                $modoRegistro = strtoupper(trim((string) ($fila['MODO_REGISTRO'] ?? 'REAL')));
+                if ($modoRegistro !== 'MES_ACTUAL') {
+                    $modoRegistro = 'REAL';
+                }
+                $insertadosFila = self::ProcesarFilaDevengoConPolitica($db, $fila, $usuario, $modoRegistro);
+                if ($insertadosFila > 0) {
+                    self::InsertarBitacora($db, $credito, $ciclo, $fechaCalc, 'MASIVO', $usuario, $perfil, 'OK', null, $ip);
+                }
+                $insertados += $insertadosFila;
             }
 
             $db->ConfirmaTransaccion();
@@ -620,6 +639,276 @@ SQL;
         $fila = ['CREDITO' => $credito, 'CICLO' => $ciclo, 'FECHA_CALC_ISO' => $fechaCalcIso];
         $enriquecidas = self::EnriquecerFilasConDatosInsertar($db, [$fila]);
         return isset($enriquecidas[0]) && !empty(trim((string) ($enriquecidas[0]['INICIO'] ?? ''))) ? $enriquecidas[0] : null;
+    }
+
+    /**
+     * Primer día del mes calendario actual (equivalente a TRUNC(SYSDATE, 'MM')).
+     */
+    private static function obtenerPrimerDiaMesActualSistema(): string
+    {
+        return date('Y-m-01');
+    }
+
+    /**
+     * Inserta en la fecha faltante o acumula en el primer día del mes actual.
+     */
+    public static function ProcesarFilaDevengoConPolitica(
+        \Core\Database $db,
+        array $fila,
+        string $usuario,
+        string $modoRegistro = 'REAL'
+    ): int {
+        if (strtoupper(trim($modoRegistro)) === 'MES_ACTUAL') {
+            return self::RegistrarDevengoEnPrimerDiaMesActual($db, $fila, $usuario);
+        }
+        return self::InsertarFilasDevengo($db, [$fila], $usuario);
+    }
+
+    /**
+     * Registra un devengo faltante de un mes anterior en el primer día del mes actual.
+     */
+    public static function RegistrarDevengoEnPrimerDiaMesActual(\Core\Database $db, array $fila, string $usuario): int
+    {
+        $fila = array_change_key_case((array) $fila, CASE_UPPER);
+        $credito = trim((string) ($fila['CREDITO'] ?? $fila['CDGCLNS'] ?? ''));
+        $ciclo = trim((string) ($fila['CICLO'] ?? ''));
+        $fechaFaltante = self::normalizarFechaYmd($fila['FECHA_CALC_ISO'] ?? $fila['FECHA_CALC'] ?? $fila['FECHA_FALTANTE'] ?? null);
+        if ($credito === '' || $ciclo === '' || $fechaFaltante === null) {
+            return 0;
+        }
+
+        if (self::ExisteDevengoEnFecha($db, $credito, $ciclo, $fechaFaltante)) {
+            return 0;
+        }
+        if (self::ExisteProcesamientoExitosoDevengoFaltante($db, $credito, $ciclo, $fechaFaltante)) {
+            return 0;
+        }
+
+        $fechaDestino = self::obtenerPrimerDiaMesActualSistema();
+        $r = self::ValidarFechaLiquida($db, $credito, $ciclo, $fechaDestino);
+        if (!$r['success']) {
+            throw new \Exception($r['mensaje']);
+        }
+
+        $devDiario = round((float) ($fila['DEV_DIARIO'] ?? 0), 2);
+        $devDiarioSinIva = round((float) ($fila['DEV_DIARIO_SIN_IVA'] ?? 0), 2);
+        $ivaInt = round((float) ($fila['IVA_INT'] ?? 0), 2);
+        $intDev = round((float) ($fila['INT_DEV'] ?? 0), 2);
+
+        self::AsegurarEsquemaEsiacom($db);
+
+        $registroDestino = self::ObtenerRegistroDevengoDiario($db, $credito, $ciclo, $fechaDestino);
+        if ($registroDestino !== null) {
+            self::BloquearRegistroDevengoDiario($db, $credito, $ciclo, $fechaDestino);
+            if (self::ExisteProcesamientoExitosoDevengoFaltante($db, $credito, $ciclo, $fechaFaltante)) {
+                return 0;
+            }
+            return self::AcumularDevengoEnRegistroExistente(
+                $db,
+                $credito,
+                $ciclo,
+                $fechaDestino,
+                $devDiario,
+                $devDiarioSinIva,
+                $ivaInt,
+                $usuario
+            );
+        }
+
+        $filaInsert = $fila;
+        $filaInsert['FECHA_CALC_ISO'] = $fechaDestino;
+        $filaInsert['FECHA_CALC'] = $fechaDestino;
+        $filaInsert['DEV_DIARIO'] = $devDiario;
+        $filaInsert['INT_DEV'] = $intDev;
+        $filaInsert['DEV_DIARIO_SIN_IVA'] = $devDiarioSinIva;
+        $filaInsert['IVA_INT'] = $ivaInt;
+
+        $inicio = trim((string) ($filaInsert['INICIO'] ?? ''));
+        if ($inicio === '') {
+            $enriquecida = self::EnriquecerUnaFilaParaInsertar($db, $credito, $ciclo, $fechaDestino);
+            if ($enriquecida === null) {
+                return 0;
+            }
+            foreach (['INICIO', 'CDGEM', 'PLAZO', 'PERIODICIDAD', 'PLAZO_DIAS', 'FIN_DEVENGO', 'ESTATUS', 'CLNS', 'DIAS_DEV'] as $campo) {
+                if (!isset($filaInsert[$campo]) || trim((string) $filaInsert[$campo]) === '') {
+                    $filaInsert[$campo] = $enriquecida[$campo] ?? $filaInsert[$campo] ?? null;
+                }
+            }
+        } else {
+            $tsInicio = strtotime($inicio . ' 12:00:00');
+            $tsDestino = strtotime($fechaDestino . ' 12:00:00');
+            if ($tsInicio !== false && $tsDestino !== false) {
+                $filaInsert['DIAS_DEV'] = (int) round(($tsDestino - $tsInicio) / 86400);
+            }
+        }
+
+        return self::InsertarFilasDevengo($db, [$filaInsert], $usuario);
+    }
+
+    /**
+     * Verifica si ya existe devengo en la fecha indicada.
+     */
+    public static function ExisteDevengoEnFecha(\Core\Database $db, string $credito, string $ciclo, string $fechaCalc): bool
+    {
+        $qry = <<<SQL
+            SELECT 1
+            FROM ESIACOM.DEVENGO_DIARIO
+            WHERE CDGCLNS = :credito
+              AND CICLO = :ciclo
+              AND TRUNC(FECHA_CALC) = TO_DATE(:fecha_calc, 'YYYY-MM-DD')
+SQL;
+        $res = $db->queryOne($qry, [
+            'credito' => $credito,
+            'ciclo' => $ciclo,
+            'fecha_calc' => $fechaCalc,
+        ]);
+        return $res !== false && !empty($res);
+    }
+
+    /**
+     * Evita reprocesar una fecha faltante ya registrada en bitácora.
+     */
+    public static function ExisteProcesamientoExitosoDevengoFaltante(
+        \Core\Database $db,
+        string $credito,
+        string $ciclo,
+        string $fechaFaltante
+    ): bool {
+        $qry = <<<SQL
+            SELECT COUNT(*) AS CNT
+            FROM BITACORA_AUDITORIA_DEVENGO
+            WHERE CREDITO = :credito
+              AND CICLO = :ciclo
+              AND FECHA_PROCESADA = TO_DATE(:fecha_faltante, 'YYYY-MM-DD')
+              AND RESULTADO = 'OK'
+SQL;
+        $res = $db->queryOne($qry, [
+            'credito' => $credito,
+            'ciclo' => $ciclo,
+            'fecha_faltante' => $fechaFaltante,
+        ]);
+        return (int) ($res['CNT'] ?? 0) > 0;
+    }
+
+    /**
+     * Obtiene el registro de devengo diario para crédito/ciclo/fecha.
+     */
+    public static function ObtenerRegistroDevengoDiario(
+        \Core\Database $db,
+        string $credito,
+        string $ciclo,
+        string $fechaCalc
+    ): ?array {
+        $qry = <<<SQL
+            SELECT
+                TO_CHAR(TRUNC(FECHA_CALC), 'YYYY-MM-DD') AS FECHA_CALC,
+                DEV_DIARIO,
+                INT_DEV,
+                DEV_DIARIO_SIN_IVA,
+                IVA_INT
+            FROM ESIACOM.DEVENGO_DIARIO
+            WHERE CDGCLNS = :credito
+              AND CICLO = :ciclo
+              AND TRUNC(FECHA_CALC) = TO_DATE(:fecha_calc, 'YYYY-MM-DD')
+SQL;
+        $res = $db->queryOne($qry, [
+            'credito' => $credito,
+            'ciclo' => $ciclo,
+            'fecha_calc' => $fechaCalc,
+        ]);
+        return is_array($res) && !empty($res) ? $res : null;
+    }
+
+    /**
+     * Bloquea el registro de devengo diario destino para evitar acumulaciones concurrentes.
+     */
+    public static function BloquearRegistroDevengoDiario(
+        \Core\Database $db,
+        string $credito,
+        string $ciclo,
+        string $fechaCalc
+    ): void {
+        $qry = <<<SQL
+            SELECT CDGCLNS
+            FROM ESIACOM.DEVENGO_DIARIO
+            WHERE CDGCLNS = :credito
+              AND CICLO = :ciclo
+              AND TRUNC(FECHA_CALC) = TO_DATE(:fecha_calc, 'YYYY-MM-DD')
+            FOR UPDATE
+SQL;
+        $db->queryOne($qry, [
+            'credito' => $credito,
+            'ciclo' => $ciclo,
+            'fecha_calc' => $fechaCalc,
+        ]);
+    }
+
+    /**
+     * Acumula montos faltantes en un registro existente del primer día del mes actual.
+     */
+    public static function AcumularDevengoEnRegistroExistente(
+        \Core\Database $db,
+        string $credito,
+        string $ciclo,
+        string $fechaDestino,
+        float $devDiario,
+        float $devDiarioSinIva,
+        float $ivaInt,
+        string $usuario
+    ): int {
+        $usuarioSesion = $_SESSION['usuario'] ?? $usuario;
+        if (trim((string) $usuarioSesion) === '') {
+            $usuarioSesion = 'SYSTEM';
+        }
+
+        $qry = <<<SQL
+            UPDATE ESIACOM.DEVENGO_DIARIO
+            SET DEV_DIARIO = NVL(DEV_DIARIO, 0) + :dev_diario,
+                INT_DEV = NVL(INT_DEV, 0) + :incremento_int_dev,
+                DEV_DIARIO_SIN_IVA = NVL(DEV_DIARIO_SIN_IVA, 0) + :dev_diario_sin_iva,
+                IVA_INT = NVL(IVA_INT, 0) + :iva_int,
+                CDGPE = :cdgpe,
+                FREGISTRO = SYSDATE
+            WHERE CDGCLNS = :credito
+              AND CICLO = :ciclo
+              AND TRUNC(FECHA_CALC) = TO_DATE(:fecha_destino, 'YYYY-MM-DD')
+SQL;
+        $stmt = $db->db_activa->prepare($qry);
+        $stmt->execute([
+            'dev_diario' => $devDiario,
+            'incremento_int_dev' => $devDiario,
+            'dev_diario_sin_iva' => $devDiarioSinIva,
+            'iva_int' => $ivaInt,
+            'cdgpe' => $usuarioSesion,
+            'credito' => $credito,
+            'ciclo' => $ciclo,
+            'fecha_destino' => $fechaDestino,
+        ]);
+        $filas = $stmt->rowCount();
+        if ($filas < 1) {
+            throw new \Exception('No se pudo acumular el devengo en el primer día del mes actual.');
+        }
+        return $filas;
+    }
+
+    /**
+     * Garantiza el esquema ESIACOM para operaciones sobre DEVENGO_DIARIO.
+     */
+    private static function AsegurarEsquemaEsiacom(\Core\Database $db): void
+    {
+        $logPath = defined('APPPATH') ? APPPATH . '/../logs/auditoria_devengo_proceso.log' : __DIR__ . '/../../logs/auditoria_devengo_proceso.log';
+        try {
+            $schemaStmt = $db->db_activa->prepare("SELECT SYS_CONTEXT('USERENV','CURRENT_SCHEMA') AS SCH FROM DUAL");
+            $schemaStmt->execute();
+            $row = $schemaStmt->fetch(\PDO::FETCH_ASSOC);
+            $currentSchema = $row['SCH'] ?? '';
+            if (strtoupper((string) $currentSchema) !== 'ESIACOM') {
+                $db->db_activa->exec("ALTER SESSION SET CURRENT_SCHEMA = ESIACOM");
+            }
+        } catch (\Throwable $e) {
+            @file_put_contents($logPath, date('c') . " [DevengoMesActual] Error esquema: " . $e->getMessage() . "\n", FILE_APPEND);
+            throw new \Exception("Error al cambiar esquema a ESIACOM: " . $e->getMessage());
+        }
     }
 
     /**
