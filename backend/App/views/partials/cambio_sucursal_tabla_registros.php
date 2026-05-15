@@ -13,7 +13,8 @@ $idTabla = isset($idTabla) && $idTabla !== '' ? (string) $idTabla : 'tabla-cambi
                 <th>Ciclo</th>
                 <th>Prestamo</th>
                 <th>Situación</th>
-                <th>Sucursal</th>
+                <th>Sucursal anterior</th>
+                <th>Sucursal nueva</th>
                 <th>Ejecutivo</th>
                 <?php if ($mostrarAccion) : ?>
                     <th>Acción</th>
@@ -22,12 +23,23 @@ $idTabla = isset($idTabla) && $idTabla !== '' ? (string) $idTabla : 'tabla-cambi
         </thead>
         <tbody>
             <?php foreach ($registros as $registro) : ?>
+                <?php
+                $sucursalAnterior = trim((string) ($registro['SUCURSAL_ANTERIOR'] ?? ''));
+                $sucursalNueva = trim((string) ($registro['SUCURSAL_NUEVA'] ?? ''));
+                if ($sucursalAnterior === '') {
+                    $sucursalAnterior = trim((string) ($registro['SUCURSAL'] ?? ''));
+                }
+                if ($sucursalNueva === '') {
+                    $sucursalNueva = '—';
+                }
+                ?>
                 <tr>
                     <td><?php echo htmlspecialchars((string) ($registro['CLIENTE'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
                     <td><?php echo htmlspecialchars((string) ($registro['CICLO'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
                     <td>$ <?php echo number_format((float) ($registro['MONTO'] ?? 0)); ?></td>
                     <td><?php echo htmlspecialchars((string) ($registro['SITUACION'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
-                    <td><?php echo htmlspecialchars((string) ($registro['SUCURSAL'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
+                    <td><?php echo htmlspecialchars($sucursalAnterior, ENT_QUOTES, 'UTF-8'); ?></td>
+                    <td><?php echo htmlspecialchars($sucursalNueva, ENT_QUOTES, 'UTF-8'); ?></td>
                     <td><?php echo htmlspecialchars((string) ($registro['EJECUTIVO'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
                     <?php if ($mostrarAccion) : ?>
                         <td class="text-center">

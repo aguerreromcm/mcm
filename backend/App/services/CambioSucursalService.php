@@ -89,6 +89,8 @@ class CambioSucursalService
                     continue;
                 }
 
+                $sucursalAnterior = trim((string) ($credito['SUCURSAL'] ?? ''));
+
                 $payload = new \stdClass();
                 $payload->_credito = $grupo;
                 $payload->_ciclo = $ciclo;
@@ -113,6 +115,9 @@ class CambioSucursalService
                     ];
                     continue;
                 }
+
+                $credito['SUCURSAL_ANTERIOR'] = $sucursalAnterior;
+                $credito['SUCURSAL_NUEVA'] = trim((string) ($credito['SUCURSAL'] ?? ''));
 
                 $credito['FILA_EXCEL'] = $numeroFila;
                 $credito['MENSAJE_ACTUALIZACION'] = self::mensajeActualizacion($resultado);

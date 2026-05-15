@@ -30,15 +30,11 @@ $credito = isset($credito) ? (string) $credito : '';
         .cs-formas-sucursal .cs-busqueda-manual-row .form-control {
             min-width: 0;
         }
-        .cs-formas-sucursal .cs-busqueda-manual-row select.form-control {
-            flex: 0 0 120px;
-            width: 120px;
-        }
         .cs-formas-sucursal .cs-busqueda-manual-row input.form-control {
             flex: 0 1 auto;
-            width: 12ch;
-            min-width: 10ch;
-            max-width: 165px;
+            width: 14ch;
+            min-width: 150px;
+            max-width: 190px;
         }
         .cs-formas-sucursal .cs-carga-masiva-row input[type="file"].form-control {
             flex: 0 1 auto;
@@ -102,25 +98,20 @@ $credito = isset($credito) ? (string) $credito : '';
         <h4 class="cs-h4 cs-h4-busqueda">Búsqueda manual</h4>
         <h4 class="cs-h4 cs-h4-carga">Carga masiva</h4>
         <p class="small text-muted cs-busqueda-instruccion">
-            Ingresa el número de crédito y pulsa <strong>Buscar</strong> para localizar el grupo y cambiar su sucursal.
+            Ingresa el número de crédito y pulsa <strong>Buscar</strong> para consultarlo y cambiar su sucursal.
         </p>
         <p class="small text-muted cs-carga-instruccion">
             Carga un archivo Excel para realizar reasignaciones masivas de sucursal.
             Puedes descargar el archivo base desde el botón <strong>Descargar layout</strong>.
-            El proceso validará cada registro de forma individual y continuará con las demás filas en caso de encontrar errores.
         </p>
         <form class="cs-busqueda-manual-row" action="/Creditos/CambioSucursal/" method="GET">
-            <label for="cs_tipo_busqueda" class="sr-only">Tipo de búsqueda</label>
-            <select class="form-control" id="cs_tipo_busqueda" aria-label="Tipo de búsqueda">
-                <option value="credito">Crédito</option>
-            </select>
             <label for="Credito" class="sr-only">Número de crédito</label>
             <input class="form-control" type="text" inputmode="numeric" maxlength="12" id="Credito" name="Credito" placeholder="Número de crédito" aria-label="Número de crédito" value="<?php echo htmlspecialchars($credito, ENT_QUOTES, 'UTF-8'); ?>" autofocus>
             <button class="btn btn-primary" type="submit"><i class="fa fa-search"></i> Buscar</button>
         </form>
-        <form class="cs-carga-masiva-row" action="/Creditos/CambioSucursalCargaMasiva/" method="POST" enctype="multipart/form-data">
-            <input type="file" class="form-control" name="archivo" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" required>
-            <button type="submit" class="btn btn-success"><i class="fa fa-upload"></i> Importar</button>
+        <form id="form_cambio_sucursal_carga_masiva" class="cs-carga-masiva-row" action="/Creditos/CambioSucursalCargaMasiva/" method="POST" enctype="multipart/form-data">
+            <input type="file" id="archivo_cambio_sucursal_masivo" class="form-control" name="archivo" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel">
+            <button type="button" id="btn_procesar_cambio_sucursal_masivo" class="btn btn-success"><i class="fa fa-upload"></i> Procesar</button>
             <a class="btn btn-default btn-sm" href="/Creditos/CambioSucursalLayout/" target="_blank" rel="noopener">
                 <i class="fa fa-download"></i> Descargar layout
             </a>

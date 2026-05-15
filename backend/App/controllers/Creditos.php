@@ -489,6 +489,7 @@ html;
       </script>
 html;
         $extraFooter .= $this->extraFooterTablaCambioSucursal();
+        $extraFooter .= $this->extraFooterCambioSucursalMasivo();
 
         $credito = trim((string) ($_GET['Credito'] ?? ''));
 
@@ -496,6 +497,8 @@ html;
             $credito_cambio = CreditosDao::SelectSucursalAllCreditoCambioSuc($credito);
 
             if (is_array($credito_cambio) && trim((string) ($credito_cambio['CLIENTE'] ?? '')) !== '') {
+                $credito_cambio = $this->aplicarSucursalAnteriorNuevaEnCreditoCambio($credito_cambio, $credito);
+
                 $sucursales = CreditosDao::ListaSucursales();
                 $ComboSucursal = '';
                 foreach ($sucursales as $key => $val2) {
@@ -549,9 +552,18 @@ html;
         $nueva_sucursal = MasterDom::getDataAll('sucursal');
         $sucursal->_nueva_sucursal = $nueva_sucursal;
 
+        $antes = CreditosDao::SelectSucursalAllCreditoCambioSuc($credito, $ciclo);
+        $sucursalAnterior = is_array($antes) ? trim((string) ($antes['SUCURSAL'] ?? '')) : '';
+
         $id = CreditosDao::UpdateSucursal($sucursal);
 
         if ($id >= 1) {
+            $_SESSION['cambio_sucursal_ultimo_cambio'] = [
+                'credito' => trim((string) $credito),
+                'ciclo' => trim((string) $ciclo),
+                'SUCURSAL_ANTERIOR' => $sucursalAnterior,
+            ];
+
             return $id['VMENSAJE'];
         } else {
             return '0';
@@ -639,7 +651,7 @@ html;
 html;
 
         View::set('header', $this->_contenedor->header($extraHeader));
-        View::set('footer', $this->_contenedor->footer($this->extraFooterTablaCambioSucursal()));
+        View::set('footer', $this->_contenedor->footer($this->extraFooterTablaCambioSucursal() . $this->extraFooterCambioSucursalMasivo()));
         View::set('credito', '');
         View::set('resumen', $resultado['resumen'] ?? '');
         View::set('detalle_error', $resultado['detalle_error'] ?? '');
@@ -687,9 +699,9 @@ html;
 
             if (conAccion) {
                 opciones.columnDefs = [
-                    { orderable: false, targets: [6] },
+                    { orderable: false, targets: [7] },
                     {
-                        targets: 6,
+                        targets: 7,
                         createdCell: function (td) {
                             $(td).css("white-space", "nowrap");
                             $(td).css("vertical-align", "middle");
@@ -704,6 +716,63 @@ html;
         $(document).ready(inicializarTablaCambioSucursalCreditos);
       </script>
 html;
+    }
+
+    private function extraFooterCambioSucursalMasivo(): string
+    {
+        return <<<HTML
+      <script>
+        {$this->mensajes}
+        {$this->confirmarMovimiento}
+
+        async function procesarCargaMasivaCambioSucursal() {
+            var form = document.getElementById("form_cambio_sucursal_carga_masiva");
+            var input = document.getElementById("archivo_cambio_sucursal_masivo");
+            if (!form || !input) {
+                return;
+            }
+            if (!input.files || !input.files[0]) {
+                showWarning("Seleccione un archivo Excel (.xls o .xlsx).");
+                return;
+            }
+            var nombreArchivo = input.files[0].name;
+            var confirmar = await confirmarMovimiento(
+                "¿Procesar reasignación masiva?",
+                "Se procesará el archivo \"" + nombreArchivo + "\". Esta acción puede tardar varios minutos."
+            );
+            if (!confirmar) {
+                return;
+            }
+            var btn = document.getElementById("btn_procesar_cambio_sucursal_masivo");
+            if (btn) {
+                btn.disabled = true;
+            }
+            showWait("Procesando reasignaciones, espere un momento...");
+            form.submit();
+        }
+
+        $(document).ready(function() {
+            $("#btn_procesar_cambio_sucursal_masivo").on("click", function() {
+                procesarCargaMasivaCambioSucursal();
+            });
+        });
+      </script>
+HTML;
+    }
+
+    private function aplicarSucursalAnteriorNuevaEnCreditoCambio(array $creditoCambio, string $creditoBuscado): array
+    {
+        if (!empty($_SESSION['cambio_sucursal_ultimo_cambio'])) {
+            $ultimo = $_SESSION['cambio_sucursal_ultimo_cambio'];
+            unset($_SESSION['cambio_sucursal_ultimo_cambio']);
+
+            if (trim($creditoBuscado) === trim((string) ($ultimo['credito'] ?? ''))) {
+                $creditoCambio['SUCURSAL_ANTERIOR'] = trim((string) ($ultimo['SUCURSAL_ANTERIOR'] ?? ''));
+                $creditoCambio['SUCURSAL_NUEVA'] = trim((string) ($creditoCambio['SUCURSAL'] ?? ''));
+            }
+        }
+
+        return $creditoCambio;
     }
 
     private function redirigirCambioSucursalConError(string $mensaje): void
