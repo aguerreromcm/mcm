@@ -87,7 +87,7 @@ class AhorroSimple extends Model
                     AND PD.ESTATUS = 'A'
                     AND PD.TIPO IN ('B' ,'F', 'E', 'A')
                     AND PD.CDGNS = :credito
-                UNION
+                UNION ALL
                 SELECT 'RETIRO' AS TIPO
                     ,CASE
                         WHEN RA.ESTATUS = 'C' THEN 'CANCELADO'
