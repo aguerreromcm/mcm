@@ -20,13 +20,30 @@
             font-size: 14px;
             font-weight: 600;
         }
+        .cierre-dia-wrap .cierre-descripcion {
+            margin: 0 0 12px 0;
+        }
         /* Misma altura que .form-control (34px); el date nativo a veces pinta más bajo que los .btn */
         .cierre-dia-wrap .cierre-fila-fecha-acciones {
             --cierre-fecha-control-h: 34px;
             display: flex;
             flex-wrap: wrap;
             align-items: flex-end;
+            justify-content: space-between;
+            gap: 12px 16px;
+        }
+        .cierre-dia-wrap .cierre-fila-fecha-acciones .cierre-grupo-fecha-buscar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
             gap: 8px;
+        }
+        .cierre-dia-wrap .cierre-fila-fecha-acciones .cierre-grupo-acciones {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 16px;
+            margin-left: auto;
         }
         .cierre-dia-wrap .cierre-fila-fecha-acciones .input-fecha-operativa {
             max-width: 14.5rem;
@@ -61,6 +78,20 @@
         .cierre-dia-wrap .cierre-fila-fecha-acciones .cierre-bloque-botones {
             flex: 0 0 auto;
         }
+        .cierre-dia-wrap .cierre-filtro-tabla {
+            margin-bottom: 12px;
+            margin-top: 4px;
+        }
+        .cierre-dia-wrap .table > thead > tr > th,
+        .cierre-dia-wrap .table > tbody > tr > td {
+            text-align: center;
+            vertical-align: middle;
+        }
+        .cierre-dia-wrap .dataTables_wrapper .table > thead > tr > th,
+        .cierre-dia-wrap .dataTables_wrapper .table > tbody > tr > td {
+            text-align: center;
+            vertical-align: middle;
+        }
     </style>
 
     <div class="panel panel-default cierre-dia-wrap">
@@ -70,18 +101,22 @@
                 <div class="clearfix"></div>
             </div>
 
-            <p class="text-muted">
-                Consulta y ejecuta el cierre de día desde una sola pantalla, con resumen de pagos, conciliación e historial de cierres.
+            <p class="text-muted cierre-descripcion">
+                Consulta y ejecuta el cierre de día.
             </p>
 
             <div class="bloque">
                 <div class="cierre-fila-fecha-acciones">
-                    <div class="cierre-bloque-fecha">
-                        <label for="fecha">Fecha operativa</label>
-                        <input type="date" id="fecha" class="form-control input-fecha-operativa" min="<?= date('Y-m-d', strtotime('-30 days')) ?>" max="<?= date('Y-m-d', strtotime('1 days')) ?>" value="<?= date('Y-m-d', strtotime('-1 day')) ?>">
+                    <div class="cierre-grupo-fecha-buscar">
+                        <div class="cierre-bloque-fecha">
+                            <label for="fecha">Fecha operativa</label>
+                            <input type="date" id="fecha" class="form-control input-fecha-operativa" min="<?= date('Y-m-d', strtotime('-30 days')) ?>" max="<?= date('Y-m-d', strtotime('1 days')) ?>" value="<?= date('Y-m-d', strtotime('-1 day')) ?>">
+                        </div>
+                        <div class="cierre-bloque-botones">
+                            <button type="button" class="btn btn-default" id="btnBuscarFecha">Buscar</button>
+                        </div>
                     </div>
-                    <div class="cierre-bloque-botones">
-                        <button type="button" class="btn btn-default" id="btnBuscarFecha">Buscar</button>
+                    <div class="cierre-grupo-acciones cierre-bloque-botones">
                         <button type="button" class="btn btn-primary" id="procesar">Generar cierre</button>
                         <button type="button" class="btn btn-info" id="btnInfoDiaCierre" title="Muestra conteos del día seleccionado (cobranza, cierre de cartera, devengo y depósitos)">Resumen de Cierre</button>
                     </div>
@@ -94,15 +129,15 @@
             </div>
 
             <ul class="nav nav-tabs" role="tablist">
-                <li role="presentation" class="active"><a href="#tabPagos" aria-controls="tabPagos" role="tab" data-toggle="tab">Aplicación</a></li>
+                <li role="presentation" class="active"><a href="#tabPagos" aria-controls="tabPagos" role="tab" data-toggle="tab">Pagos</a></li>
                 <li role="presentation"><a href="#tabConciliacion" aria-controls="tabConciliacion" role="tab" data-toggle="tab">Conciliación</a></li>
-                <li role="presentation"><a href="#tabCierre" aria-controls="tabCierre" role="tab" data-toggle="tab">Historial cierres</a></li>
+                <li role="presentation"><a href="#tabCierre" aria-controls="tabCierre" role="tab" data-toggle="tab">Histórico</a></li>
             </ul>
 
             <div class="tab-content">
                 <div role="tabpanel" class="tab-pane active" id="tabPagos">
                     <div class="bloque">
-                        <h5 class="subtitulo">Resumen de aplicación de pagos</h5>
+                        <h5 class="subtitulo">Resumen de pagos</h5>
                         <div class="tile_count col-sm-12" style="margin-bottom: 8px; margin-top: 8px;">
                             <div class="col-md-2 col-sm-4 tile_stats_count">
                                 <span class="count_top"><i class="fa fa-list"></i> Total</span>
@@ -138,13 +173,13 @@
                         <div class="clearfix"></div>
                     </div>
 
-                    <div class="row" style="margin-bottom: 12px;">
+                    <div class="row cierre-filtro-tabla">
                         <div class="col-md-3 col-sm-5">
                             <label for="filtroEstadoAplicacion">Mostrar en tabla</label>
                             <select id="filtroEstadoAplicacion" class="form-control select-filtro-aplicacion">
-                                <option value="todos">Todos</option>
-                                <option value="pendientes">Pendientes</option>
+                                <option value="pendientes" selected>Pendientes</option>
                                 <option value="aplicados">Aplicados</option>
+                                <option value="todos">Todos</option>
                             </select>
                         </div>
                     </div>
@@ -189,9 +224,9 @@
                         <div class="col-md-3 col-sm-5">
                             <label for="filtroEstadoConciliacion">Mostrar en tabla</label>
                             <select id="filtroEstadoConciliacion" class="form-control select-filtro-aplicacion">
-                                <option value="todos">Todos</option>
-                                <option value="pendientes">Pendientes</option>
+                                <option value="pendientes" selected>Pendientes</option>
                                 <option value="conciliados">Conciliados</option>
+                                <option value="todos">Todos</option>
                             </select>
                         </div>
                     </div>
@@ -200,34 +235,24 @@
                         <table id="tablaConciliacion" class="table table-striped table-bordered table-hover" style="width:100%">
                             <thead>
                                 <tr>
-                                    <th>No.</th>
-                                    <th>Empresa</th>
-                                    <th>Fecha de Pago</th>
+                                    <th>Fecha</th>
                                     <th>Referencia</th>
-                                    <th>Tipo Cte.</th>
-                                    <th>Crédito (Ind./Gpo.)</th>
+                                    <th>Crédito</th>
                                     <th>Ciclo</th>
-                                    <th>Periodo</th>
-                                    <th>SecuenciaIM</th>
-                                    <th>Nombre (Ind./Gpo.)</th>
+                                    <th>Nombre</th>
                                     <th>Monto</th>
-                                    <th>Cta. Bancaria</th>
-                                    <th>Código Gpo.</th>
-                                    <th>Tasa</th>
-                                    <th>SecuenciaMP</th>
-                                    <th>Plazo</th>
-                                    <th>Periodicidad</th>
                                     <th>Estado</th>
                                 </tr>
                             </thead>
                             <tbody id="tablaConciliacionBody">
-                                <tr><td colspan="18">Sin datos cargados.</td></tr>
+                                <tr><td colspan="7">Sin datos cargados.</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
                 <div role="tabpanel" class="tab-pane" id="tabCierre">
+                    <p class="text-muted cierre-descripcion">Resumen de los 7 días anteriores.</p>
                     <div class="table-responsive">
                         <table class="table table-striped table-bordered table-condensed">
                             <thead>
@@ -249,7 +274,11 @@
                                     echo '<tr><td colspan="8">No hay cierres registrados.</td></tr>';
                                 } else {
                                     foreach ($listaCierres as $c) {
-                                        $estado = !empty($c['EXITO']) ? 'OK' : 'Error';
+                                        $estado = isset($c['ESTADO_TEXTO']) ? (string) $c['ESTADO_TEXTO'] : (
+                                            (!empty($c['EN_PROCESO']) || empty($c['FIN']) || trim((string) ($c['FIN'] ?? '')) === '')
+                                                ? 'Procesando'
+                                                : 'Finalizado'
+                                        );
                                         echo '<tr>';
                                         echo '<td>' . htmlspecialchars($c['FECHA_CALCULO'] ?? '-') . '</td>';
                                         $inicioRaw = (string) ($c['INICIO'] ?? '-');
@@ -353,8 +382,9 @@
                 search: "Buscar:",
             },
             createdRow: function (row) {
-                $(row).find("td").css("vertical-align", "middle");
+                $(row).find("td").css({ verticalAlign: "middle", textAlign: "center" });
             },
+            columnDefs: [{ targets: "_all", className: "text-center" }],
         });
 
         const aplicarDataTableCierreDia = (selectorTabla, emptyTableMsg) => {
@@ -371,29 +401,54 @@
         };
 
         let cacheFilasAplicacion = [];
+        let cacheResumenPagos = null;
         let cacheFilasConciliacion = [];
+        let cacheResumenConciliacion = null;
 
-        const filaConciliacionPendiente = (f) => {
+        const codigoConciliado = (f) => {
             const raw = f.CONCILIADO != null ? f.CONCILIADO : f.conciliado;
-            const c = raw != null ? String(raw).trim().toUpperCase() : "";
-            return c === "" || c === "N";
+            return raw != null ? String(raw).trim().toUpperCase() : "";
         };
 
+        const filaConciliacionPendiente = (f) => codigoConciliado(f) === "C";
+
+        const filaConciliacionConciliada = (f) => codigoConciliado(f) === "D";
+
         const textoEstadoConciliacion = (f) => {
-            return filaConciliacionPendiente(f) ? "Pendiente" : "Conciliado";
+            const c = codigoConciliado(f);
+            if (c === "C") return "Pendiente";
+            if (c === "D") return "Conciliado";
+            if (c === "N") return "Ignorado";
+            return c !== "" ? c : "Pendiente";
         };
 
         const filasConciliacionSegunFiltro = (filas, filtro) => {
             if (filtro === "pendientes") return filas.filter((f) => filaConciliacionPendiente(f));
-            if (filtro === "conciliados") return filas.filter((f) => !filaConciliacionPendiente(f));
+            if (filtro === "conciliados") return filas.filter((f) => filaConciliacionConciliada(f));
             return filas.slice();
+        };
+
+        const pintarResumenConciliacion = (resumen) => {
+            const r = resumen || {};
+            const pend = r.totalNoConciliados != null ? Number(r.totalNoConciliados) : 0;
+            const conc = r.totalConciliados != null ? Number(r.totalConciliados) : 0;
+            const impPend = r.importeNoConciliados != null ? Number(r.importeNoConciliados) : 0;
+            const impConc = r.importeConciliados != null ? Number(r.importeConciliados) : 0;
+            const elPend = document.getElementById("totalPagosConciliacion");
+            const elImpPend = document.getElementById("importeTotalConciliacion");
+            const elConc = document.getElementById("totalPagosConciliacionHechos");
+            const elImpConc = document.getElementById("importeConciliacionHechos");
+            if (elPend) elPend.textContent = pend;
+            if (elImpPend) elImpPend.textContent = formateaMoneda(impPend);
+            if (elConc) elConc.textContent = conc;
+            if (elImpConc) elImpConc.textContent = formateaMoneda(impConc);
         };
 
         const pintarSoloTablaConciliacion = () => {
             const tbody = document.getElementById("tablaConciliacionBody");
             if (!tbody) return;
             const sel = document.getElementById("filtroEstadoConciliacion");
-            const filtro = sel ? (sel.value || "todos") : "todos";
+            const filtro = sel ? (sel.value || "pendientes") : "pendientes";
             const filas = filasConciliacionSegunFiltro(cacheFilasConciliacion, filtro);
 
             destruirDataTableSiExiste("#tablaConciliacion");
@@ -413,26 +468,16 @@
                 aplicarDataTableCierreDia("#tablaConciliacion", msg);
                 return;
             }
-            tbody.innerHTML = filas.map((f, idx) => {
+            tbody.innerHTML = filas.map((f) => {
                 const monto = typeof f.CANTIDAD === "number" ? f.CANTIDAD : (parseFloat(f.CANTIDAD) || 0);
+                const credito = f.CREDITO != null ? f.CREDITO : (f.CDGCLNS != null ? f.CDGCLNS : f.cdgclns);
                 return "<tr>" +
-                    "<td>" + (idx + 1) + "</td>" +
-                    "<td>" + (f.CDGEM || f.cdgem || "-") + "</td>" +
-                    "<td>" + (f.FREALDEP || f.frealdep || "-") + "</td>" +
+                    "<td>" + (f.FECHA || f.fecha || f.FREALDEP || f.frealdep || "-") + "</td>" +
                     "<td>" + (f.REFERENCIA || f.referencia || "-") + "</td>" +
-                    "<td>" + (f.TIPOCTE || f.tipocte || "-") + "</td>" +
-                    "<td>" + (f.CDGCLNS || f.cdgclns || "-") + "</td>" +
+                    "<td>" + (credito || "-") + "</td>" +
                     "<td>" + (f.CICLO || f.ciclo || "-") + "</td>" +
-                    "<td>" + (f.PERIODO != null ? f.PERIODO : (f.periodo || "-")) + "</td>" +
-                    "<td>" + (f.SECUENCIAIM || f.secuenciaim || "-") + "</td>" +
                     "<td>" + (f.NOMBRE || f.nombre || "-") + "</td>" +
                     "<td>" + formateaMoneda(monto) + "</td>" +
-                    "<td>" + (f.CDGCB || f.cdgcb || "-") + "</td>" +
-                    "<td>" + (f.CDGNS || f.cdgns || "-") + "</td>" +
-                    "<td>" + (f.TASA != null ? f.TASA : (f.tasa || "-")) + "</td>" +
-                    "<td>" + (f.SECUENCIA || f.secuencia || "-") + "</td>" +
-                    "<td>" + (f.PLAZO != null ? f.PLAZO : (f.plazo || "-")) + "</td>" +
-                    "<td>" + (f.PERIODICIDAD || f.periodicidad || "-") + "</td>" +
                     "<td>" + textoEstadoConciliacion(f) + "</td>" +
                     "</tr>";
             }).join("");
@@ -457,7 +502,7 @@
         const pintarSoloTablaAplicacion = () => {
             const tbody = document.getElementById("tablaAplicarPagosBody");
             const sel = document.getElementById("filtroEstadoAplicacion");
-            const filtro = sel ? (sel.value || "todos") : "todos";
+            const filtro = sel ? (sel.value || "pendientes") : "pendientes";
             const filas = cacheFilasAplicacion;
 
             destruirDataTableSiExiste("#tablaAplicarPagos");
@@ -483,23 +528,23 @@
             aplicarDataTableCierreDia("#tablaAplicarPagos", "No hay datos disponibles");
         };
 
-        const renderPagos = (filas, resumen, meta) => {
-            cacheFilasAplicacion = Array.isArray(filas) ? filas : [];
+        const pintarResumenPagos = (resumen, meta) => {
+            const r = resumen || {};
+            const m = meta || {};
+            const totalReg = r.totalRegistros != null ? Number(r.totalRegistros) : cacheFilasAplicacion.length;
+            const totalImp = r.totalImporte != null ? Number(r.totalImporte) : 0;
+            const yaProcesado = !!m.yaProcesado;
+            const pendientes = r.totalPendientes != null ? Number(r.totalPendientes) : (yaProcesado ? 0 : totalReg);
+            const aplicados = r.totalAplicados != null ? Number(r.totalAplicados) : (yaProcesado ? totalReg : 0);
+            const impPend = r.importePendientes != null ? Number(r.importePendientes) : (yaProcesado ? 0 : totalImp);
+            const impApl = r.importeAplicados != null ? Number(r.importeAplicados) : (yaProcesado ? totalImp : 0);
 
-            const totalReg = resumen.totalRegistros != null ? Number(resumen.totalRegistros) : cacheFilasAplicacion.length;
-            const totalImp = resumen.totalImporte != null ? Number(resumen.totalImporte) : 0;
-            const yaProcesado = !!meta.yaProcesado;
-            const pendientes = resumen.totalPendientes != null ? Number(resumen.totalPendientes) : (yaProcesado ? 0 : totalReg);
-            const aplicados = resumen.totalAplicados != null ? Number(resumen.totalAplicados) : (yaProcesado ? totalReg : 0);
-            const impPend = resumen.importePendientes != null ? Number(resumen.importePendientes) : (yaProcesado ? 0 : totalImp);
-            const impApl = resumen.importeAplicados != null ? Number(resumen.importeAplicados) : (yaProcesado ? totalImp : 0);
-
-            const rp = resumen.registrosPagos != null ? Number(resumen.registrosPagos) : 0;
-            const rg = resumen.registrosGarantias != null ? Number(resumen.registrosGarantias) : 0;
-            const ri = resumen.registrosIncidencias != null ? Number(resumen.registrosIncidencias) : 0;
-            const impPag = resumen.importePagos != null ? Number(resumen.importePagos) : 0;
-            const impGar = resumen.importeGarantias != null ? Number(resumen.importeGarantias) : 0;
-            const impInc = resumen.importeIncidencias != null ? Number(resumen.importeIncidencias) : 0;
+            const rp = r.registrosPagos != null ? Number(r.registrosPagos) : 0;
+            const rg = r.registrosGarantias != null ? Number(r.registrosGarantias) : 0;
+            const ri = r.registrosIncidencias != null ? Number(r.registrosIncidencias) : 0;
+            const impPag = r.importePagos != null ? Number(r.importePagos) : 0;
+            const impGar = r.importeGarantias != null ? Number(r.importeGarantias) : 0;
+            const impInc = r.importeIncidencias != null ? Number(r.importeIncidencias) : 0;
 
             document.getElementById("totalPagos").textContent = totalReg;
             document.getElementById("importeTotal").textContent = formateaMoneda(totalImp);
@@ -513,24 +558,19 @@
             document.getElementById("impResumenGarantias").textContent = formateaMoneda(impGar);
             document.getElementById("cntResumenIncidencias").textContent = ri;
             document.getElementById("impResumenIncidencias").textContent = formateaMoneda(impInc);
+        };
 
+        const renderPagos = (filas, resumen, meta) => {
+            cacheFilasAplicacion = Array.isArray(filas) ? filas : [];
+            cacheResumenPagos = { resumen: resumen || {}, meta: meta || {} };
+            pintarResumenPagos(cacheResumenPagos.resumen, cacheResumenPagos.meta);
             pintarSoloTablaAplicacion();
         };
 
         const renderConciliacion = (filas, resumen) => {
             cacheFilasConciliacion = Array.isArray(filas) ? filas : [];
-            const pend = resumen.totalNoConciliados != null ? Number(resumen.totalNoConciliados) : 0;
-            const conc = resumen.totalConciliados != null ? Number(resumen.totalConciliados) : 0;
-            const impPend = resumen.importeNoConciliados != null ? Number(resumen.importeNoConciliados) : 0;
-            const impConc = resumen.importeConciliados != null ? Number(resumen.importeConciliados) : 0;
-            const elPend = document.getElementById("totalPagosConciliacion");
-            const elImpPend = document.getElementById("importeTotalConciliacion");
-            const elConc = document.getElementById("totalPagosConciliacionHechos");
-            const elImpConc = document.getElementById("importeConciliacionHechos");
-            if (elPend) elPend.textContent = pend;
-            if (elImpPend) elImpPend.textContent = formateaMoneda(impPend);
-            if (elConc) elConc.textContent = conc;
-            if (elImpConc) elImpConc.textContent = formateaMoneda(impConc);
+            cacheResumenConciliacion = resumen || {};
+            pintarResumenConciliacion(cacheResumenConciliacion);
             pintarSoloTablaConciliacion();
         };
 
@@ -582,7 +622,7 @@
                     url: "/Operaciones/ConsultarConciliacion/",
                     type: "POST",
                     dataType: "json",
-                    data: { fecha: fecha, codigo: "", ciclo: "", ctaBancaria: "", modoConciliado: "por_fecha" }
+                    data: { fecha: fecha, codigo: "", ciclo: "", ctaBancaria: "", modoConciliado: "importados" }
                 }).done((resp) => {
                     if (resp && resp.success) {
                         const datos = resp.datos || {};

@@ -68,6 +68,174 @@ class ConciliacionRepository
     }
 
     /**
+     * Condición base: pagos importados del día (cierre de día / conciliación por FDEPOSITO).
+     */
+    private function condicionMpImportadosDia(): string
+    {
+        return " TRUNC(a.FDEPOSITO) = TO_DATE(:fecha, 'YYYY-MM-DD') AND a.TIPO = 'PD' AND a.MODO = 'I' ";
+    }
+
+    /**
+     * Resumen por CONCILIADO: C=pendiente, D=conciliado, N=ignorado.
+     *
+     * @return array{totalNoConciliados: int, importeNoConciliados: float, totalConciliados: int, importeConciliados: float}
+     */
+    public function getResumenConciliacionImportados($fecha)
+    {
+        $fecha = $this->normalizarFechaYmd($fecha);
+        if ($fecha === '') {
+            return [
+                'totalNoConciliados' => 0,
+                'importeNoConciliados' => 0.0,
+                'totalConciliados' => 0,
+                'importeConciliados' => 0.0,
+            ];
+        }
+
+        $db = new Database();
+        if ($db->db_activa === null) {
+            return [
+                'totalNoConciliados' => 0,
+                'importeNoConciliados' => 0.0,
+                'totalConciliados' => 0,
+                'importeConciliados' => 0.0,
+            ];
+        }
+
+        $sql = <<<'SQL'
+SELECT CONCILIADO,
+       COUNT(*) AS TOTAL_REG,
+       SUM(CANTIDAD) AS TOTAL_MONTO
+FROM MP
+WHERE TRUNC(FDEPOSITO) = TO_DATE(:fecha, 'YYYY-MM-DD')
+  AND TIPO = 'PD'
+  AND MODO = 'I'
+GROUP BY CONCILIADO
+SQL;
+
+        try {
+            $stmt = $db->db_activa->prepare($sql);
+            $stmt->execute(['fecha' => $fecha]);
+            $filas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\Throwable $e) {
+            return [
+                'totalNoConciliados' => 0,
+                'importeNoConciliados' => 0.0,
+                'totalConciliados' => 0,
+                'importeConciliados' => 0.0,
+            ];
+        }
+
+        $pendReg = 0;
+        $pendImp = 0.0;
+        $concReg = 0;
+        $concImp = 0.0;
+
+        foreach (is_array($filas) ? $filas : [] as $row) {
+            $est = strtoupper(trim((string) ($row['CONCILIADO'] ?? '')));
+            $cnt = (int) ($row['TOTAL_REG'] ?? 0);
+            $monto = (float) ($row['TOTAL_MONTO'] ?? 0);
+            if ($est === 'C') {
+                $pendReg += $cnt;
+                $pendImp += $monto;
+            } elseif ($est === 'D') {
+                $concReg += $cnt;
+                $concImp += $monto;
+            }
+        }
+
+        return [
+            'totalNoConciliados' => $pendReg,
+            'importeNoConciliados' => round($pendImp, 2),
+            'totalConciliados' => $concReg,
+            'importeConciliados' => round($concImp, 2),
+        ];
+    }
+
+    /**
+     * Detalle de pagos importados (mismos filtros que el resumen).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getPagosConciliacionImportados($fecha)
+    {
+        $fecha = $this->normalizarFechaYmd($fecha);
+        if ($fecha === '') {
+            return [];
+        }
+
+        $db = new Database();
+        if ($db->db_activa === null) {
+            return [];
+        }
+
+        $cond = $this->condicionMpImportadosDia();
+
+        $qInd = <<<SQL
+SELECT TO_CHAR(a.FDEPOSITO, 'DD/MM/YY') AS FECHA,
+       a.REFERENCIA,
+       a.CDGCLNS AS CREDITO,
+       a.CICLO,
+       NVL(RTRIM(LTRIM(b.NOMBRE1 || ' ' || b.NOMBRE2)), '') || ' ' || NVL(RTRIM(LTRIM(b.PRIMAPE || ' ' || b.SEGAPE)), '') AS NOMBRE,
+       a.CANTIDAD,
+       a.CONCILIADO,
+       a.CDGEM,
+       a.CDGNS,
+       a.CDGCLNS,
+       a.CLNS,
+       a.PERIODO,
+       a.SECUENCIA,
+       a.CDGCB,
+       TO_CHAR(a.FREALDEP, 'YYYY/MM/DD') AS FREALDEP
+FROM MP a
+LEFT JOIN CL b ON b.CDGEM = a.CDGEM AND b.CODIGO = a.CDGCLNS
+WHERE a.CLNS = 'I' AND {$cond}
+SQL;
+
+        $qGru = <<<SQL
+SELECT TO_CHAR(a.FDEPOSITO, 'DD/MM/YY') AS FECHA,
+       a.REFERENCIA,
+       a.CDGCLNS AS CREDITO,
+       a.CICLO,
+       RTRIM(LTRIM(b.NOMBRE)) AS NOMBRE,
+       a.CANTIDAD,
+       a.CONCILIADO,
+       a.CDGEM,
+       a.CDGNS,
+       a.CDGCLNS,
+       a.CLNS,
+       a.PERIODO,
+       a.SECUENCIA,
+       a.CDGCB,
+       TO_CHAR(a.FREALDEP, 'YYYY/MM/DD') AS FREALDEP
+FROM MP a
+LEFT JOIN NS b ON b.CDGEM = a.CDGEM AND b.CODIGO = a.CDGCLNS
+WHERE a.CLNS = 'G' AND {$cond}
+SQL;
+
+        $query = '(' . $qInd . ') UNION ALL (' . $qGru . ') ORDER BY FECHA, CREDITO, CICLO, SECUENCIA';
+
+        try {
+            $stmt = $db->db_activa->prepare($query);
+            $stmt->execute(['fecha' => $fecha]);
+            $filas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            if (!is_array($filas)) {
+                return [];
+            }
+            foreach ($filas as $i => $row) {
+                if (isset($row['CANTIDAD'])) {
+                    $filas[$i]['CANTIDAD'] = (float) $row['CANTIDAD'];
+                }
+                $filas[$i]['NOMBRE'] = trim((string) ($row['NOMBRE'] ?? ''));
+            }
+
+            return $filas;
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    /**
      * Pagos por conciliar desde MP (réplica exacta de BuscarPagos VB6).
      * Filtros opcionales: empresa, fechaPago, tipoCliente (I/G), codigo, ciclo, ctaBancaria.
      *

@@ -15,14 +15,14 @@ use App\repositories\CierreDiaRepository;
 class CierreDiaService
 {
     /**
-     * Datos para la pantalla: últimos 5 cierres, estado de ejecución y tiempo estimado.
+     * Datos para la pantalla: cierres de los últimos 7 días, estado de ejecución y tiempo estimado.
      *
      * @return array { success, mensaje, datos: { ultimos5, ejecutando, inicio, usuario, tiempoEstimado } }
      */
     public static function obtenerDatosPantalla()
     {
         $repo = new CierreDiaRepository();
-        $ultimos5 = $repo->getUltimos5Cierres();
+        $ultimos5 = $repo->getUltimos7Cierres();
         $fechasResumen = [];
         foreach ($ultimos5 as $fila) {
             $fechaIso = isset($fila['FECHA_CIERRE_ISO']) ? trim((string) $fila['FECHA_CIERRE_ISO']) : '';
@@ -47,6 +47,9 @@ class CierreDiaService
                 $fila['CREDITOS_DEVENGO'] = 0;
                 $fila['MONTO_INTERESES_DEVENGADOS'] = '$ 0.00';
             }
+            $enProceso = !empty($fila['EN_PROCESO']) && (int) $fila['EN_PROCESO'] === 1;
+            unset($fila['EN_PROCESO']);
+            $fila['ESTADO_TEXTO'] = $enProceso ? 'Procesando' : 'Finalizado';
         }
         unset($fila);
         $enEjecucion = $repo->validaCierreEnEjecucion();
