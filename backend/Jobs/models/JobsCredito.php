@@ -1608,4 +1608,35 @@ class JobsCredito extends Model
             $parametros
         ];
     }
+
+    /**
+     * Reporte de días de atraso (PRN situación L).
+     *
+     * @return array { success, mensaje, datos }
+     */
+    public static function GetRepDiasAtraso()
+    {
+        $qry = <<<SQL
+            SELECT
+                PRN.CDGNS AS COD_CTE,
+                PRN.CICLO,
+                NS.NOMBRE,
+                TO_CHAR(PRN.INICIO, 'DD/MM/YYYY') AS INICIO,
+                FNCALDIASATRASO(PRN.CDGEM, PRN.CDGNS, PRN.CICLO, 'G', SYSDATE) AS DIAS_ATRASO
+            FROM
+                PRN
+                INNER JOIN NS ON PRN.CDGEM = NS.CDGEM
+                             AND PRN.CDGNS = NS.CODIGO
+            WHERE
+                PRN.SITUACION = 'L'
+        SQL;
+
+        try {
+            $db = new Database();
+            $res = $db->queryAll($qry);
+            return self::Responde(true, 'Consulta exitosa', $res);
+        } catch (\Exception $e) {
+            return self::Responde(false, 'Error al consultar el reporte', null, $e->getMessage());
+        }
+    }
 }

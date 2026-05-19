@@ -220,7 +220,6 @@ class Menu
     private function opcionesHerramientas()
     {
         return [
-            $this->enlace('Rep Dia de Atraso', '/Herramientas/RepDiaAtraso/', ['AMGM']),
             $this->enlace('Auditoría Devengo', '/Herramientas/AuditoriaDevengo/', ['AMGM']),
             $this->enlace('Estatus BD', '/Herramientas/EstatusBD/', ['AMGM']),
         ];

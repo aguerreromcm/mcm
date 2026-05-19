@@ -320,6 +320,62 @@ class JobsCredito extends Job
         }
         \App\services\CierreDiaService::finalizarCierre($fechaCierre, $exito);
     }
+
+    /**
+     * Genera el reporte de días de atraso en CSV (PRN situación L, reporte completo).
+     *
+     * @param string $rutaSalida Directorio de salida; si vacío, usa USERPROFILE\Desktop
+     */
+    public function RepDiasAtraso($rutaSalida = '')
+    {
+        self::SaveLog('Inicio');
+        set_time_limit(0);
+
+        $ruta = trim((string) $rutaSalida);
+        if ($ruta === '') {
+            $profile = getenv('USERPROFILE');
+            if ($profile) {
+                $ruta = $profile . DIRECTORY_SEPARATOR . 'Desktop';
+            }
+        }
+
+        if ($ruta === '' || !is_dir($ruta)) {
+            self::SaveLog('Ruta de salida no existe, se omite la generación del CSV: ' . $ruta);
+            return;
+        }
+
+        $resultado = JobsDao::GetRepDiasAtraso();
+        if (!$resultado['success']) {
+            self::SaveLog('Finalizado con error: ' . $resultado['mensaje'] . '->' . ($resultado['error'] ?? ''));
+            return;
+        }
+
+        $filas = $resultado['datos'] ?? [];
+        $nombre = 'Rep_Días_atraso_' . date('Ymd') . '.csv';
+        $archivo = $ruta . DIRECTORY_SEPARATOR . $nombre;
+
+        $out = @fopen($archivo, 'w');
+        if ($out === false) {
+            self::SaveLog('No se pudo escribir el archivo CSV: ' . $archivo);
+            return;
+        }
+
+        fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fputcsv($out, ['COD_CTE', 'CICLO', 'NOMBRE', 'INICIO', 'DIAS_ATRASO'], ',');
+        foreach ($filas as $fila) {
+            fputcsv($out, [
+                $fila['COD_CTE'] ?? '',
+                $fila['CICLO'] ?? '',
+                $fila['NOMBRE'] ?? '',
+                $fila['INICIO'] ?? '',
+                $fila['DIAS_ATRASO'] ?? '',
+            ], ',');
+        }
+        fclose($out);
+
+        self::SaveLog('CSV generado: ' . $archivo . ' (' . count($filas) . ' registros)');
+        self::SaveLog('Finalizado');
+    }
 }
 
 if (isset($argv[1])) {
@@ -337,9 +393,14 @@ if (isset($argv[1])) {
             $usuario = isset($argv[4]) ? $argv[4] : '';
             $jobs->CierreDiario($argv[2], $regenerar, $usuario);
             break;
+        case 'RepDiasAtraso':
+            $ruta = isset($argv[2]) ? $argv[2] : '';
+            $jobs->RepDiasAtraso($ruta);
+            break;
         case 'help':
             echo 'JobCheques: Actualiza los cheques de los créditos autorizados\n';
             echo 'SolicitudesFinalizadas: Evalúa el comentario final de la solicitud y la procesa para concluir con la solicitud\n';
+            echo 'RepDiasAtraso [ruta]: Genera Rep_Días_atraso_YYYYMMDD.csv; ruta opcional (por defecto Desktop del usuario)\n';
             break;
         default:
             echo 'No se encontró el job solicitado.\nEjecute "php JobsAhorro.php help" para ver los jobs disponibles.\n';
