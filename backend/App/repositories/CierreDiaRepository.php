@@ -116,11 +116,11 @@ class CierreDiaRepository
     }
 
     /**
-     * Últimos 5 cierres finalizados para mostrar en pantalla.
+     * Cierres de los últimos 7 días (incluye en proceso y finalizados).
      *
      * @return array Lista de filas con FECHA_CALCULO, INICIO, FIN, USUARIO, EXITO
      */
-    public function getUltimos5Cierres()
+    public function getUltimos7Cierres()
     {
         $qry = <<<SQL
             SELECT
@@ -129,11 +129,11 @@ class CierreDiaRepository
                 TO_CHAR(INICIO, 'DD/MM/YYYY HH24:MI') AS INICIO,
                 TO_CHAR(FIN, 'DD/MM/YYYY HH24:MI') AS FIN,
                 USUARIO,
-                NVL(EXITO, 0) AS EXITO
+                NVL(EXITO, 0) AS EXITO,
+                CASE WHEN FIN IS NULL THEN 1 ELSE 0 END AS EN_PROCESO
             FROM BITACORA_CIERRE_DIARIO
-            WHERE FIN IS NOT NULL
-            ORDER BY FIN DESC
-            FETCH FIRST 5 ROWS ONLY
+            WHERE TRUNC(FECHA_CALCULO) >= TRUNC(SYSDATE) - 7
+            ORDER BY NVL(FIN, INICIO) DESC, INICIO DESC
         SQL;
         return $this->sinSalida(function () use ($qry) {
             try {
@@ -144,6 +144,12 @@ class CierreDiaRepository
                 return [];
             }
         });
+    }
+
+    /** @deprecated Use getUltimos7Cierres() */
+    public function getUltimos5Cierres()
+    {
+        return $this->getUltimos7Cierres();
     }
 
     /**
@@ -234,7 +240,7 @@ class CierreDiaRepository
 
     /**
      * Resumen devengo para correo y pantalla: mismo criterio que validación manual en BD.
-     * SELECT COUNT(*), SUM(DEV_DIARIO) FROM DEVENGO_DIARIO WHERE TRUNC(FECHA_CALC) = TO_DATE(:fecha, ...)
+     * SELECT COUNT(*), SUM(DEV_DIARIO) FROM DEVENGO_DIARIO WHERE FECHA_CALC = TO_DATE(:fecha, ...)
      *
      * @param string $fechaDevengo Y-m-d (fecha calendario de FECHA_CALC; alinear con fecha de cierre en bitácora)
      * @return array [ 'creditos' => int, 'monto' => float ]
@@ -314,7 +320,7 @@ class CierreDiaRepository
                         NVL(SUM(DEV_DIARIO), 0) AS MONTO
                     FROM DEVENGO_DIARIO
                     WHERE TRUNC(FECHA_CALC) IN ($inList)
-                    GROUP BY TO_CHAR(TRUNC(FECHA_CALC), 'YYYY-MM-DD')
+                    GROUP BY TRUNC(FECHA_CALC)
                 SQL;
 
                 $filasCierre = $db->queryAll($qryCierre, $binds);

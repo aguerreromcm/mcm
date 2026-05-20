@@ -101,8 +101,11 @@ class Operaciones extends Controller
                             }
                             tbody.innerHTML = lista
                                 .map((c) => {
-                                    const exito = c.EXITO !== undefined && c.EXITO !== null && String(c.EXITO) !== "0"
-                                    const estado = exito ? "OK" : "Error"
+                                    const estado = c.ESTADO_TEXTO
+                                        ? String(c.ESTADO_TEXTO)
+                                        : (c.EN_PROCESO === 1 || c.EN_PROCESO === "1" || !c.FIN || String(c.FIN).trim() === ""
+                                            ? "Procesando"
+                                            : "Finalizado")
                                     const inicio = escHtml(String(c.INICIO ?? "-"))
                                     const fin = escHtml(String(c.FIN ?? "-"))
                                     return (
@@ -502,7 +505,7 @@ class Operaciones extends Controller
             $ciclo = isset($_POST['ciclo']) ? trim((string) $_POST['ciclo']) : '';
             $ctaBancaria = isset($_POST['ctaBancaria']) ? trim((string) $_POST['ctaBancaria']) : '';
             $modo = isset($_POST['modoConciliado']) ? trim((string) $_POST['modoConciliado']) : 'legacy';
-            if ($modo !== 'por_fecha') {
+            if (!in_array($modo, ['por_fecha', 'importados', 'cierre_dia'], true)) {
                 $modo = 'legacy';
             }
             $respuesta = ConciliacionService::buscarPagosConciliacion($empresa, $fecha, $tipoCliente, $codigo, $ciclo, $ctaBancaria, $modo);

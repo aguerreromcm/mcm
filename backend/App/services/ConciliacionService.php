@@ -27,8 +27,41 @@ class ConciliacionService
      * @param string $modoConciliado legacy | por_fecha (solo afecta la consulta MP en repositorio)
      * @return array { success, mensaje, datos: { filas, resumen }, error }
      */
+    /**
+     * Conciliación en cierre de día: MP importados (FDEPOSITO, TIPO=PD, MODO=I).
+     *
+     * @param string $fechaPago Y-m-d
+     * @return array
+     */
+    public static function buscarConciliacionImportados($fechaPago)
+    {
+        $fechaPago = trim((string) $fechaPago);
+        if ($fechaPago === '') {
+            return Model::Responde(false, 'La fecha es obligatoria.', null, 'Fecha vacía');
+        }
+
+        $repo = new ConciliacionRepository();
+        $filas = $repo->getPagosConciliacionImportados($fechaPago);
+        $resumen = $repo->getResumenConciliacionImportados($fechaPago);
+        $totalRegistros = count($filas);
+
+        return Model::Responde(
+            true,
+            $totalRegistros > 0 ? "Se encontraron un total de {$totalRegistros} pagos." : 'No se encontraron pagos importados para la fecha.',
+            [
+                'filas' => $filas,
+                'resumen' => $resumen,
+            ]
+        );
+    }
+
     public static function buscarPagosConciliacion($empresa, $fechaPago, $tipoCliente, $codigo, $ciclo, $ctaBancaria, $modoConciliado = 'legacy')
     {
+        $modoConciliado = trim((string) $modoConciliado);
+        if ($modoConciliado === 'importados' || $modoConciliado === 'cierre_dia') {
+            return self::buscarConciliacionImportados($fechaPago);
+        }
+
         $repo = new ConciliacionRepository();
 
         $empresa = trim((string) $empresa);
