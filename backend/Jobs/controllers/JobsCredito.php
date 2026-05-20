@@ -236,81 +236,6 @@ class JobsCredito extends Job
     }
 
     /**
-     * Ejecuta el cierre diario: SP_PAGOS_CIERRE_DEVENGO y finalización (bitácora + correo).
-     *
-     * @param string $fecha Fecha en Y-m-d o DD/MM/YYYY (fecha de cierre)
-     * @param int $regenerar Si distinto de 0, borra DEVENGO_DIARIO y TBL_CIERRE_DIA del día y ejecuta el SP
-     * @param string $usuario Usuario que ejecuta el proceso en BD
-     */
-    public function CierreDiario($fecha, $regenerar = 0, $usuario = '')
-    {
-        self::SaveLog('Iniciando ejecución del cierre diario');
-
-        $fechaNorm = null;
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
-            $fechaNorm = $fecha;
-        } elseif (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $fecha)) {
-            $d = \DateTime::createFromFormat('d/m/Y', $fecha);
-            $fechaNorm = $d ? $d->format('Y-m-d') : null;
-        }
-        if ($fechaNorm === null) {
-            self::SaveLog("Error: Fecha no válida ({$fecha}).");
-            if (!defined('APPPATH')) {
-                define('PROJECTPATH', dirname(dirname(__DIR__)));
-                define('APPPATH', PROJECTPATH . '/App');
-                spl_autoload_register(function ($class) {
-                    $filename = PROJECTPATH . '/' . str_replace('\\', '/', $class) . '.php';
-                    if (is_file($filename)) {
-                        include_once $filename;
-                    }
-                });
-            }
-            $repo = new \App\repositories\CierreDiaRepository();
-            $repo->registrarFinUltimoAbierto();
-            return;
-        }
-
-        if (!defined('APPPATH')) {
-            define('PROJECTPATH', dirname(dirname(__DIR__)));
-            define('APPPATH', PROJECTPATH . '/App');
-            spl_autoload_register(function ($class) {
-                $filename = PROJECTPATH . '/' . str_replace('\\', '/', $class) . '.php';
-                if (is_file($filename)) {
-                    include_once $filename;
-                }
-            });
-        }
-
-        $repo = new \App\repositories\CierreDiaRepository();
-        $usuario = trim((string) $usuario);
-
-        $config = \Core\App::getConfig();
-        $configCierre = isset($config['cierre_dia']) ? $config['cierre_dia'] : [];
-        if (!is_array($configCierre) && function_exists('parse_ini_file')) {
-            $ini = @parse_ini_file(PROJECTPATH . '/App/config/configuracion.ini', true);
-            $configCierre = isset($ini['cierre_dia']) ? $ini['cierre_dia'] : [];
-        }
-        $soloFlujo = !empty($configCierre['CIERRE_DIA_SOLO_FLUJO']) && (
-            filter_var($configCierre['CIERRE_DIA_SOLO_FLUJO'], FILTER_VALIDATE_BOOLEAN) ||
-            $configCierre['CIERRE_DIA_SOLO_FLUJO'] === 'true' ||
-            $configCierre['CIERRE_DIA_SOLO_FLUJO'] === '1'
-        );
-        if ($soloFlujo) {
-            self::SaveLog('Modo solo flujo (CIERRE_DIA_SOLO_FLUJO=true): se ejecuta cierre completo y el resumen se envía a CORREOS_DESARROLLO.');
-        }
-
-        try {
-            $repo->ejecutarSpPagosCierreDevengo($fechaNorm, $usuario, $regenerar !== 0);
-            self::SaveLog('SP_PAGOS_CIERRE_DEVENGO ejecutado correctamente.');
-
-            $this->finalizarCierreApp($fechaNorm, 1);
-        } catch (\Throwable $e) {
-            self::SaveLog('Error en cierre: ' . $e->getMessage());
-            $this->finalizarCierreApp($fechaNorm, 0);
-        }
-    }
-
-    /**
      * Llama a CierreDiaService::finalizarCierre (registrar fin, enviar correo).
      */
     private function finalizarCierreApp($fechaCierre, $exito)
@@ -387,11 +312,6 @@ if (isset($argv[1])) {
             break;
         case 'SolicitudesFinalizadas':
             $jobs->SolicitudesFinalizadas();
-            break;
-        case 'CierreDiario':
-            $regenerar = isset($argv[3]) ? (int) $argv[3] : 0;
-            $usuario = isset($argv[4]) ? $argv[4] : '';
-            $jobs->CierreDiario($argv[2], $regenerar, $usuario);
             break;
         case 'RepDiasAtraso':
             $ruta = isset($argv[2]) ? $argv[2] : '';
