@@ -90,7 +90,7 @@ class Menu
             $this->enlace('Pagos App (DEMO)', '/Pagos_temporal/CorteEjecutivo/', ['AMGM', 'FLHR']),
             $this->enlace('Pagos App', '/Pagos/CorteEjecutivo/', ['ADMIN', 'CAJA', 'FLHR', 'HEDC', 'JULM', 'CRCV', 'LUMM', 'EMGL', 'PEAE', 'MCDP', 'LVGA', 'LGFR']),
             $this->enlace('Layout Contable', '/Pagos/Layout/', ['ADMIN', 'ACALL', 'LAYOU', 'FECR']),
-            $this->enlace('Registro de Pagos Caja', '/Pagos/PagosRegistro/', ['ADMIN', 'CAJA', 'LGFR', 'PLMV', 'PMAB', 'MGJC', 'AVGA', 'FLCR', 'COCS', 'GOIY', 'DAGC', 'COVG', 'TESP', 'JACJ']),
+            $this->enlace('Registro de Pagos Caja', '/Pagos/PagosRegistro/', ['ADMIN', 'CAJA', 'LGFR', 'PLMV', 'MGJC', 'AVGA', 'FLCR', 'COCS', 'GOIY', 'DAGC', 'COVG', 'TESP']),
             $this->enlace('Consulta de Pagos Cliente', '/Pagos/PagosConsultaUsuarios/', ['ADMIN', 'ACALL']),
             $this->enlace('Consultar Pagos', '/Pagos/PagosConsulta/', ['ADMIN', 'CAJA', 'GTOCA', 'AMOCA', 'OCOF', 'CPAGO', 'ACALL']),
             $this->enlace('Reimprimir Recibo de Efectivo', '/Pagos/ReimprimirReciboEfectivo/', ['ADMIN', 'CAJA', 'GTOCA', 'AMOCA', 'OCOF', 'CPAGO', 'ACALL']),
@@ -161,8 +161,8 @@ class Menu
     private function opcionesTesoreria()
     {
         return [
-            $this->enlace('Reporte Productora Cultiva', '/Tesoreria/ReportePC', ['ADMIN', 'PLMV', 'MCDP', 'LGFR', 'MACI', 'MGJC', 'JACJ', 'LVGA', 'FLHR']),
-            $this->enlace('Solicitudes de Retiro', '/Ahorro/Retiros/', ['ADMIN', 'CAJA', 'PLMV', 'MCDP', 'LGFR', 'MACI', 'MGJC', 'JACJ', 'LVGA', 'FLHR', 'ESMM']),
+            $this->enlace('Reporte Productora Cultiva', '/Tesoreria/ReportePC', ['ADMIN', 'PLMV', 'MCDP', 'LGFR', 'MACI', 'MGJC', 'LVGA', 'FLHR']),
+            $this->enlace('Solicitudes de Retiro', '/Ahorro/Retiros/', ['ADMIN', 'CAJA', 'PLMV', 'MCDP', 'LGFR', 'MACI', 'MGJC', 'LVGA', 'FLHR', 'ESMM']),
         ];
     }
 
