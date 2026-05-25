@@ -9,7 +9,6 @@ include_once dirname(__DIR__) . "/models/JobPruebaMail.php";
 
 use Core\Job;
 use Jobs\models\JobPruebaMail as JobsDao;
-use App\services\CierreDiaResumenPresenter;
 use Mensajero;
 
 class JobsPrueba extends Job
@@ -19,107 +18,19 @@ class JobsPrueba extends Job
         parent::__construct("Job_pruba_mail");
     }
 
-    /**
-     * Autoload App/Core para consultar el mismo resumen que la pantalla.
-     */
-    private function registrarAutoloadApp()
-    {
-        if (defined('PROJECTPATH')) {
-            return;
-        }
-        define('PROJECTPATH', dirname(__DIR__) . '/..');
-        define('APPPATH', PROJECTPATH . '/App');
-        spl_autoload_register(function ($class_name) {
-            $filename = PROJECTPATH . '/' . str_replace('\\', '/', $class_name) . '.php';
-            if (is_file($filename)) {
-                include_once $filename;
-            }
-        });
-    }
-
-    private function fmtEnteroCorreo($n)
-    {
-        return number_format((int) $n, 0, '.', ',');
-    }
-
-    private function fmtMonedaCorreo($n)
-    {
-        return '$' . number_format((float) $n, 2, '.', ',');
-    }
-
     public function run()
     {
-        global $argv;
-
-        $this->registrarAutoloadApp();
-
-        $fechaCierre = date('Y-m-d', strtotime('yesterday'));
-        if (PHP_SAPI === 'cli' && isset($argv[1]) && trim((string) $argv[1]) !== '') {
-            $f = trim((string) $argv[1]);
-            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $f) && strtotime($f) !== false) {
-                $fechaCierre = $f;
-            } else {
-                echo "Fecha inválida (use YYYY-MM-DD). Se usa ayer.\n";
-            }
-        }
-        $fechaFmt = date('d/m/Y', strtotime($fechaCierre));
-        $fechaDevengoFmt = date('d/m/Y', strtotime($fechaCierre . ' +1 day'));
-
-        $iniPath = dirname(__DIR__) . '/../App/config/configuracion.ini';
-        $ini = @parse_ini_file($iniPath, true);
-        $seccionCierre = isset($ini['cierre_dia']) && is_array($ini['cierre_dia']) ? $ini['cierre_dia'] : [];
-        $correosRaw = isset($seccionCierre['CORREOS_DESARROLLO']) ? trim((string) $seccionCierre['CORREOS_DESARROLLO']) : '';
-        $destinatarios = array_values(array_filter(array_map('trim', explode(',', $correosRaw))));
-        if (empty($destinatarios)) {
-            echo "Error: configure CORREOS_DESARROLLO en [cierre_dia] del configuracion.ini\n";
-            return;
-        }
-
-        $asunto = '[PRUEBA] Resumen de cierre de día - ' . $fechaFmt;
-
-        try {
-            $resumen = CierreDiaResumenPresenter::construir($fechaCierre);
-        } catch (\Throwable $e) {
-            echo 'Error al obtener resumen de cierre: ' . $e->getMessage() . "\n";
-            return;
-        }
-
-        $proc = $resumen['proceso'] ?? [];
-        $pag = $resumen['pagos'] ?? [];
-        $conc = $resumen['conciliacion'] ?? [];
-        $dev = $resumen['devengo'] ?? [];
-
-        $procUsuario = (string) ($proc['usuario'] ?? '-');
-        $procInicio = (string) ($proc['inicio'] ?? '-');
-        $procFin = (string) ($proc['fin'] ?? '-');
-        $procRegistros = $this->fmtEnteroCorreo($proc['registros'] ?? 0);
-        $procEstatus = (string) ($proc['estatus'] ?? '-');
-
-        $pagTotalN = $this->fmtEnteroCorreo(($pag['total'] ?? [])['registros'] ?? 0);
-        $pagTotalM = $this->fmtMonedaCorreo(($pag['total'] ?? [])['importe'] ?? 0);
-        $pagPendN = $this->fmtEnteroCorreo(($pag['pendientes'] ?? [])['registros'] ?? 0);
-        $pagPendM = $this->fmtMonedaCorreo(($pag['pendientes'] ?? [])['importe'] ?? 0);
-        $pagAplN = $this->fmtEnteroCorreo(($pag['aplicados'] ?? [])['registros'] ?? 0);
-        $pagAplM = $this->fmtMonedaCorreo(($pag['aplicados'] ?? [])['importe'] ?? 0);
-        $pagPagosN = $this->fmtEnteroCorreo(($pag['pagos'] ?? [])['registros'] ?? 0);
-        $pagPagosM = $this->fmtMonedaCorreo(($pag['pagos'] ?? [])['importe'] ?? 0);
-        $pagGarN = $this->fmtEnteroCorreo(($pag['garantias'] ?? [])['registros'] ?? 0);
-        $pagGarM = $this->fmtMonedaCorreo(($pag['garantias'] ?? [])['importe'] ?? 0);
-        $pagIncN = $this->fmtEnteroCorreo(($pag['incidencias'] ?? [])['registros'] ?? 0);
-        $pagIncM = $this->fmtMonedaCorreo(($pag['incidencias'] ?? [])['importe'] ?? 0);
-
-        $concPendN = $this->fmtEnteroCorreo(($conc['pendientes'] ?? [])['registros'] ?? 0);
-        $concPendM = $this->fmtMonedaCorreo(($conc['pendientes'] ?? [])['importe'] ?? 0);
-        $concConcN = $this->fmtEnteroCorreo(($conc['conciliados'] ?? [])['registros'] ?? 0);
-        $concConcM = $this->fmtMonedaCorreo(($conc['conciliados'] ?? [])['importe'] ?? 0);
-
-        $devCreditosN = $this->fmtEnteroCorreo($dev['creditos'] ?? 0);
-        $devCreditosM = $this->fmtMonedaCorreo($dev['monto'] ?? 0);
-
         $datos = JobsDao::getUsuraio();
         if (!$datos['success']) {
-            echo $datos['mensaje'] . "\n";
+            echo $datos['mensaje'];
+            return;
         }
+
+        $asunto = "Prueba de correo";
+        $destinatarios = [
+            "alberto.s@masconmenos.com.mx",
+            "albertosoto.lab@gmail.com"
+        ];
 
         $cuerpo = <<<HTML
             <table
@@ -140,7 +51,7 @@ class JobsPrueba extends Job
                                 margin-bottom: 18px;
                             "
                         >
-                            Resumen de cierre del día {$fechaFmt}
+                            Resumen de cierre del d├¡a 19/05/2026
                         </div>
                     </td>
                 </tr>
@@ -181,7 +92,7 @@ class JobsPrueba extends Job
                                 Usuario
                             </div>
                             <div style="font-size: 14px; color: #0f172a; font-weight: 700">
-                                {$procUsuario}
+                                AMGM
                             </div>
                         </div>
                     </td>
@@ -205,7 +116,7 @@ class JobsPrueba extends Job
                                 Inicio
                             </div>
                             <div style="font-size: 14px; color: #0f172a; font-weight: 700">
-                                {$procInicio}
+                                21/05/2026 10:35
                             </div>
                         </div>
                     </td>
@@ -229,7 +140,7 @@ class JobsPrueba extends Job
                                 Fin
                             </div>
                             <div style="font-size: 14px; color: #0f172a; font-weight: 700">
-                                {$procFin}
+                                21/05/2026 10:42
                             </div>
                         </div>
                     </td>
@@ -255,7 +166,7 @@ class JobsPrueba extends Job
                                 Registros
                             </div>
                             <div style="font-size: 14px; color: #0f172a; font-weight: 700">
-                                {$procRegistros}
+                                9407
                             </div>
                         </div>
                     </td>
@@ -279,7 +190,7 @@ class JobsPrueba extends Job
                                 Estatus
                             </div>
                             <div style="font-size: 14px; color: #0f172a; font-weight: 700">
-                                {$procEstatus}
+                                Finalizado
                             </div>
                         </div>
                     </td>
@@ -301,7 +212,7 @@ class JobsPrueba extends Job
                                 margin-bottom: 10px;
                             "
                         >
-                            Pagos del día
+                            Pagos del d├¡a
                         </div>
                     </td>
                 </tr>
@@ -334,7 +245,7 @@ class JobsPrueba extends Job
                                     letter-spacing: -0.02em;
                                 "
                             >
-                                {$pagTotalN}
+                                973
                             </div>
                             <div
                                 style="
@@ -344,7 +255,7 @@ class JobsPrueba extends Job
                                     font-weight: 600;
                                 "
                             >
-                                {$pagTotalM}
+                                $1,478,804.00
                             </div>
                         </div>
                     </td>
@@ -376,7 +287,7 @@ class JobsPrueba extends Job
                                     letter-spacing: -0.02em;
                                 "
                             >
-                                {$pagPendN}
+                                0
                             </div>
                             <div
                                 style="
@@ -386,7 +297,7 @@ class JobsPrueba extends Job
                                     font-weight: 600;
                                 "
                             >
-                                {$pagPendM}
+                                $0.00
                             </div>
                         </div>
                     </td>
@@ -418,7 +329,7 @@ class JobsPrueba extends Job
                                     letter-spacing: -0.02em;
                                 "
                             >
-                                {$pagAplN}
+                                973
                             </div>
                             <div
                                 style="
@@ -428,7 +339,7 @@ class JobsPrueba extends Job
                                     font-weight: 600;
                                 "
                             >
-                                {$pagAplM}
+                                $1,478,804.00
                             </div>
                         </div>
                     </td>
@@ -462,7 +373,7 @@ class JobsPrueba extends Job
                                     letter-spacing: -0.02em;
                                 "
                             >
-                                {$pagPagosN}
+                                961
                             </div>
                             <div
                                 style="
@@ -472,7 +383,7 @@ class JobsPrueba extends Job
                                     font-weight: 600;
                                 "
                             >
-                                {$pagPagosM}
+                                $1,466,774.00
                             </div>
                         </div>
                     </td>
@@ -493,7 +404,7 @@ class JobsPrueba extends Job
                                     font-weight: 600;
                                 "
                             >
-                                Garantías
+                                Garant├¡as
                             </div>
                             <div
                                 style="
@@ -504,7 +415,7 @@ class JobsPrueba extends Job
                                     letter-spacing: -0.02em;
                                 "
                             >
-                                {$pagGarN}
+                                12
                             </div>
                             <div
                                 style="
@@ -514,7 +425,7 @@ class JobsPrueba extends Job
                                     font-weight: 600;
                                 "
                             >
-                                {$pagGarM}
+                                $12,030.00
                             </div>
                         </div>
                     </td>
@@ -546,7 +457,7 @@ class JobsPrueba extends Job
                                     letter-spacing: -0.02em;
                                 "
                             >
-                                {$pagIncN}
+                                0
                             </div>
                             <div
                                 style="
@@ -556,7 +467,7 @@ class JobsPrueba extends Job
                                     font-weight: 600;
                                 "
                             >
-                                {$pagIncM}
+                                $0.00
                             </div>
                         </div>
                     </td>
@@ -578,7 +489,7 @@ class JobsPrueba extends Job
                                 margin-bottom: 10px;
                             "
                         >
-                            Conciliación
+                            Conciliaci├│n
                         </div>
                     </td>
                 </tr>
@@ -611,7 +522,7 @@ class JobsPrueba extends Job
                                     letter-spacing: -0.02em;
                                 "
                             >
-                                {$concPendN}
+                                0
                             </div>
                             <div
                                 style="
@@ -621,7 +532,7 @@ class JobsPrueba extends Job
                                     font-weight: 600;
                                 "
                             >
-                                {$concPendM}
+                                $0.00
                             </div>
                         </div>
                     </td>
@@ -653,7 +564,7 @@ class JobsPrueba extends Job
                                     letter-spacing: -0.02em;
                                 "
                             >
-                                {$concConcN}
+                                961
                             </div>
                             <div
                                 style="
@@ -663,7 +574,7 @@ class JobsPrueba extends Job
                                     font-weight: 600;
                                 "
                             >
-                                {$concConcM}
+                                $1,466,774.00
                             </div>
                         </div>
                     </td>
@@ -686,7 +597,7 @@ class JobsPrueba extends Job
                                 margin-bottom: 10px;
                             "
                         >
-                            Devengo para el día {$fechaDevengoFmt}
+                            Devengo para el d├¡a 20/05/2026
                         </div>
                     </td>
                 </tr>
@@ -708,7 +619,7 @@ class JobsPrueba extends Job
                                     font-weight: 600;
                                 "
                             >
-                                Créditos
+                                Cr├®ditos
                             </div>
                             <div
                                 style="
@@ -719,7 +630,7 @@ class JobsPrueba extends Job
                                     letter-spacing: -0.02em;
                                 "
                             >
-                                {$devCreditosN}
+                                4,504
                             </div>
                             <div
                                 style="
@@ -729,7 +640,7 @@ class JobsPrueba extends Job
                                     font-weight: 600;
                                 "
                             >
-                                {$devCreditosM}
+                                $306,171.78
                             </div>
                         </div>
                     </td>
@@ -741,11 +652,8 @@ class JobsPrueba extends Job
 
         $mensaje = Mensajero::Notificaciones($cuerpo);
 
-        if (Mensajero::EnviarCorreo($destinatarios, $asunto, $mensaje)) {
-            echo "Correo enviado a " . implode(', ', $destinatarios) . " (" . $fechaFmt . ")\n";
-        } else {
-            echo "Error al enviar correo\n";
-        }
+        if (Mensajero::EnviarCorreo($destinatarios, $asunto, $mensaje)) echo "Correo enviado";
+        else echo "Error al enviar correo";
     }
 }
 

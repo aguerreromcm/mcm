@@ -148,6 +148,48 @@ class PagosAplicacionService
     }
 
     /**
+     * Detalle de incidencias en RES_IMPOR para la fecha operativa.
+     *
+     * @param string $fecha Y-m-d o d/m/Y
+     * @param string|null $ctaBancaria Opcional (2 caracteres)
+     * @return array
+     */
+    public static function consultarIncidenciasImportacion($fecha, $ctaBancaria = null)
+    {
+        $fechaNorm = PagosAplicacionRepository::coerceFechaYmD($fecha);
+        if ($fechaNorm === null) {
+            return Model::Responde(false, 'La fecha no tiene un formato válido.', null, 'Fecha inválida');
+        }
+
+        $repo = new PagosAplicacionRepository();
+        $filas = $repo->getIncidenciasResImpor($fechaNorm, $ctaBancaria);
+        $columnas = [];
+        if (!empty($filas)) {
+            $columnas = array_keys($filas[0]);
+        }
+
+        $n = count($filas);
+        $fechaFmt = date('d/m/Y', strtotime($fechaNorm));
+        if ($n === 0) {
+            $mensaje = 'No hay incidencias de importación para el ' . $fechaFmt . '.';
+        } elseif ($n === 1) {
+            $mensaje = 'Se encontró 1 incidencia de importación para el ' . $fechaFmt . '.';
+        } else {
+            $mensaje = 'Se encontraron ' . $n . ' incidencias de importación para el ' . $fechaFmt . '.';
+        }
+
+        return Model::Responde(true, $mensaje, [
+            'filas' => $filas,
+            'columnas' => $columnas,
+            'fecha' => $fechaNorm,
+            'fechaPago' => date('d/m/Y', strtotime($fechaNorm)),
+            'ctaBancaria' => $ctaBancaria !== null && trim($ctaBancaria) !== ''
+                ? substr(trim($ctaBancaria), 0, 2)
+                : PagosAplicacionRepository::CUENTA_BANCARIA_RES_IMPOR,
+        ]);
+    }
+
+    /**
      * Ejecuta la aplicación de pagos: transacción, SP por fila, insert PAGOS_PROCESADOS.
      *
      * @param string $fecha Y-m-d

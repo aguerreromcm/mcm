@@ -31,6 +31,26 @@ class CierreDiaRepository
     }
 
     /**
+     * FECHA_CALC en DEVENGO_DIARIO para cierre del día X: el SP registra devengo en X + 1.
+     *
+     * @param string $fechaCierre Fecha de cierre Y-m-d
+     * @return string Fecha de devengo Y-m-d, o vacío si la entrada no es válida
+     */
+    private function fechaCalculoDevengoDesdeCierre($fechaCierre)
+    {
+        $fechaCierre = trim((string) $fechaCierre);
+        if ($fechaCierre === '') {
+            return '';
+        }
+        $dt = \DateTime::createFromFormat('Y-m-d', $fechaCierre);
+        if ($dt === false) {
+            return '';
+        }
+
+        return $dt->modify('+1 day')->format('Y-m-d');
+    }
+
+    /**
      * Indica si hay un proceso de cierre en ejecución (bitácora: cierre abierto, FIN IS NULL).
      * Primero COUNT(*) sobre BITACORA_CIERRE_DIARIO; si hay pendiente, se obtiene INICIO/USUARIO del último.
      *
@@ -116,7 +136,7 @@ class CierreDiaRepository
     }
 
     /**
-     * Cierres de los últimos 7 días (incluye en proceso y finalizados).
+     * Últimos 7 cierres en bitácora (más recientes primero; incluye en proceso y finalizados).
      *
      * @return array Lista de filas con FECHA_CALCULO, INICIO, FIN, USUARIO, EXITO
      */
@@ -132,8 +152,8 @@ class CierreDiaRepository
                 NVL(EXITO, 0) AS EXITO,
                 CASE WHEN FIN IS NULL THEN 1 ELSE 0 END AS EN_PROCESO
             FROM BITACORA_CIERRE_DIARIO
-            WHERE TRUNC(FECHA_CALCULO) >= TRUNC(SYSDATE) - 7
-            ORDER BY NVL(FIN, INICIO) DESC, INICIO DESC
+            ORDER BY NVL(FIN, INICIO) DESC, INICIO DESC, FECHA_CALCULO DESC
+            FETCH FIRST 7 ROWS ONLY
         SQL;
         return $this->sinSalida(function () use ($qry) {
             try {
@@ -150,6 +170,44 @@ class CierreDiaRepository
     public function getUltimos5Cierres()
     {
         return $this->getUltimos7Cierres();
+    }
+
+    /**
+     * Última entrada de bitácora para la fecha de cierre indicada (la más reciente por INICIO).
+     *
+     * @param string $fechaCierre Y-m-d
+     * @return array|null
+     */
+    public function getBitacoraCierrePorFecha($fechaCierre)
+    {
+        $fechaCierre = trim((string) $fechaCierre);
+        if ($fechaCierre === '') {
+            return null;
+        }
+
+        $qry = <<<SQL
+            SELECT
+                USUARIO,
+                TO_CHAR(INICIO, 'DD/MM/YYYY HH24:MI') AS INICIO,
+                TO_CHAR(FIN, 'DD/MM/YYYY HH24:MI') AS FIN,
+                NVL(EXITO, 0) AS EXITO,
+                CASE WHEN FIN IS NULL THEN 1 ELSE 0 END AS EN_PROCESO
+            FROM BITACORA_CIERRE_DIARIO
+            WHERE TRUNC(FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
+            ORDER BY INICIO DESC
+            FETCH FIRST 1 ROW ONLY
+        SQL;
+
+        return $this->sinSalida(function () use ($qry, $fechaCierre) {
+            try {
+                $db = new Database();
+                $r = $db->queryOne($qry, ['fecha' => $fechaCierre]);
+
+                return is_array($r) && !empty($r) ? $r : null;
+            } catch (\Exception $e) {
+                return null;
+            }
+        });
     }
 
     /**
@@ -239,23 +297,29 @@ class CierreDiaRepository
     }
 
     /**
-     * Resumen devengo para correo y pantalla: mismo criterio que validación manual en BD.
-     * SELECT COUNT(*), SUM(DEV_DIARIO) FROM DEVENGO_DIARIO WHERE FECHA_CALC = TO_DATE(:fecha, ...)
+     * Resumen devengo para correo y pantalla (DEVENGO_DIARIO con FECHA_CALC = fecha de cierre + 1 día).
      *
-     * @param string $fechaDevengo Y-m-d (fecha calendario de FECHA_CALC; alinear con fecha de cierre en bitácora)
+     * @param string $fechaCierre Y-m-d fecha del cierre en bitácora
      * @return array [ 'creditos' => int, 'monto' => float ]
      */
-    public function getResumenDevengo($fechaDevengo)
+    public function getResumenDevengo($fechaCierre)
     {
-        $qry = <<<SQL
-            SELECT COUNT(*) AS CREDITOS, NVL(SUM(DEV_DIARIO), 0) AS MONTO
-            FROM DEVENGO_DIARIO
-            WHERE TRUNC(FECHA_CALC) = TO_DATE(:fecha, 'YYYY-MM-DD')
-        SQL;
+        $fechaDevengo = $this->fechaCalculoDevengoDesdeCierre($fechaCierre);
+        if ($fechaDevengo === '') {
+            return ['creditos' => 0, 'monto' => 0];
+        }
+
+        $qry = <<<'SQL'
+SELECT COUNT(*) AS CREDITOS, NVL(SUM(DEV_DIARIO), 0) AS MONTO
+FROM DEVENGO_DIARIO
+WHERE TRUNC(FECHA_CALC) = TO_DATE(:f1, 'YYYY-MM-DD')
+SQL;
+
         return $this->sinSalida(function () use ($qry, $fechaDevengo) {
             try {
                 $db = new Database();
-                $r = $db->queryOne($qry, ['fecha' => $fechaDevengo]);
+                $r = $db->queryOne($qry, ['f1' => $fechaDevengo]);
+
                 return [
                     'creditos' => (int) ($r['CREDITOS'] ?? 0),
                     'monto' => round((float) ($r['MONTO'] ?? 0), 2),
@@ -289,21 +353,39 @@ class CierreDiaRepository
         return $this->sinSalida(function () use ($fechas) {
             try {
                 $db = new Database();
-                $binds = [];
-                $holders = [];
-                foreach ($fechas as $i => $fecha) {
-                    $k = 'f' . $i;
-                    $holders[] = "TO_DATE(:$k, 'YYYY-MM-DD')";
-                    $binds[$k] = $fecha;
+                $bindsCierre = [];
+                $holdersCierre = [];
+                $bindsDevengo = [];
+                $holdersDevengo = [];
+                $devengoFechaACierre = [];
+
+                foreach ($fechas as $i => $fechaCierre) {
+                    $fechaDevengo = $this->fechaCalculoDevengoDesdeCierre($fechaCierre);
+                    if ($fechaDevengo === '') {
+                        continue;
+                    }
+                    $kc = 'c' . $i;
+                    $kd = 'd' . $i;
+                    $holdersCierre[] = "TO_DATE(:$kc, 'YYYY-MM-DD')";
+                    $bindsCierre[$kc] = $fechaCierre;
+                    $holdersDevengo[] = "TO_DATE(:$kd, 'YYYY-MM-DD')";
+                    $bindsDevengo[$kd] = $fechaDevengo;
+                    $devengoFechaACierre[$fechaDevengo] = $fechaCierre;
                 }
-                $inList = implode(', ', $holders);
+
+                if (empty($holdersCierre)) {
+                    return ['cierre' => [], 'devengo' => []];
+                }
+
+                $inListCierre = implode(', ', $holdersCierre);
+                $inListDevengo = implode(', ', $holdersDevengo);
 
                 $qryCierre = <<<SQL
                     SELECT
                         TO_CHAR(TCD.FECHA_CALC, 'YYYY-MM-DD') AS FECHA,
                         COUNT(*) AS TOTAL
                     FROM TBL_CIERRE_DIA TCD
-                    WHERE TCD.FECHA_CALC IN ($inList)
+                    WHERE TCD.FECHA_CALC IN ($inListCierre)
                       AND NOT EXISTS (
                           SELECT 1 FROM PRN_LEGAL PL
                           WHERE PL.CDGEM = TCD.CDGEM AND PL.CDGCLNS = TCD.CDGCLNS
@@ -315,16 +397,18 @@ class CierreDiaRepository
 
                 $qryDevengo = <<<SQL
                     SELECT
-                        TO_CHAR(TRUNC(FECHA_CALC), 'YYYY-MM-DD') AS FECHA,
+                        TO_CHAR(TRUNC(FECHA_CALC), 'YYYY-MM-DD') AS FECHA_DEVENGO,
                         COUNT(*) AS CREDITOS,
                         NVL(SUM(DEV_DIARIO), 0) AS MONTO
                     FROM DEVENGO_DIARIO
-                    WHERE TRUNC(FECHA_CALC) IN ($inList)
+                    WHERE TRUNC(FECHA_CALC) IN ($inListDevengo)
                     GROUP BY TRUNC(FECHA_CALC)
                 SQL;
 
-                $filasCierre = $db->queryAll($qryCierre, $binds);
-                $filasDevengo = $db->queryAll($qryDevengo, $binds);
+                $filasCierre = $db->queryAll($qryCierre, $bindsCierre);
+                $filasDevengo = empty($holdersDevengo)
+                    ? []
+                    : $db->queryAll($qryDevengo, $bindsDevengo);
 
                 $mapCierre = [];
                 if (is_array($filasCierre)) {
@@ -340,11 +424,15 @@ class CierreDiaRepository
                 $mapDevengo = [];
                 if (is_array($filasDevengo)) {
                     foreach ($filasDevengo as $r) {
-                        $fecha = isset($r['FECHA']) ? (string) $r['FECHA'] : '';
-                        if ($fecha === '') {
+                        $fechaDevengo = isset($r['FECHA_DEVENGO']) ? (string) $r['FECHA_DEVENGO'] : '';
+                        if ($fechaDevengo === '') {
                             continue;
                         }
-                        $mapDevengo[$fecha] = [
+                        $fechaCierre = $devengoFechaACierre[$fechaDevengo] ?? '';
+                        if ($fechaCierre === '') {
+                            continue;
+                        }
+                        $mapDevengo[$fechaCierre] = [
                             'creditos' => (int) ($r['CREDITOS'] ?? 0),
                             'monto' => round((float) ($r['MONTO'] ?? 0), 2),
                         ];
@@ -529,6 +617,8 @@ PLSQL;
             }
             $pdo = $db->db_activa;
             $param = ['f1' => $fechaDesde];
+            $fechaDevengo = $this->fechaCalculoDevengoDesdeCierre($fechaDesde);
+            $paramDevengo = ['f1' => $fechaDevengo];
 
             $qPagosdia = <<<'SQL'
 SELECT TO_CHAR(TRUNC(PGD.FECHA), 'DD/MM/YYYY') AS FECHA, COUNT(*) AS CNT
@@ -595,9 +685,13 @@ SQL;
             }
 
             try {
-                $st = $pdo->prepare($qDevengo);
-                $st->execute($param);
-                $devengo = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC));
+                if ($fechaDevengo === '') {
+                    $devengo = [];
+                } else {
+                    $st = $pdo->prepare($qDevengo);
+                    $st->execute($paramDevengo);
+                    $devengo = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC));
+                }
             } catch (\Throwable $e) {
                 $devengo = [];
             }

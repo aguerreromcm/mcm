@@ -84,6 +84,13 @@ class Operaciones extends Controller
                     return d.innerHTML
                 }
 
+                const refrescarPantallaTrasCierre = () => {
+                    refrescarTablaUltimosCierres()
+                    if (typeof window.refrescarDatosOperativosCierreDia === "function") {
+                        window.refrescarDatosOperativosCierreDia(true)
+                    }
+                }
+
                 const refrescarTablaUltimosCierres = () => {
                     fetch("/operaciones/UltimosCierresCierreDia", {
                         method: "GET",
@@ -175,8 +182,8 @@ class Operaciones extends Controller
                     if (regenerar) payload.regenerar = "1"
                     consultaServidor("/operaciones/ProcesaCierreDiario", payload, (respuesta) => {
                         if (!respuesta.success) return showError(respuesta.mensaje)
-                        refrescarTablaUltimosCierres()
-                        const mensaje = "El proceso de cierre diario ha sido iniciado. Al finalizar se enviará el resumen por correo."
+                        refrescarPantallaTrasCierre()
+                        const mensaje = respuesta.mensaje || "El proceso de cierre diario ha finalizado. Se enviará el resumen por correo."
                         showSuccess(mensaje).then(() => {
                             $("#procesar").attr("disabled", true)
                             fetch("/operaciones/ValidaCierreEnEjecucion", {
@@ -304,7 +311,7 @@ class Operaciones extends Controller
                             inicioEjecucion = ejecutando ? respuesta.datos.INICIO : null
                             usuarioEjecucion = ejecutando ? respuesta.datos.USUARIO : null
                             if (ejecutabaAntes && !ejecutando) {
-                                refrescarTablaUltimosCierres()
+                                refrescarPantallaTrasCierre()
                             }
                             validaEjecucionActiva()
                         })
@@ -357,13 +364,13 @@ class Operaciones extends Controller
     }
 
     /**
-     * POST/GET: fecha (Y-m-d). JSON: conteos del día (cobranza, cierre de cartera, devengo, depósitos) sin exponer nombres físicos de tablas.
+     * POST/GET: fecha (Y-m-d). JSON: resumen unificado (mismo contenido que el correo al finalizar cierre).
      */
     function InformacionDiaCierre()
     {
         $this->limpiaSalidaParaJson();
         $fecha = isset($_POST['fecha']) ? trim((string) $_POST['fecha']) : (isset($_GET['fecha']) ? trim((string) $_GET['fecha']) : '');
-        $resp = CierreDiaService::obtenerInformacionDiaResumenes($fecha);
+        $resp = CierreDiaService::obtenerResumenCierreDia($fecha);
         if (ob_get_level()) {
             ob_end_clean();
         }
@@ -479,6 +486,39 @@ class Operaciones extends Controller
         }
 
         // Enviar solo JSON: descartar cualquier salida previa y responder limpio
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        $json = json_encode($respuesta, JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            $json = '{"success":false,"mensaje":"Error al generar la respuesta."}';
+        }
+        echo $json;
+        exit;
+    }
+
+    /**
+     * POST: fecha. Detalle de incidencias RES_IMPOR (VALIDACION = 2) para la fecha operativa.
+     */
+    public function ConsultarIncidenciasImportacion()
+    {
+        try {
+            $fecha = isset($_POST['fecha']) ? trim((string) $_POST['fecha']) : '';
+            $ctaBancaria = isset($_POST['ctaBancaria']) ? trim((string) $_POST['ctaBancaria']) : '';
+            $respuesta = PagosAplicacionService::consultarIncidenciasImportacion(
+                $fecha,
+                $ctaBancaria !== '' ? $ctaBancaria : null
+            );
+        } catch (\Throwable $e) {
+            $respuesta = [
+                'success' => false,
+                'mensaje' => 'Error al consultar incidencias.',
+                'error' => $e->getMessage(),
+            ];
+        }
+
         while (ob_get_level()) {
             ob_end_clean();
         }

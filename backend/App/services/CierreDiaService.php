@@ -15,7 +15,7 @@ use App\repositories\CierreDiaRepository;
 class CierreDiaService
 {
     /**
-     * Datos para la pantalla: cierres de los últimos 7 días, estado de ejecución y tiempo estimado.
+     * Datos para la pantalla: últimos 7 cierres en bitácora, estado de ejecución y tiempo estimado.
      *
      * @return array { success, mensaje, datos: { ultimos5, ejecutando, inicio, usuario, tiempoEstimado } }
      */
@@ -185,13 +185,11 @@ class CierreDiaService
             return;
         }
 
-        // Resumen cierre: fecha de cierre. Devengo en resumen/correo: misma fecha calendario (como COUNT en BD por TRUNC(FECHA_CALC) = fecha_cierre).
-        $resCierre = $repo->getResumenCierre($fechaCierre);
-        $resDevengo = $repo->getResumenDevengo($fechaCierre);
-
-        $registros = (int) ($resCierre['registros'] ?? 0);
-        $creditos = (int) ($resDevengo['creditos'] ?? 0);
-        $montoDevengo = (float) ($resDevengo['monto'] ?? 0);
+        try {
+            $resumen = CierreDiaResumenPresenter::construir($fechaCierre);
+        } catch (\Throwable $e) {
+            return;
+        }
 
         $configCierre = self::getConfigCierreDia();
         $soloFlujo = self::isSoloFlujo($configCierre);
@@ -215,12 +213,8 @@ class CierreDiaService
             return;
         }
 
-        $fechaFmt = date('d/m/Y', strtotime($fechaCierre));
-        $html = '<p>Se ha completado el proceso de cierre de día.</p>';
-        $html .= '<p><b>Fecha de cierre:</b> ' . $fechaFmt . '</p>';
-        $html .= '<p><b>Registros de cierre procesados:</b> ' . $registros . '</p>';
-        $html .= '<p><b>Créditos (devengo):</b> ' . $creditos . '</p>';
-        $html .= '<p><b>Monto intereses devengados:</b> $ ' . number_format($montoDevengo, 2) . '</p>';
+        $fechaFmt = $resumen['fechaCierreFmt'] ?? date('d/m/Y', strtotime($fechaCierre));
+        $html = CierreDiaResumenPresenter::htmlCorreo($resumen);
 
         if (!class_exists('Mensajero')) {
             @include_once dirname(dirname(__DIR__)) . '/libs/PHPMailer/Mensajero.php';
@@ -237,29 +231,25 @@ class CierreDiaService
     }
 
     /**
-     * Cuatro resúmenes solo para el día de la fecha operativa (no acumulado de fechas posteriores).
+     * Resumen unificado de cierre (modal y correo): proceso, pagos, conciliación y devengo.
      *
-     * @param string $fechaYmd Y-m-d
-     * @return array Respuesta Model::Responde con datos: cobranza_del_dia, cierre_de_cartera, devengo_registrado, depositos_cuenta (cada lista: fecha, registros)
+     * @param string $fechaYmd Y-m-d fecha operativa / de cierre
+     * @return array Respuesta Model::Responde
      */
-    public static function obtenerInformacionDiaResumenes($fechaYmd)
+    public static function obtenerResumenCierreDia($fechaYmd)
     {
         $fechaYmd = trim((string) $fechaYmd);
         if ($fechaYmd === '') {
             return Model::Responde(false, 'Indique la fecha operativa.');
         }
-        $ts = strtotime($fechaYmd);
-        if ($ts === false) {
-            return Model::Responde(false, 'Fecha no válida.');
-        }
-        $fechaYmd = date('Y-m-d', $ts);
         try {
-            $repo = new CierreDiaRepository();
-            $datos = $repo->getInformacionDiaResumenes($fechaYmd);
+            $datos = CierreDiaResumenPresenter::construir($fechaYmd);
 
             return Model::Responde(true, 'OK', $datos);
+        } catch (\InvalidArgumentException $e) {
+            return Model::Responde(false, 'Fecha no válida.');
         } catch (\Throwable $e) {
-            return Model::Responde(false, 'Error al obtener la información del día.', null, $e->getMessage());
+            return Model::Responde(false, 'Error al obtener el resumen de cierre.', null, $e->getMessage());
         }
     }
 

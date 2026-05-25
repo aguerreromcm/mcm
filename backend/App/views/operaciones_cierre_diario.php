@@ -92,6 +92,127 @@
             text-align: center;
             vertical-align: middle;
         }
+        .cierre-dia-wrap #btnVerIncidenciasImportacion {
+            color: #f0ad4e;
+            vertical-align: middle;
+            margin-left: 4px;
+        }
+        .cierre-dia-wrap #btnVerIncidenciasImportacion:hover,
+        .cierre-dia-wrap #btnVerIncidenciasImportacion:focus {
+            color: #ffc766;
+            text-decoration: none;
+        }
+        .cierre-dia-wrap #tablaIncidenciasResImpor th,
+        .cierre-dia-wrap #tablaIncidenciasResImpor td {
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        /* Resumen de cierre (layout + tema claro por defecto) */
+        #modalInfoDiaCierre {
+            --cierre-resumen-fondo-tarjeta: #f8fafc;
+            --cierre-resumen-borde: #dbe3ef;
+            --cierre-resumen-texto: #0f172a;
+            --cierre-resumen-texto-sec: #334155;
+            --cierre-resumen-etiqueta: #64748b;
+            --cierre-resumen-banner-bg: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+        }
+        #modalInfoDiaCierre .cierre-resumen-banner {
+            background: var(--cierre-resumen-banner-bg);
+            border: 1px solid var(--cierre-resumen-borde);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 18px;
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--cierre-resumen-texto);
+        }
+        #modalInfoDiaCierre .cierre-resumen-seccion-titulo {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--cierre-resumen-etiqueta);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin: 0 0 10px 0;
+        }
+        #modalInfoDiaCierre .cierre-resumen-separador {
+            height: 1px;
+            background: var(--cierre-resumen-borde);
+            margin: 6px 0 18px 0;
+        }
+        #modalInfoDiaCierre .cierre-resumen-grid {
+            display: flex;
+            flex-wrap: wrap;
+            margin: 0 -6px 12px -6px;
+        }
+        #modalInfoDiaCierre .cierre-resumen-grid > .cierre-resumen-celda {
+            box-sizing: border-box;
+            padding: 0 6px 12px 6px;
+            flex: 0 0 33.333%;
+            max-width: 33.333%;
+        }
+        #modalInfoDiaCierre .cierre-resumen-grid-proceso-2 > .cierre-resumen-celda-2 {
+            flex: 0 0 66.666%;
+            max-width: 66.666%;
+        }
+        @media (max-width: 767px) {
+            #modalInfoDiaCierre .cierre-resumen-grid > .cierre-resumen-celda {
+                flex: 0 0 100%;
+                max-width: 100%;
+            }
+            #modalInfoDiaCierre .cierre-resumen-grid-proceso-2 > .cierre-resumen-celda-2 {
+                flex: 0 0 100%;
+                max-width: 100%;
+            }
+        }
+        #modalInfoDiaCierre .cierre-resumen-card-proceso,
+        #modalInfoDiaCierre .cierre-resumen-card-metrica {
+            background: var(--cierre-resumen-fondo-tarjeta);
+            border: 1px solid var(--cierre-resumen-borde);
+        }
+        #modalInfoDiaCierre .cierre-resumen-card-proceso {
+            border-radius: 12px;
+            padding: 12px 14px;
+            min-height: 72px;
+        }
+        #modalInfoDiaCierre .cierre-resumen-card-metrica {
+            border-radius: 14px;
+            padding: 14px;
+            min-height: 96px;
+        }
+        #modalInfoDiaCierre .cierre-resumen-card-label {
+            font-size: 12px;
+            color: var(--cierre-resumen-etiqueta);
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+        #modalInfoDiaCierre .cierre-resumen-card-valor {
+            font-size: 14px;
+            color: var(--cierre-resumen-texto);
+            font-weight: 700;
+        }
+        #modalInfoDiaCierre .cierre-resumen-card-numero {
+            font-size: 28px;
+            line-height: 1;
+            color: var(--cierre-resumen-texto);
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+        #modalInfoDiaCierre .cierre-resumen-card-monto {
+            font-size: 12px;
+            color: var(--cierre-resumen-texto-sec);
+            margin-top: 8px;
+            font-weight: 600;
+        }
+        @media (prefers-color-scheme: dark) {
+            #modalInfoDiaCierre {
+                --cierre-resumen-fondo-tarjeta: #2d333b;
+                --cierre-resumen-borde: #3d444d;
+                --cierre-resumen-texto: #e6edf3;
+                --cierre-resumen-texto-sec: #c9d1d9;
+                --cierre-resumen-etiqueta: #8b949e;
+                --cierre-resumen-banner-bg: linear-gradient(180deg, #363d47 0%, #2d333b 100%);
+            }
+        }
     </style>
 
     <div class="panel panel-default cierre-dia-wrap">
@@ -118,7 +239,7 @@
                     </div>
                     <div class="cierre-grupo-acciones cierre-bloque-botones">
                         <button type="button" class="btn btn-primary" id="procesar">Generar cierre</button>
-                        <button type="button" class="btn btn-info" id="btnInfoDiaCierre" title="Muestra conteos del día seleccionado (cobranza, cierre de cartera, devengo y depósitos)">Resumen de Cierre</button>
+                        <button type="button" class="btn btn-info" id="btnInfoDiaCierre" title="Resumen del cierre del día (mismo contenido que el correo)">Resumen de Cierre</button>
                     </div>
                 </div>
             </div>
@@ -165,7 +286,12 @@
                                 <span class="count_bottom" id="impResumenGarantias">$ 0.00</span>
                             </div>
                             <div class="col-md-2 col-sm-4 tile_stats_count">
-                                <span class="count_top"><i class="fa fa-exclamation-triangle"></i> Incidencias</span>
+                                <span class="count_top">
+                                    <i class="fa fa-exclamation-triangle"></i> Incidencias
+                                    <button type="button" id="btnVerIncidenciasImportacion" class="btn btn-link btn-xs" style="display: none;" title="Ver detalle de incidencias">
+                                        <i class="fa fa-search"></i>
+                                    </button>
+                                </span>
                                 <div class="count" id="cntResumenIncidencias">0</div>
                                 <span class="count_bottom" id="impResumenIncidencias">$ 0.00</span>
                             </div>
@@ -252,7 +378,7 @@
                 </div>
 
                 <div role="tabpanel" class="tab-pane" id="tabCierre">
-                    <p class="text-muted cierre-descripcion">Resumen de los 7 días anteriores.</p>
+                    <p class="text-muted cierre-descripcion">Últimos 7 cierres registrados.</p>
                     <div class="table-responsive">
                         <table class="table table-striped table-bordered table-condensed">
                             <thead>
@@ -302,47 +428,39 @@
         </div>
     </div>
 
+    <div class="modal fade" id="modalIncidenciasImportacion" tabindex="-1" role="dialog" aria-labelledby="modalIncidenciasImportacionTitle">
+        <div class="modal-dialog modal-lg" role="document" style="width: 95%; max-width: 1200px;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title" id="modalIncidenciasImportacionTitle">Incidencias de importación <small id="modalIncidenciasFechaLabel" class="text-muted"></small></h4>
+                </div>
+                <div class="modal-body" style="max-height: 70vh; overflow: auto;">
+                    <p class="text-muted small" id="modalIncidenciasAyuda">Detalle de pagos con incidencia en la importación del día seleccionado.</p>
+                    <div class="table-responsive">
+                        <table id="tablaIncidenciasResImpor" class="table table-striped table-bordered table-condensed">
+                            <thead id="theadIncidenciasResImpor"></thead>
+                            <tbody id="tbodyIncidenciasResImpor"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="modalInfoDiaCierre" tabindex="-1" role="dialog" aria-labelledby="modalInfoDiaCierreTitle">
         <div class="modal-dialog modal-lg" role="document">
             <div class="modal-content">
                 <div class="modal-header">
                     <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
-                    <h4 class="modal-title" id="modalInfoDiaCierreTitle">Resumen de Cierre <small id="modalInfoDiaFechaLabel" class="text-muted"></small></h4>
+                    <h4 class="modal-title" id="modalInfoDiaCierreTitle">Resumen de cierre</h4>
                 </div>
-                <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
-                    <p class="text-muted small" style="margin-bottom: 14px;">Para la fecha operativa elegida se muestran cuántos movimientos quedaron registrados en cuatro bloques: cobranza del día (pagos, garantías y operaciones equivalentes), cierre de cartera de créditos, intereses devengados del día y depósitos reflejados en cuenta.</p>
-
-                    <h5 class="subtitulo" style="margin-top: 0;">Cobranza del día</h5>
-                    <div class="table-responsive">
-                        <table class="table table-striped table-bordered table-condensed">
-                            <thead><tr><th>Fecha operativa</th><th>Registros</th></tr></thead>
-                            <tbody id="tbodyInfoDiaPagosdia"><tr><td colspan="2">Sin datos.</td></tr></tbody>
-                        </table>
-                    </div>
-
-                    <h5 class="subtitulo">Cierre de cartera</h5>
-                    <div class="table-responsive">
-                        <table class="table table-striped table-bordered table-condensed">
-                            <thead><tr><th>Fecha de cierre</th><th>Registros</th></tr></thead>
-                            <tbody id="tbodyInfoDiaTblCierre"><tr><td colspan="2">Sin datos.</td></tr></tbody>
-                        </table>
-                    </div>
-
-                    <h5 class="subtitulo">Intereses devengados</h5>
-                    <div class="table-responsive">
-                        <table class="table table-striped table-bordered table-condensed">
-                            <thead><tr><th>Fecha de cálculo</th><th>Registros</th></tr></thead>
-                            <tbody id="tbodyInfoDiaDevengo"><tr><td colspan="2">Sin datos.</td></tr></tbody>
-                        </table>
-                    </div>
-
-                    <h5 class="subtitulo">Depósitos en cuenta</h5>
-                    <div class="table-responsive">
-                        <table class="table table-striped table-bordered table-condensed">
-                            <thead><tr><th>Fecha de depósito</th><th>Registros</th></tr></thead>
-                            <tbody id="tbodyInfoDiaMpPd"><tr><td colspan="2">Sin datos.</td></tr></tbody>
-                        </table>
-                    </div>
+                <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+                    <p id="resumenCierreCargando" class="text-muted text-center" style="margin: 24px 0;">Cargando resumen…</p>
+                    <div id="resumenCierreContenido" style="display: none;"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-default" data-dismiss="modal">Cerrar</button>
@@ -558,6 +676,111 @@
             document.getElementById("impResumenGarantias").textContent = formateaMoneda(impGar);
             document.getElementById("cntResumenIncidencias").textContent = ri;
             document.getElementById("impResumenIncidencias").textContent = formateaMoneda(impInc);
+            actualizarIconoIncidencias(ri);
+        };
+
+        const actualizarIconoIncidencias = (cantidad) => {
+            const btn = document.getElementById("btnVerIncidenciasImportacion");
+            if (!btn) return;
+            const n = Number(cantidad) || 0;
+            btn.style.display = n > 0 ? "inline-block" : "none";
+        };
+
+        const etiquetaColumnaIncidencia = (col) => {
+            const key = String(col || "").trim().toUpperCase();
+            const map = {
+                CTABANCARIA: "Cta. bancaria",
+                FECHAPAGO: "Fecha pago",
+                VALIDACION: "Validación",
+                SECUEPDI: "SECUEPDI",
+                SECUENCIA: "SECUEPDI",
+                MONTO: "Monto",
+                REFERENCIA: "Referencia",
+                MSGRESUL: "Observaciones",
+                RENEXCEL: "Secuencia",
+            };
+            return map[key] || col;
+        };
+
+        const pintarTablaIncidenciasResImpor = (columnas, filas, estado) => {
+            const thead = document.getElementById("theadIncidenciasResImpor");
+            const tbody = document.getElementById("tbodyIncidenciasResImpor");
+            if (!thead || !tbody) return;
+            if (estado === "cargando") {
+                thead.innerHTML = "";
+                tbody.innerHTML = "";
+                return;
+            }
+            if (estado === "vacio") {
+                thead.innerHTML = "";
+                tbody.innerHTML = "";
+                return;
+            }
+            const cols = Array.isArray(columnas) && columnas.length ? columnas : (filas.length ? Object.keys(filas[0]) : []);
+            if (!cols.length || !filas.length) {
+                thead.innerHTML = "";
+                tbody.innerHTML = "";
+                return;
+            }
+            thead.innerHTML = "<tr>" + cols.map((c) => "<th>" + escHtml(etiquetaColumnaIncidencia(c)) + "</th>").join("") + "</tr>";
+            tbody.innerHTML = filas.map((fila) => {
+                return "<tr>" + cols.map((c) => {
+                    const v = fila[c];
+                    const txt = v === null || v === undefined ? "" : String(v);
+                    return "<td>" + escHtml(txt) + "</td>";
+                }).join("") + "</tr>";
+            }).join("");
+        };
+
+        const abrirIncidenciasImportacion = () => {
+            const fecha = (document.getElementById("fecha").value || "").trim();
+            if (!fecha) {
+                if (typeof showError === "function") showError("Seleccione la fecha operativa.");
+                return;
+            }
+            const lbl = document.getElementById("modalIncidenciasFechaLabel");
+            if (lbl) lbl.textContent = "(fecha operativa " + fecha + ")";
+            const ayuda = document.getElementById("modalIncidenciasAyuda");
+            const setAyudaIncidencias = (texto) => {
+                if (ayuda) ayuda.textContent = texto;
+            };
+            setAyudaIncidencias("Cargando incidencias…");
+            pintarTablaIncidenciasResImpor([], [], "cargando");
+            $("#modalIncidenciasImportacion").modal("show");
+            $.ajax({
+                url: "/Operaciones/ConsultarIncidenciasImportacion/",
+                type: "POST",
+                dataType: "json",
+                data: { fecha: fecha }
+            }).done((resp) => {
+                if (!resp || !resp.success) {
+                    const msg = (resp && resp.mensaje) ? resp.mensaje : "No fue posible cargar las incidencias.";
+                    if (typeof showError === "function") showError(msg);
+                    pintarTablaIncidenciasResImpor([], [], "vacio");
+                    setAyudaIncidencias("No se pudo cargar el detalle de incidencias.");
+                    return;
+                }
+                const datos = resp.datos || {};
+                const filas = Array.isArray(datos.filas) ? datos.filas : [];
+                const columnas = Array.isArray(datos.columnas) ? datos.columnas : [];
+                const fPago = datos.fechaPago ? String(datos.fechaPago) : "";
+                const n = filas.length;
+                if (n === 0) {
+                    pintarTablaIncidenciasResImpor([], [], "vacio");
+                    setAyudaIncidencias("No hay incidencias de importación para esta fecha.");
+                    return;
+                }
+                pintarTablaIncidenciasResImpor(columnas, filas);
+                if (n === 1) {
+                    setAyudaIncidencias("Se encontró 1 incidencia de importación para el " + fPago + ".");
+                } else {
+                    setAyudaIncidencias("Se encontraron " + n + " incidencias de importación para el " + fPago + ".");
+                }
+            }).fail(() => {
+                if (typeof showError === "function") showError("Error de conexión al consultar incidencias.");
+                pintarTablaIncidenciasResImpor([], [], "vacio");
+                setAyudaIncidencias("No se pudo cargar el detalle de incidencias.");
+            });
         };
 
         const renderPagos = (filas, resumen, meta) => {
@@ -588,11 +811,12 @@
             }
         };
 
-        const buscarPorFecha = () => {
+        const buscarPorFecha = (opciones) => {
+            const silencioso = !!(opciones && opciones.silencioso);
             const fecha = (document.getElementById("fecha").value || "").trim();
             if (!fecha) return;
 
-            mostrarEsperaBuscar();
+            if (!silencioso) mostrarEsperaBuscar();
 
             $.ajax({
                 url: "/Operaciones/ProcesarAplicarPagos/",
@@ -637,10 +861,13 @@
                 }).fail(() => {
                     if (typeof showError === "function") showError("Error de conexión al consultar conciliación.");
                 }).always(() => {
-                    cerrarEsperaBuscar();
+                    if (!silencioso) cerrarEsperaBuscar();
                 });
             });
         };
+
+        window.refrescarDatosOperativosCierreDia = (silencioso) => buscarPorFecha({ silencioso: !!silencioso });
+        window.buscarPorFechaCierreDia = buscarPorFecha;
 
         document.querySelectorAll(".js-local-time").forEach((el) => {
             const original = (el.textContent || "").trim();
@@ -660,18 +887,73 @@
             return d.innerHTML;
         };
 
-        const pintarTablaInfoDia = (tbodyId, filas) => {
-            const tbody = document.getElementById(tbodyId);
-            if (!tbody) return;
-            if (!filas || !filas.length) {
-                tbody.innerHTML = '<tr><td colspan="2">Sin registros para este día.</td></tr>';
-                return;
-            }
-            tbody.innerHTML = filas.map((r) => {
-                const f = r.fecha != null ? r.fecha : (r.FECHA != null ? r.FECHA : "-");
-                const c = r.registros != null ? r.registros : (r.CNT != null ? r.CNT : (r.cnt != null ? r.cnt : "0"));
-                return "<tr><td>" + escHtml(f) + "</td><td>" + escHtml(c) + "</td></tr>";
-            }).join("");
+        const fmtEnteroResumen = (n) => (Number(n) || 0).toLocaleString("es-MX", { maximumFractionDigits: 0 });
+
+        const tarjetaProcesoHtml = (etiqueta, valor) => (
+            '<div class="cierre-resumen-celda"><div class="cierre-resumen-card-proceso">'
+            + '<div class="cierre-resumen-card-label">' + escHtml(etiqueta) + '</div>'
+            + '<div class="cierre-resumen-card-valor">' + escHtml(valor) + '</div></div></div>'
+        );
+
+        const tarjetaMetricaHtml = (etiqueta, metrica) => {
+            const m = metrica || {};
+            const reg = fmtEnteroResumen(m.registros);
+            const imp = formateaMoneda(m.importe);
+            return '<div class="cierre-resumen-celda"><div class="cierre-resumen-card-metrica">'
+                + '<div class="cierre-resumen-card-label">' + escHtml(etiqueta) + '</div>'
+                + '<div class="cierre-resumen-card-numero">' + escHtml(reg) + '</div>'
+                + '<div class="cierre-resumen-card-monto">' + escHtml(imp) + '</div></div></div>';
+        };
+
+        const seccionResumenHtml = (titulo, filasHtml) => (
+            '<section class="cierre-resumen-seccion">'
+            + '<h5 class="cierre-resumen-seccion-titulo">' + escHtml(titulo) + '</h5>'
+            + '<div class="cierre-resumen-grid">' + filasHtml + '</div>'
+            + '<div class="cierre-resumen-separador"></div></section>'
+        );
+
+        const pintarResumenCierreModal = (d) => {
+            const cont = document.getElementById("resumenCierreContenido");
+            const cargando = document.getElementById("resumenCierreCargando");
+            if (!cont) return;
+            const proc = d.proceso || {};
+            const pag = d.pagos || {};
+            const conc = d.conciliacion || {};
+            const dev = d.devengo || {};
+            const tituloBanner = "Resumen de cierre del día " + (d.fechaCierreFmt || d.fechaCierre || "");
+            const titDevengo = "Devengo para el día " + (d.fechaDevengoFmt || "");
+
+            let html = '<div class="cierre-resumen-banner">' + escHtml(tituloBanner) + '</div>';
+            html += '<section class="cierre-resumen-seccion"><h5 class="cierre-resumen-seccion-titulo">Proceso</h5>'
+                + '<div class="cierre-resumen-grid">'
+                + tarjetaProcesoHtml("Usuario", proc.usuario || "-")
+                + tarjetaProcesoHtml("Inicio", proc.inicio || "-")
+                + tarjetaProcesoHtml("Fin", proc.fin || "-")
+                + '</div><div class="cierre-resumen-grid cierre-resumen-grid-proceso-2">'
+                + tarjetaProcesoHtml("Registros", fmtEnteroResumen(proc.registros))
+                + '<div class="cierre-resumen-celda cierre-resumen-celda-2"><div class="cierre-resumen-card-proceso">'
+                + '<div class="cierre-resumen-card-label">Estatus</div>'
+                + '<div class="cierre-resumen-card-valor">' + escHtml(proc.estatus || "-") + '</div></div></div>'
+                + '</div><div class="cierre-resumen-separador"></div></section>';
+            html += '<section class="cierre-resumen-seccion"><h5 class="cierre-resumen-seccion-titulo">Pagos del día</h5><div class="cierre-resumen-grid">'
+                + tarjetaMetricaHtml("Total", pag.total)
+                + tarjetaMetricaHtml("Pendientes", pag.pendientes)
+                + tarjetaMetricaHtml("Aplicados", pag.aplicados)
+                + tarjetaMetricaHtml("Pagos", pag.pagos)
+                + tarjetaMetricaHtml("Garantías", pag.garantias)
+                + tarjetaMetricaHtml("Incidencias", pag.incidencias)
+                + '</div><div class="cierre-resumen-separador"></div></section>';
+            html += '<section class="cierre-resumen-seccion"><h5 class="cierre-resumen-seccion-titulo">Conciliación</h5><div class="cierre-resumen-grid">'
+                + tarjetaMetricaHtml("Pendientes", conc.pendientes)
+                + tarjetaMetricaHtml("Conciliados", conc.conciliados)
+                + '</div><div class="cierre-resumen-separador"></div></section>';
+            html += '<section class="cierre-resumen-seccion" style="margin-bottom:0"><h5 class="cierre-resumen-seccion-titulo">' + escHtml(titDevengo) + '</h5><div class="cierre-resumen-grid">'
+                + tarjetaMetricaHtml("Créditos", { registros: dev.creditos, importe: dev.monto })
+                + '</div></section>';
+
+            cont.innerHTML = html;
+            cont.style.display = "block";
+            if (cargando) cargando.style.display = "none";
         };
 
         const abrirInformacionDia = () => {
@@ -680,14 +962,17 @@
                 if (typeof showError === "function") showError("Seleccione la fecha operativa.");
                 return;
             }
-            const lbl = document.getElementById("modalInfoDiaFechaLabel");
-            if (lbl) lbl.textContent = "(solo " + fecha + ")";
+            const cont = document.getElementById("resumenCierreContenido");
+            const cargando = document.getElementById("resumenCierreCargando");
+            if (cont) {
+                cont.innerHTML = "";
+                cont.style.display = "none";
+            }
+            if (cargando) {
+                cargando.textContent = "Cargando resumen…";
+                cargando.style.display = "block";
+            }
             $("#modalInfoDiaCierre").modal("show");
-            const tbodies = ["tbodyInfoDiaPagosdia", "tbodyInfoDiaTblCierre", "tbodyInfoDiaDevengo", "tbodyInfoDiaMpPd"];
-            tbodies.forEach((id) => {
-                const el = document.getElementById(id);
-                if (el) el.innerHTML = '<tr><td colspan="2"><span class="text-muted">Cargando…</span></td></tr>';
-            });
             $.ajax({
                 url: "/Operaciones/InformacionDiaCierre/",
                 type: "POST",
@@ -695,25 +980,21 @@
                 data: { fecha: fecha }
             }).done((resp) => {
                 if (!resp || !resp.success || !resp.datos) {
-                    const msg = (resp && resp.mensaje) ? resp.mensaje : "No fue posible cargar la información.";
+                    const msg = (resp && resp.mensaje) ? resp.mensaje : "No fue posible cargar el resumen.";
                     if (typeof showError === "function") showError(msg);
-                    tbodies.forEach((id) => {
-                        const el = document.getElementById(id);
-                        if (el) el.innerHTML = '<tr><td colspan="2">—</td></tr>';
-                    });
+                    if (cargando) {
+                        cargando.textContent = msg;
+                        cargando.style.display = "block";
+                    }
                     return;
                 }
-                const d = resp.datos;
-                pintarTablaInfoDia("tbodyInfoDiaPagosdia", d.cobranza_del_dia || d.pagosdia || []);
-                pintarTablaInfoDia("tbodyInfoDiaTblCierre", d.cierre_de_cartera || d.tbl_cierre_dia || []);
-                pintarTablaInfoDia("tbodyInfoDiaDevengo", d.devengo_registrado || d.devengo_diario || []);
-                pintarTablaInfoDia("tbodyInfoDiaMpPd", d.depositos_cuenta || d.mp_pd || []);
+                pintarResumenCierreModal(resp.datos);
             }).fail(() => {
-                if (typeof showError === "function") showError("Error de conexión al consultar información del día.");
-                tbodies.forEach((id) => {
-                    const el = document.getElementById(id);
-                    if (el) el.innerHTML = '<tr><td colspan="2">—</td></tr>';
-                });
+                if (typeof showError === "function") showError("Error de conexión al consultar el resumen.");
+                if (cargando) {
+                    cargando.textContent = "No se pudo cargar el resumen.";
+                    cargando.style.display = "block";
+                }
             });
         };
 
@@ -721,6 +1002,8 @@
         if (btnBuscar) btnBuscar.addEventListener("click", buscarPorFecha);
         const btnInfoDia = document.getElementById("btnInfoDiaCierre");
         if (btnInfoDia) btnInfoDia.addEventListener("click", abrirInformacionDia);
+        const btnIncidencias = document.getElementById("btnVerIncidenciasImportacion");
+        if (btnIncidencias) btnIncidencias.addEventListener("click", abrirIncidenciasImportacion);
         const filtroAplicacion = document.getElementById("filtroEstadoAplicacion");
         if (filtroAplicacion) filtroAplicacion.addEventListener("change", pintarSoloTablaAplicacion);
         const filtroConciliacion = document.getElementById("filtroEstadoConciliacion");

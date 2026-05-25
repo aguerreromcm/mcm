@@ -17,6 +17,12 @@ class PagosAplicacionRepository
     /** Cuenta bancaria por defecto (2 caracteres). VB6 usa una por archivo; aquí un valor por defecto. */
     const CUENTA_BANCARIA_DEFAULT = '01';
 
+    /** Cuenta en RES_IMPOR para detalle de incidencias (VALIDACION = 2). */
+    const CUENTA_BANCARIA_RES_IMPOR = '02';
+
+    /** VALIDACION en RES_IMPOR que identifica incidencias. */
+    const VALIDACION_INCIDENCIA_RES_IMPOR = 2;
+
     /** Empresa fija, igual que Layout Contable. */
     const EMPRESA = 'EMPFIN';
 
@@ -458,6 +464,83 @@ sql;
         $ts = strtotime($str);
 
         return $ts !== false ? date('Y/m/d H:i:s', $ts) : $str;
+    }
+
+    /**
+     * Detalle de incidencias de importación (RES_IMPOR).
+     *
+     * @param string $fecha Fecha operativa Y-m-d o d/m/Y
+     * @param string|null $ctaBancaria Dos caracteres; por defecto CUENTA_BANCARIA_RES_IMPOR
+     * @return array<int, array<string, mixed>>
+     */
+    public function getIncidenciasResImpor($fecha, $ctaBancaria = null)
+    {
+        $fechaNorm = self::coerceFechaYmD($fecha);
+        if ($fechaNorm === null) {
+            return [];
+        }
+        $fechaDmY = date('d/m/Y', strtotime($fechaNorm));
+        $cta = trim((string) ($ctaBancaria ?? ''));
+        if ($cta === '') {
+            $cta = self::CUENTA_BANCARIA_RES_IMPOR;
+        }
+        $cta = substr($cta, 0, 2);
+
+        $db = new Database();
+        if ($db->db_activa === null) {
+            return [];
+        }
+
+        $sql = <<<'SQL'
+SELECT *
+FROM RES_IMPOR
+WHERE CTABANCARIA = :cta
+  AND FECHAPAGO = :fecha
+  AND VALIDACION = :validacion
+ORDER BY SECUEPDI
+SQL;
+
+        try {
+            $stmt = $db->db_activa->prepare($sql);
+            $stmt->execute([
+                'cta' => $cta,
+                'fecha' => $fechaDmY,
+                'validacion' => self::VALIDACION_INCIDENCIA_RES_IMPOR,
+            ]);
+            $filas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            return $this->normalizarFilasResImpor(is_array($filas) ? $filas : []);
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $filas
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizarFilasResImpor(array $filas): array
+    {
+        $out = [];
+        foreach ($filas as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $norm = [];
+            foreach ($row as $k => $v) {
+                $key = strtoupper((string) $k);
+                if (is_object($v) && method_exists($v, 'format')) {
+                    $norm[$key] = $v->format('Y-m-d H:i:s');
+                } elseif (is_numeric($v)) {
+                    $norm[$key] = strpos((string) $v, '.') !== false ? (float) $v : (int) $v;
+                } else {
+                    $norm[$key] = $v === null ? '' : trim((string) $v);
+                }
+            }
+            $out[] = $norm;
+        }
+
+        return $out;
     }
 
     private function acumularGrupoImportacion(array $filas): array
