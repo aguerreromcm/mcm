@@ -2,6 +2,8 @@
 
 namespace App\components;
 
+use App\config\FtpExplorerConfig;
+
 /**
  * Clase Menu
  *
@@ -200,6 +202,14 @@ class Menu
         ];
     }
 
+    /** Opciones del submenú Reportes */
+    private function opcionesReportes()
+    {
+        return [
+            $this->enlace('FTP', '/Ftp/Explorer/', FtpExplorerConfig::menuPermisos()),
+        ];
+    }
+
     /** Opciones del submenú Indicadores */
     private function opcionesIndicadores()
     {
@@ -239,6 +249,7 @@ class Menu
             $this->submenu('Tesorería', 'glyphicon glyphicon-globe', $this->opcionesTesoreria()),
             $this->submenu('Cultiva', 'glyphicon glyphicon-globe', $this->opcionesCultiva()),
             $this->submenu('Incidencias MCM', 'glyphicon glyphicon-cog', $this->opcionesIncidencias()),
+            $this->submenu('Reportes', 'glyphicon glyphicon-list-alt', $this->opcionesReportes()),
             $this->submenu($tituloAdmin, 'glyphicon glyphicon-cog', $this->opcionesAdministracion()),
             $this->submenu('Indicadores', 'glyphicon glyphicon-cog', $this->opcionesIndicadores()),
             $this->submenu('Radar de Cobranza', 'glyphicon glyphicon-screenshot', $this->opcionesRadarCobranza()),
