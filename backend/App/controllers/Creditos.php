@@ -455,10 +455,10 @@ html;
             return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
         }
         
-        function enviar_add(ciclo_p){
+        function enviar_add(){
         credito = getParameterByName('Credito');
         sucursal = document.getElementById("sucursal").value;
-        ciclo = ciclo_p;
+        ciclo = document.getElementById("ciclo_actual").value;
         
         
             $.ajax({
@@ -494,15 +494,26 @@ html;
         $credito = trim((string) ($_GET['Credito'] ?? ''));
 
         if ($credito !== '') {
-            $credito_cambio = CreditosDao::SelectSucursalAllCreditoCambioSuc($credito);
+            $filasCredito = CreditosDao::SelectSucursalAllCreditoCambioSuc($credito);
+            if (!is_array($filasCredito)) {
+                $filasCredito = [];
+            }
 
-            if (is_array($credito_cambio) && trim((string) ($credito_cambio['CLIENTE'] ?? '')) !== '') {
-                $credito_cambio = $this->aplicarSucursalAnteriorNuevaEnCreditoCambio($credito_cambio, $credito);
+            $registros = [];
+            foreach ($filasCredito as $fila) {
+                if (!is_array($fila) || trim((string) ($fila['CLIENTE'] ?? '')) === '') {
+                    continue;
+                }
+                $registros[] = $this->aplicarSucursalAnteriorNuevaEnCreditoCambio($fila, $credito);
+            }
+
+            if ($registros !== []) {
+                $idSucursalReferencia = $registros[0]['ID_SUCURSAL'] ?? '';
 
                 $sucursales = CreditosDao::ListaSucursales();
                 $ComboSucursal = '';
                 foreach ($sucursales as $key => $val2) {
-                    if ($val2['ID_SUCURSAL'] == $credito_cambio['ID_SUCURSAL']) {
+                    if ($val2['ID_SUCURSAL'] == $idSucursalReferencia) {
                         $selected = 'selected';
                     } else {
                         $selected = '';
@@ -514,14 +525,13 @@ html;
 
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
-                View::set('Administracion', $credito_cambio);
+                View::set('registros', $registros);
                 View::set('sucursal', $ComboSucursal);
                 View::set('credito', $credito);
                 View::render("cambio_sucursal_busqueda");
             } else {
                 View::set('header', $this->_contenedor->header($extraHeader));
                 View::set('footer', $this->_contenedor->footer($extraFooter));
-                View::set('Administracion', $credito_cambio);
                 View::set('credito', $credito);
                 View::render("cambio_sucursal_busqueda_message");
             }
@@ -766,7 +776,9 @@ HTML;
             $ultimo = $_SESSION['cambio_sucursal_ultimo_cambio'];
             unset($_SESSION['cambio_sucursal_ultimo_cambio']);
 
-            if (trim($creditoBuscado) === trim((string) ($ultimo['credito'] ?? ''))) {
+            $mismoCredito = trim($creditoBuscado) === trim((string) ($ultimo['credito'] ?? ''));
+            $mismoCiclo = trim((string) ($creditoCambio['CICLO'] ?? '')) === trim((string) ($ultimo['ciclo'] ?? ''));
+            if ($mismoCredito && $mismoCiclo) {
                 $creditoCambio['SUCURSAL_ANTERIOR'] = trim((string) ($ultimo['SUCURSAL_ANTERIOR'] ?? ''));
                 $creditoCambio['SUCURSAL_NUEVA'] = trim((string) ($creditoCambio['SUCURSAL'] ?? ''));
             }

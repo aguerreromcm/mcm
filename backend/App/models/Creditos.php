@@ -180,7 +180,11 @@ sql;
 
 
         $mysqli = new Database();
-        return $mysqli->queryOne($query);
+        if ($ciclo !== '') {
+            return $mysqli->queryOne($query);
+        }
+
+        return $mysqli->queryAll($query);
     }
 
     private static function normalizarNumeroCredito($noCredito): string

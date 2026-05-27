@@ -43,7 +43,7 @@ $idTabla = isset($idTabla) && $idTabla !== '' ? (string) $idTabla : 'tabla-cambi
                     <td><?php echo htmlspecialchars((string) ($registro['EJECUTIVO'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></td>
                     <?php if ($mostrarAccion) : ?>
                         <td class="text-center">
-                            <button type="button" class="btn btn-success btn-xs" onclick="EditarSucursal('<?php echo htmlspecialchars((string) ($registro['ID_EJECUTIVO'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>');">
+                            <button type="button" class="btn btn-success btn-xs" onclick="EditarSucursal('<?php echo htmlspecialchars((string) ($registro['CICLO'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars((string) ($registro['ID_SUCURSAL'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>');">
                                 <i class="fa fa-edit"></i>
                             </button>
                         </td>

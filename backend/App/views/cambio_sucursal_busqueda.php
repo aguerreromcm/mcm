@@ -10,7 +10,7 @@
 
         <?php include __DIR__ . '/partials/cambio_sucursal_carga_masiva.php'; ?>
         <?php
-        $registros = [$Administracion];
+        $registros = isset($registros) && is_array($registros) ? $registros : [];
         $mostrarAccion = true;
         include __DIR__ . '/partials/cambio_sucursal_tabla_registros.php';
         ?>
@@ -28,7 +28,8 @@
             </div>
             <div class="modal-body">
                 <div class="container-fluid">
-                    <form onsubmit="enviar_add('<?php echo $Administracion['CICLO']; ?>'); return false" id="Add">
+                    <form onsubmit="enviar_add(); return false" id="Add">
+                        <input type="hidden" id="ciclo_actual" name="ciclo_actual" value="">
                         <div class="row">
 
                             <div class="col-md-12">
@@ -61,13 +62,11 @@
         return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
     }
 
-    function EditarSucursal(id_suc)
+    function EditarSucursal(ciclo, idSucursal)
     {
-        credito = getParameterByName('Credito');
-        id_sucursal = id_suc;
-
-        $('#modal_cambio_sucursal').modal('show'); // abrir
-
+        document.getElementById('ciclo_actual').value = ciclo;
+        document.getElementById('sucursal').value = idSucursal;
+        $('#modal_cambio_sucursal').modal('show');
     }
 </script>
 
