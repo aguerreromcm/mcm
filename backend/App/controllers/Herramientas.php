@@ -9,8 +9,12 @@ use Core\Controller;
 use App\models\Herramientas as HerramientasDao;
 use App\services\AuditoriaDevengoService;
 
+require_once dirname(__DIR__) . '/../libs/mpdf/mpdf.php';
+
 class Herramientas extends Controller
 {
+    private const MAX_IMAGENES_PROCESO = 15;
+
     private $_contenedor;
 
     function __construct()
@@ -632,5 +636,975 @@ class Herramientas extends Controller
             @file_put_contents(APPPATH . '/../logs/auditoria_devengo_error.log', date('c') . " ProcesarMasivo Error: " . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n", FILE_APPEND);
             echo json_encode(\Core\Model::Responde(false, 'Ocurrió un error al procesar devengos masivos.', null, $e->getMessage()));
         }
+    }
+
+    /**
+     * Formulario de solicitud de software corporativo (creación, modificación, corrección).
+     * Diseñado para usuarios sin conocimiento técnico.
+     */
+    public function SolicitudSoftware()
+    {
+        $folio = 'SS-' . date('Ymd') . '-' . strtoupper(substr(md5(uniqid('', true)), 0, 5));
+        $fecha = date('d/m/Y');
+
+        View::set('nombre', $this->__nombre ?? '');
+        View::set('sucursal', $this->__cdgco ?? '');
+        View::set('folio', $folio);
+        View::set('fecha', $fecha);
+
+        $extraCss = '<link href="/css/solicitud-software.css" rel="stylesheet">';
+        $extraFooter = $this->getSolicitudSoftwareScripts();
+
+        View::set('header', $this->_contenedor->header($this->GetExtraHeader('Solicitud de Software', [$extraCss])));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::render('herramientas_solicitud_software');
+    }
+
+    /**
+     * Genera PDF de la solicitud de software a partir de los datos del formulario.
+     */
+    public function PdfSolicitudSoftware()
+    {
+        try {
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
+
+            $raw = file_get_contents('php://input');
+            $datos = json_decode($raw, true) ?: [];
+
+            $errores = $this->validarDatosSolicitudSoftware($datos);
+            if (!empty($errores)) {
+                header('Content-Type: application/json; charset=UTF-8');
+                http_response_code(422);
+                echo json_encode(\Core\Model::Responde(false, implode(' ', $errores)));
+                return;
+            }
+
+            $html = $this->buildHtmlPdfSolicitudSoftware($datos);
+            $nombreArchivo = 'Solicitud_Software_' . preg_replace('/[^A-Za-z0-9_-]/', '', $datos['folio'] ?? date('Ymd'));
+
+            set_time_limit(180);
+
+            $mpdf = new \mPDF([
+                'mode' => 'utf-8',
+                'format' => 'Letter',
+                'default_font_size' => 10,
+                'default_font' => 'Arial',
+                'margin_left' => 14,
+                'margin_right' => 14,
+                'margin_top' => 16,
+                'margin_bottom' => 18,
+                'margin_header' => 8,
+                'margin_footer' => 8,
+            ]);
+            $mpdf->shrink_tables_to_fit = 1;
+            $mpdf->use_kwt = false;
+
+            $fi = date('d/m/Y H:i:s');
+            $usuario = htmlspecialchars($this->__usuario ?? '', ENT_QUOTES, 'UTF-8');
+            $folioPie = htmlspecialchars($datos['folio'] ?? '', ENT_QUOTES, 'UTF-8');
+
+            $mpdf->SetHTMLHeader(<<<HTML
+            <table width="100%" style="border-bottom:1px solid #2a3f54;font-size:8pt;color:#555;">
+                <tr>
+                    <td width="60%" style="padding-bottom:4px;">Solicitud de Software</td>
+                    <td width="40%" style="text-align:right;padding-bottom:4px;">Folio: <strong>{$folioPie}</strong></td>
+                </tr>
+            </table>
+            HTML);
+
+            $pie = <<<HTML
+            <table width="100%" style="font-size:8pt;color:#666;border-top:1px solid #ddd;">
+                <tr>
+                    <td width="55%">Generado: {$fi} &nbsp;|&nbsp; Usuario: {$usuario}</td>
+                    <td width="45%" style="text-align:right;">Página {PAGENO} de {nb}</td>
+                </tr>
+            </table>
+            HTML;
+
+            $mpdf->SetHTMLFooter($pie);
+            $mpdf->SetTitle('Solicitud de Software');
+            $mpdf->WriteHTML($html['style'], 1);
+            $mpdf->WriteHTML($html['body'], 2);
+            $mpdf->Output($nombreArchivo . '.pdf', 'D');
+            exit;
+        } catch (\Throwable $e) {
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
+            header('Content-Type: application/json; charset=UTF-8');
+            http_response_code(500);
+            echo json_encode(\Core\Model::Responde(false, 'No se pudo generar el PDF.', null, $e->getMessage()));
+        }
+    }
+
+    private function getSolicitudSoftwareScripts(): string
+    {
+        $maxImagenes = self::MAX_IMAGENES_PROCESO;
+
+        return <<<HTML
+        <script>
+        {$this->mensajes}
+        (function () {
+            const URL_PDF = "/Herramientas/PdfSolicitudSoftware/";
+            const MAX_IMAGENES = {$maxImagenes};
+            const MAX_BYTES_IMAGEN = 2 * 1024 * 1024;
+            let imagenSeleccionada = null;
+
+            function getEditorProceso() {
+                return document.getElementById("ss-proceso-actual");
+            }
+
+            function contarImagenesEditor() {
+                return \$(getEditorProceso()).find("img").length;
+            }
+
+            function deseleccionarImagen() {
+                if (imagenSeleccionada) {
+                    \$(imagenSeleccionada).removeClass("ss-img-seleccionada");
+                    imagenSeleccionada = null;
+                }
+            }
+
+            function seleccionarImagen(img) {
+                deseleccionarImagen();
+                imagenSeleccionada = img;
+                \$(img).addClass("ss-img-seleccionada");
+            }
+
+            function insertarImagenEnEditor(dataUrl) {
+                const editor = getEditorProceso();
+                if (!editor) return;
+                if (contarImagenesEditor() >= MAX_IMAGENES) {
+                    showWarning("Ya agregó el máximo de " + MAX_IMAGENES + " imágenes.");
+                    return;
+                }
+                editor.focus();
+                const img = document.createElement("img");
+                img.src = dataUrl;
+                img.alt = "Imagen del proceso";
+                const wrap = document.createElement("div");
+                wrap.style.clear = "both";
+                wrap.appendChild(img);
+                const sel = window.getSelection();
+                if (sel && sel.rangeCount > 0) {
+                    const range = sel.getRangeAt(0);
+                    if (!editor.contains(range.commonAncestorContainer)) {
+                        range.selectNodeContents(editor);
+                        range.collapse(false);
+                    }
+                    range.collapse(false);
+                    range.insertNode(document.createElement("br"));
+                    range.collapse(false);
+                    range.insertNode(wrap);
+                    range.setStartAfter(wrap);
+                    range.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                } else {
+                    editor.appendChild(document.createElement("br"));
+                    editor.appendChild(wrap);
+                }
+                editor.appendChild(document.createElement("br"));
+            }
+
+            function procesarArchivoImagen(file) {
+                if (!file) return;
+                if (!/^image\\/(jpeg|png|gif|webp)\$/i.test(file.type)) {
+                    showWarning("Solo se permiten imágenes JPG, PNG, GIF o WEBP.");
+                    return;
+                }
+                if (file.size > MAX_BYTES_IMAGEN) {
+                    showWarning('La imagen "' + file.name + '" supera 2 MB.');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = function (ev) {
+                    insertarImagenEnEditor(ev.target.result);
+                };
+                reader.readAsDataURL(file);
+            }
+
+            function initEditorProceso() {
+                const editor = getEditorProceso();
+                if (!editor) return;
+
+                editor.addEventListener("paste", function (e) {
+                    const items = e.clipboardData ? e.clipboardData.items : null;
+                    if (!items) return;
+                    for (let i = 0; i < items.length; i++) {
+                        if (items[i].type && items[i].type.indexOf("image") !== -1) {
+                            e.preventDefault();
+                            procesarArchivoImagen(items[i].getAsFile());
+                            return;
+                        }
+                    }
+                });
+
+                editor.addEventListener("click", function (e) {
+                    if (e.target && e.target.tagName === "IMG") {
+                        seleccionarImagen(e.target);
+                    } else {
+                        deseleccionarImagen();
+                    }
+                });
+
+                editor.addEventListener("keydown", function (e) {
+                    if ((e.key === "Delete" || e.key === "Backspace") && imagenSeleccionada) {
+                        e.preventDefault();
+                        \$(imagenSeleccionada).remove();
+                        deseleccionarImagen();
+                    }
+                });
+            }
+
+            function getFormData() {
+                const f = document.getElementById("form-solicitud-software");
+                const fd = new FormData(f);
+                const data = {};
+                fd.forEach(function (v, k) { data[k] = v; });
+                data.folio = \$("#ss-folio").text().trim();
+                data.fecha = \$("#ss-fecha").text().trim();
+                const editor = getEditorProceso();
+                data.proceso_actual_html = editor ? editor.innerHTML : "";
+                data.proceso_actual = editor ? editor.innerText.trim() : "";
+                return data;
+            }
+
+            function validar() {
+                let ok = true;
+                \$("#ss-alert-error").hide().empty();
+                \$(".ss-field.ss-error").removeClass("ss-error");
+                \$("#ss-error-tipo, #ss-error-prioridad").hide();
+
+                \$("#form-solicitud-software .ss-field[data-required='true']").each(function () {
+                    const \$f = \$(this);
+                    const input = \$f.find("input, textarea, select").first();
+                    const val = (input.val() || "").trim();
+                    if (!val || (input.is("textarea") && val.length < 20)) {
+                        \$f.addClass("ss-error");
+                        ok = false;
+                    }
+                });
+
+                const correo = \$("#ss-correo").val().trim();
+                if (correo && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+\$/.test(correo)) {
+                    \$("#ss-correo").closest(".ss-field").addClass("ss-error");
+                    ok = false;
+                }
+
+                if (!\$("input[name='tipo_solicitud']:checked").length) {
+                    \$("#ss-error-tipo").show();
+                    ok = false;
+                }
+                if (!\$("input[name='prioridad']:checked").length) {
+                    \$("#ss-error-prioridad").show();
+                    ok = false;
+                }
+
+                if (!ok) {
+                    \$("#ss-alert-error").html("<strong>Por favor revise el formulario.</strong> Los campos marcados con * son obligatorios.").show();
+                    const first = \$(".ss-field.ss-error, #ss-error-tipo:visible, #ss-error-prioridad:visible").first();
+                    if (first.length) {
+                        \$("html, body").animate({ scrollTop: first.offset().top - 100 }, 400);
+                    }
+                }
+                return ok;
+            }
+
+            function descargarBlob(blob, nombre) {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = nombre;
+                a.style.display = "none";
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(function () {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }, 200);
+            }
+
+            function procesarRespuestaPdf(blob, folio) {
+                if (!(blob instanceof Blob)) {
+                    showError("Error al generar PDF");
+                    return;
+                }
+                const ct = (blob.type || "").toLowerCase();
+                if (ct.indexOf("json") !== -1 || ct.indexOf("text") !== -1 || blob.size < 200) {
+                    const reader = new FileReader();
+                    reader.onload = function () {
+                        try {
+                            const res = JSON.parse(reader.result);
+                            showError(res.mensaje || "Error al generar PDF");
+                        } catch (e) {
+                            showError("Error al generar PDF");
+                        }
+                    };
+                    reader.readAsText(blob);
+                    return;
+                }
+                descargarBlob(blob, "Solicitud_Software_" + folio + ".pdf");
+                showSuccess("PDF generado correctamente.");
+            }
+
+            function generarPdf() {
+                if (!validar()) return;
+                const data = getFormData();
+                showWait("Generando PDF, espere un momento...");
+
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", URL_PDF, true);
+                xhr.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+                xhr.responseType = "blob";
+                xhr.timeout = 180000;
+
+                xhr.onload = function () {
+                    swal.close();
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        procesarRespuestaPdf(xhr.response, data.folio);
+                        return;
+                    }
+                    if (xhr.response instanceof Blob) {
+                        const reader = new FileReader();
+                        reader.onload = function () {
+                            try {
+                                const res = JSON.parse(reader.result);
+                                showError(res.mensaje || "Error al generar PDF");
+                            } catch (e) {
+                                showError("No se pudo generar el PDF.");
+                            }
+                        };
+                        reader.readAsText(xhr.response);
+                    } else {
+                        showError("No se pudo generar el PDF.");
+                    }
+                };
+
+                xhr.onerror = function () {
+                    swal.close();
+                    showError("No se pudo conectar con el servidor.");
+                };
+
+                xhr.ontimeout = function () {
+                    swal.close();
+                    showError("La generación del PDF tardó demasiado. Intente de nuevo.");
+                };
+
+                xhr.send(JSON.stringify(data));
+            }
+
+            function limpiarFormulario() {
+                swal({ title: "¿Limpiar el formulario?", text: "Se borrarán todos los datos capturados.", icon: "warning", buttons: ["Cancelar", "Sí, limpiar"], dangerMode: true })
+                    .then(function (ok) {
+                        if (!ok) return;
+                        document.getElementById("form-solicitud-software").reset();
+                        const editor = getEditorProceso();
+                        if (editor) editor.innerHTML = "";
+                        deseleccionarImagen();
+                        \$(".ss-option-card, .ss-priority-btn").removeClass("ss-selected");
+                        \$(".ss-field.ss-error").removeClass("ss-error");
+                        \$("#ss-alert-error").hide();
+                        updateSectionStatus();
+                    });
+            }
+
+            function isRequiredFieldComplete(\$field) {
+                const radios = \$field.find("input[type='radio']");
+                if (radios.length) {
+                    return radios.is(":checked");
+                }
+                const input = \$field.find("input, textarea, select").first();
+                if (!input.length) return false;
+                const val = (input.val() || "").trim();
+                if (input.is("textarea")) {
+                    return val.length >= 20;
+                }
+                if (input.attr("type") === "email") {
+                    return val !== "" && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+\$/.test(val);
+                }
+                return val !== "";
+            }
+
+            function updateSectionStatus() {
+                \$(".ss-section").each(function () {
+                    const \$sec = \$(this);
+                    const \$triggers = \$sec.find(".ss-field[data-triggers-section-complete='true']");
+
+                    if (\$triggers.length) {
+                        let hasContent = false;
+                        \$triggers.each(function () {
+                            const input = \$(this).find("input, textarea, select").first();
+                            if (input.length && (input.val() || "").trim() !== "") {
+                                hasContent = true;
+                            }
+                        });
+                        \$sec.toggleClass("ss-section-complete", hasContent);
+                        return;
+                    }
+
+                    const \$required = \$sec.find(".ss-field[data-required='true']");
+                    if (!\$required.length) {
+                        \$sec.removeClass("ss-section-complete");
+                        return;
+                    }
+                    let complete = true;
+                    \$required.each(function () {
+                        if (!isRequiredFieldComplete(\$(this))) {
+                            complete = false;
+                        }
+                    });
+                    \$sec.toggleClass("ss-section-complete", complete);
+                });
+            }
+
+            \$(document).ready(function () {
+                \$(".ss-option-card input[type='radio']").on("change", function () {
+                    \$(".ss-option-card").removeClass("ss-selected");
+                    \$(this).closest(".ss-option-card").addClass("ss-selected");
+                    updateSectionStatus();
+                });
+                \$(".ss-priority-btn input[type='radio']").on("change", function () {
+                    \$(".ss-priority-btn").removeClass("ss-selected");
+                    \$(this).closest(".ss-priority-btn").addClass("ss-selected");
+                    updateSectionStatus();
+                });
+                \$("#form-solicitud-software input, #form-solicitud-software textarea, #form-solicitud-software select").on("input change", updateSectionStatus);
+                \$("#ss-proceso-actual").on("input", updateSectionStatus);
+
+                initEditorProceso();
+
+                \$("#btn-ss-pdf").click(generarPdf);
+                \$("#btn-ss-limpiar").click(limpiarFormulario);
+
+                updateSectionStatus();
+            });
+        })();
+        </script>
+        HTML;
+    }
+
+    /**
+     * Valida los datos mínimos de la solicitud de software.
+     */
+    private function validarDatosSolicitudSoftware(array $datos): array
+    {
+        $errores = [];
+        $campos = [
+            'nombre' => 'El nombre del solicitante es obligatorio.',
+            'area' => 'El área o departamento es obligatorio.',
+            'correo' => 'El correo electrónico es obligatorio.',
+            'descripcion' => 'La descripción de la necesidad es obligatoria.',
+            'beneficio' => 'Debe indicar el beneficio o razón de la solicitud.',
+        ];
+        foreach ($campos as $campo => $msg) {
+            if (empty(trim($datos[$campo] ?? ''))) {
+                $errores[] = $msg;
+            }
+        }
+        if (!empty($datos['correo']) && !filter_var($datos['correo'], FILTER_VALIDATE_EMAIL)) {
+            $errores[] = 'El correo electrónico no es válido.';
+        }
+        if (empty($datos['tipo_solicitud'])) {
+            $errores[] = 'Debe seleccionar un tipo de solicitud.';
+        }
+        if (empty($datos['prioridad'])) {
+            $errores[] = 'Debe seleccionar una prioridad.';
+        }
+        if (!empty($datos['descripcion']) && mb_strlen(trim($datos['descripcion'])) < 20) {
+            $errores[] = 'La descripción debe tener al menos 20 caracteres.';
+        }
+        return array_merge($errores, $this->validarProcesoActualHtml($datos));
+    }
+
+    /**
+     * Valida HTML e imágenes embebidas del proceso actual.
+     */
+    private function validarProcesoActualHtml(array $datos): array
+    {
+        $html = trim((string) ($datos['proceso_actual_html'] ?? ''));
+        if ($html === '') {
+            return [];
+        }
+
+        $errores = [];
+        preg_match_all('#<img\\b[^>]*>#i', $html, $matches);
+        $tags = $matches[0] ?? [];
+
+        if (count($tags) > self::MAX_IMAGENES_PROCESO) {
+            $errores[] = 'Máximo ' . self::MAX_IMAGENES_PROCESO . ' imágenes permitidas en el proceso actual.';
+            return $errores;
+        }
+
+        foreach ($tags as $tag) {
+            if (!preg_match("/src=[\"'](data:image\\/(jpeg|jpg|png|gif|webp);base64,[^\"']+)[\"']/i", $tag, $srcMatch)) {
+                $errores[] = 'Formato de imagen no válido en el proceso actual.';
+                break;
+            }
+            $b64 = preg_replace('#^data:image/[^;]+;base64,#i', '', $srcMatch[1]);
+            $b64 = str_replace(["\r", "\n", ' '], '', $b64);
+            $decoded = base64_decode($b64, true);
+            if ($decoded === false) {
+                $errores[] = 'No se pudo leer una de las imágenes del proceso.';
+                break;
+            }
+            if (strlen($decoded) > 2 * 1024 * 1024) {
+                $errores[] = 'Cada imagen debe pesar menos de 2 MB.';
+                break;
+            }
+        }
+
+        return $errores;
+    }
+
+    /**
+     * Sanitiza HTML del proceso actual para incluir en el PDF.
+     */
+    private function sanitizeProcesoActualHtml(?string $html): string
+    {
+        $html = trim((string) ($html ?? ''));
+        if ($html === '') {
+            return '';
+        }
+
+        $html = preg_replace('#<(script|style|iframe|object|embed|link|meta)[^>]*>.*?</\\1>#is', '', $html);
+        $html = preg_replace('#<(script|style|iframe|object|embed|link|meta)[^>]*/?>#is', '', $html);
+        $html = strip_tags($html, '<img><br><p><div><span>');
+        $html = preg_replace('/ on\\w+=["\'][^"\']*["\']/i', '', $html);
+        $html = $this->normalizarBloquesProcesoPdf($html);
+
+        $imgCount = 0;
+        $html = preg_replace_callback('#<img\\s+[^>]*>#i', function ($m) use (&$imgCount) {
+            $tag = $m[0];
+            if (!preg_match("/src=[\"'](data:image\\/(jpeg|jpg|png|gif|webp);base64,[^\"']+)[\"']/i", $tag, $srcMatch)) {
+                return '';
+            }
+            if ($imgCount >= self::MAX_IMAGENES_PROCESO) {
+                return '';
+            }
+            $src = preg_replace('/\s+/', '', $srcMatch[1]);
+            $b64 = preg_replace('#^data:image/[^;]+;base64,#i', '', $src);
+            $decoded = base64_decode(str_replace(["\r", "\n", ' '], '', $b64), true);
+            if ($decoded === false || strlen($decoded) > 2 * 1024 * 1024) {
+                return '';
+            }
+            $imgCount++;
+            $styleImg = $this->estiloImagenProcesoPdf($decoded);
+            return '<div style="display:block;width:100%;clear:both;margin:12px 0;text-align:center;">'
+                . '<img src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8') . '" '
+                . 'style="' . $styleImg . '" alt="Imagen del proceso" />'
+                . '</div>';
+        }, $html);
+
+        $plain = trim(preg_replace('#\s+#u', ' ', strip_tags($html)));
+        $hasImg = stripos($html, '<img') !== false;
+        if ($plain === '' && !$hasImg) {
+            return '';
+        }
+
+        return '<div class="ss-pdf-proceso-contenido" style="display:block;width:100%;clear:both;">' . $html . '</div>';
+    }
+
+    /**
+     * Tamaño de imagen en PDF: ancho natural hasta el ancho útil de la página (sin reducir altura).
+     */
+    private function estiloImagenProcesoPdf(string $binary): string
+    {
+        $maxWmm = 178;
+        $base = 'display:block;margin:0 auto;clear:both;height:auto;';
+
+        $info = @getimagesizefromstring($binary);
+        if ($info && !empty($info[0])) {
+            $wMm = ($info[0] * 25.4) / 96;
+            if ($wMm > $maxWmm) {
+                return $base . 'width:' . $maxWmm . 'mm;';
+            }
+            return $base . 'width:' . round($wMm, 1) . 'mm;';
+        }
+
+        return $base . 'width:100%;';
+    }
+
+    /**
+     * Convierte el HTML del editor a bloques apilados (evita texto al lado de imágenes en mPDF).
+     */
+    private function normalizarBloquesProcesoPdf(string $html): string
+    {
+        $bloque = 'display:block;width:100%;clear:both;margin:0 0 8px 0;'
+            . 'font-size:10pt;line-height:1.45;'
+            . 'word-break:break-all;overflow-wrap:break-word;';
+
+        $html = preg_replace('#</?span[^>]*>#i', '', $html);
+        $html = preg_replace('#</?(table|thead|tbody|tr|td|th)[^>]*>#i', '', $html);
+
+        $html = preg_replace('#<div[^>]*>#i', '<p style="' . $bloque . '">', $html);
+        $html = preg_replace('#</div>#i', '</p>', $html);
+        $html = preg_replace('#<p(?![^>]*style=)([^>]*)>#i', '<p style="' . $bloque . '"$1>', $html);
+        $html = preg_replace('#<br\\s*/?>#i', '<br style="clear:both;" />', $html);
+
+        // Texto suelto sin etiqueta (poco común)
+        if ($html !== '' && $html[0] !== '<') {
+            $html = '<p style="' . $bloque . '">' . $html . '</p>';
+        }
+
+        return $html;
+    }
+
+    /**
+     * Bloque PDF del proceso actual a ancho completo (permite varias páginas sin encoger).
+     */
+    private function buildProcesoActualPdfRow(array $d, callable $texto, callable $h): string
+    {
+        $lbl = $h('¿Cómo lo hace hoy sin el cambio?');
+        $html = $this->sanitizeProcesoActualHtml($d['proceso_actual_html'] ?? '');
+
+        if ($html !== '') {
+            $contenido = $html;
+        } else {
+            $contenido = '<div class="ss-pdf-proceso-contenido" style="font-size:10pt;">' . $texto($d['proceso_actual'] ?? '') . '</div>';
+        }
+
+        return '<div class="ss-pdf-proceso-bloque">'
+            . '<div class="ss-pdf-proceso-lbl">' . $lbl . '</div>'
+            . '<div class="ss-pdf-proceso-celda">' . $contenido . '</div>'
+            . '</div>';
+    }
+
+    /**
+     * Construye el HTML del PDF de solicitud de software (estilos + cuerpo separados para mPDF).
+     *
+     * @return array{style: string, body: string}
+     */
+    private function buildHtmlPdfSolicitudSoftware(array $d): array
+    {
+        $h = function ($v) {
+            return htmlspecialchars((string) ($v ?? ''), ENT_QUOTES, 'UTF-8');
+        };
+
+        $vacio = '<span class="ss-pdf-vacio">No especificado</span>';
+
+        $texto = function ($valor) use ($h, $vacio) {
+            $t = trim((string) ($valor ?? ''));
+            if ($t === '') {
+                return $vacio;
+            }
+            $t = wordwrap($t, 80, "\n", true);
+            return nl2br($h($t));
+        };
+
+        $tipos = [
+            'creacion' => [
+                'titulo' => 'Crear algo nuevo',
+                'desc' => 'Necesito un programa, reporte o herramienta que hoy no existe en la empresa.',
+            ],
+            'modificacion' => [
+                'titulo' => 'Modificar o mejorar algo existente',
+                'desc' => 'Necesito que se le agregue o cambie algo.',
+            ],
+            'correccion' => [
+                'titulo' => 'Corregir un problema',
+                'desc' => 'Algo no funciona bien, da error o muestra información incorrecta.',
+            ],
+            'actualizacion' => [
+                'titulo' => 'Actualizar información o datos',
+                'desc' => 'Necesito cambiar textos, catálogos, listas o datos que ya están en el sistema.',
+            ],
+        ];
+
+        $prioridades = [
+            'urgente' => ['titulo' => 'Urgente', 'desc' => 'Afecta operación diaria', 'color' => '#c0392b'],
+            'normal' => ['titulo' => 'Normal', 'desc' => 'Importante pero no bloquea', 'color' => '#d68910'],
+            'baja' => ['titulo' => 'Puede esperar', 'desc' => 'Mejora deseable a futuro', 'color' => '#1e8449'],
+        ];
+
+        $usuariosMap = [
+            '1' => 'Solo yo',
+            '2-5' => 'De 2 a 5 personas',
+            '6-20' => 'De 6 a 20 personas',
+            '21-50' => 'De 21 a 50 personas',
+            '50+' => 'Más de 50 personas',
+            'todos' => 'Toda la empresa',
+        ];
+
+        $tipoKey = $d['tipo_solicitud'] ?? '';
+        $prioridadKey = $d['prioridad'] ?? '';
+
+        $folio = $h($d['folio'] ?? '');
+        $fecha = $h($d['fecha'] ?? date('d/m/Y'));
+
+        $fechaLimite = trim((string) ($d['fecha_limite'] ?? ''));
+        if ($fechaLimite !== '') {
+            $dt = \DateTime::createFromFormat('Y-m-d', $fechaLimite);
+            $fechaLimite = $dt ? $dt->format('d/m/Y') : $fechaLimite;
+        }
+
+        $usuariosVal = $d['usuarios_afectados'] ?? '';
+        $usuariosTexto = $usuariosMap[$usuariosVal] ?? ($usuariosVal !== '' ? $usuariosVal : '');
+
+        $fila = function ($label, $valor, $ancho = '35%') use ($texto, $h) {
+            $lbl = $h($label);
+            return '<tr>'
+                . '<td class="ss-pdf-lbl" width="' . $ancho . '">' . $lbl . '</td>'
+                . '<td class="ss-pdf-val">' . $texto($valor) . '</td>'
+                . '</tr>';
+        };
+
+        $filaPar = function ($l1, $v1, $l2, $v2) use ($texto, $h) {
+            return '<tr>'
+                . '<td class="ss-pdf-lbl" width="22%">' . $h($l1) . '</td>'
+                . '<td class="ss-pdf-val" width="28%">' . $texto($v1) . '</td>'
+                . '<td class="ss-pdf-lbl" width="22%">' . $h($l2) . '</td>'
+                . '<td class="ss-pdf-val" width="28%">' . $texto($v2) . '</td>'
+                . '</tr>';
+        };
+
+        $secTitulo = function ($num, $titulo) use ($h) {
+            return '<div class="ss-pdf-seccion">'
+                . '<table width="100%" class="ss-pdf-seccion-hdr"><tr>'
+                . '<td width="28" class="ss-pdf-num">' . (int) $num . '</td>'
+                . '<td class="ss-pdf-seccion-tit">' . $h($titulo) . '</td>'
+                . '</tr></table></div>';
+        };
+
+        // Opciones de tipo con marca de selección
+        $tiposHtml = '';
+        foreach ($tipos as $key => $info) {
+            $sel = ($key === $tipoKey);
+            $marca = $sel ? '&#10003;' : '&nbsp;&nbsp;';
+            $cls = $sel ? 'ss-pdf-opc-sel' : 'ss-pdf-opc';
+            $tiposHtml .= '<tr class="' . $cls . '">'
+                . '<td width="24" class="ss-pdf-marca">' . $marca . '</td>'
+                . '<td><strong>' . $h($info['titulo']) . '</strong><br>'
+                . '<span class="ss-pdf-opc-desc">' . $h($info['desc']) . '</span></td>'
+                . '</tr>';
+        }
+
+        // Prioridad seleccionada con detalle
+        $prioridadHtml = $vacio;
+        if (isset($prioridades[$prioridadKey])) {
+            $p = $prioridades[$prioridadKey];
+            $prioridadHtml = '<strong style="color:' . $p['color'] . ';">' . $h($p['titulo']) . '</strong>'
+                . ' &mdash; ' . $h($p['desc']);
+        } elseif ($prioridadKey !== '') {
+            $prioridadHtml = $texto($prioridadKey);
+        }
+
+        $nombreFirma = trim((string) ($d['nombre'] ?? ''));
+        $nombreFirma = $nombreFirma !== '' ? $h($nombreFirma) : '________________________________';
+
+        $jefeFirma = trim((string) ($d['jefe_area'] ?? ''));
+        $jefeFirma = $jefeFirma !== '' ? $h($jefeFirma) : '________________________________';
+
+        $procesoActualRow = $this->buildProcesoActualPdfRow($d, $texto, $h);
+
+        $style = <<<HTML
+        <style>
+            body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; color: #2c3e50; line-height: 1.45; }
+            .ss-pdf-vacio { color: #999; font-style: italic; }
+            .ss-pdf-banner { background-color: #2a3f54; color: #fff; padding: 14px 16px; margin-bottom: 10px; }
+            .ss-pdf-banner-tit { font-size: 17pt; font-weight: bold; margin: 0; letter-spacing: 0.3px; }
+            .ss-pdf-banner-sub { font-size: 9pt; margin: 4px 0 0; color: #bdc3c7; }
+            .ss-pdf-meta { width: 100%; border: 1px solid #d5dbe0; background: #f4f6f8; margin-bottom: 14px; }
+            .ss-pdf-meta td { padding: 8px 12px; font-size: 9.5pt; }
+            .ss-pdf-meta-lbl { color: #666; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.4px; }
+            .ss-pdf-meta-val { font-weight: bold; color: #2a3f54; font-size: 11pt; }
+            .ss-pdf-seccion { margin-top: 8px; }
+            .ss-pdf-seccion-hdr { background: #2a3f54; color: #fff; border-collapse: collapse; }
+            .ss-pdf-seccion-hdr td { padding: 6px 10px; vertical-align: middle; }
+            .ss-pdf-num { background: rgba(255,255,255,0.15); text-align: center; font-weight: bold; font-size: 11pt; }
+            .ss-pdf-seccion-tit { font-size: 11pt; font-weight: bold; }
+            .ss-pdf-tabla { width: 100%; border-collapse: collapse; margin-bottom: 2px; table-layout: fixed; }
+            .ss-pdf-tabla td { border: 1px solid #d5dbe0; padding: 5px 8px; vertical-align: top; }
+            .ss-pdf-lbl { background: #eef1f4; font-weight: bold; font-size: 9pt; color: #444; width: 35%; }
+            .ss-pdf-val {
+                font-size: 10pt;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+                word-break: break-all;
+                max-width: 100%;
+            }
+            .ss-pdf-proceso-bloque {
+                width: 100%;
+                margin: 0 0 10px 0;
+                page-break-inside: auto;
+            }
+            .ss-pdf-proceso-lbl {
+                background: #eef1f4;
+                border: 1px solid #d5dbe0;
+                border-bottom: none;
+                padding: 5px 8px;
+                font-weight: bold;
+                font-size: 9pt;
+                color: #444;
+            }
+            .ss-pdf-proceso-celda {
+                border: 1px solid #d5dbe0;
+                padding: 8px 10px;
+                font-size: 10pt;
+                line-height: 1.45;
+                word-break: break-all;
+                overflow-wrap: break-word;
+            }
+            .ss-pdf-proceso-contenido {
+                display: block;
+                width: 100%;
+                clear: both;
+                line-height: 1.45;
+                font-size: 10pt;
+            }
+            .ss-pdf-proceso-contenido p {
+                display: block;
+                width: 100%;
+                clear: both;
+                margin: 0 0 8px 0;
+                font-size: 10pt;
+                line-height: 1.45;
+                word-break: break-all;
+                overflow-wrap: break-word;
+            }
+            .ss-pdf-proceso-contenido img {
+                display: block;
+                margin: 12px auto;
+                clear: both;
+                height: auto;
+            }
+            .ss-pdf-proceso-contenido div {
+                display: block;
+                width: 100%;
+                clear: both;
+            }
+            .ss-pdf-opc td { border: 1px solid #d5dbe0; padding: 6px 8px; vertical-align: top; }
+            .ss-pdf-opc-sel td { border: 2px solid #2980b9; background: #ebf5fb; padding: 6px 8px; vertical-align: top; }
+            .ss-pdf-marca { text-align: center; font-weight: bold; color: #2980b9; font-size: 12pt; }
+            .ss-pdf-opc-desc { font-size: 8.5pt; color: #666; }
+            .ss-pdf-texto-largo { min-height: 36px; }
+            .ss-pdf-autorizacion {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            .ss-pdf-firmas-wrap {
+                width: 100%;
+                margin-top: 10px;
+                border-collapse: collapse;
+                page-break-inside: avoid;
+                break-inside: avoid;
+                page-break-before: avoid;
+                break-before: avoid;
+            }
+            .ss-pdf-firmas-wrap > tbody > tr > td { padding: 8px 6px 10px; vertical-align: top; }
+            .ss-pdf-firma-col { width: 33%; text-align: center; }
+            .ss-pdf-firma-col-last { width: 33%; text-align: center; }
+            .ss-pdf-firma-espacio { height: 58px; border-bottom: 1.5px solid #1a1a1a; margin: 0 6px 8px; }
+            .ss-pdf-firma-tit { font-size: 9pt; font-weight: bold; color: #2a3f54; margin: 0 0 4px; }
+            .ss-pdf-firma-nom { font-size: 8pt; color: #555; margin: 0; }
+            .ss-pdf-firma-fecha { font-size: 8pt; color: #555; margin: 4px 0 0; }
+        </style>
+        HTML;
+
+        $body = <<<HTML
+        <div class="ss-pdf-banner">
+            <div class="ss-pdf-banner-tit">Solicitud de Software</div>
+            <div class="ss-pdf-banner-sub">Formato oficial para solicitar creación, modificación o corrección de sistemas</div>
+        </div>
+
+        <table class="ss-pdf-meta">
+            <tr>
+                <td width="50%">
+                    <div class="ss-pdf-meta-lbl">Folio de solicitud</div>
+                    <div class="ss-pdf-meta-val">{$folio}</div>
+                </td>
+                <td width="50%">
+                    <div class="ss-pdf-meta-lbl">Fecha de captura</div>
+                    <div class="ss-pdf-meta-val">{$fecha}</div>
+                </td>
+            </tr>
+        </table>
+
+        {$secTitulo(1, 'Datos de quien solicita')}
+        <table class="ss-pdf-tabla">
+            {$filaPar('Nombre completo', $d['nombre'] ?? '', 'Puesto o cargo', $d['puesto'] ?? '')}
+            {$filaPar('Área o departamento', $d['area'] ?? '', 'Sucursal', $d['sucursal'] ?? '')}
+            {$filaPar('Correo electrónico', $d['correo'] ?? '', 'Teléfono o extensión', $d['telefono'] ?? '')}
+        </table>
+
+        {$secTitulo(2, '¿Qué tipo de solicitud es?')}
+        <table class="ss-pdf-tabla" style="margin-bottom:6px;">
+            {$tiposHtml}
+        </table>
+
+        {$secTitulo(3, 'Describa lo que necesita')}
+        <table class="ss-pdf-tabla">
+            {$fila('¿Qué sistema o programa usa actualmente para esta actividad?', $d['sistema_actual'] ?? '')}
+            {$fila('Describa con sus palabras qué necesita', $d['descripcion'] ?? '')}
+            {$fila('¿Qué problema resuelve o qué mejora trae?', $d['beneficio'] ?? '')}
+        </table>
+        {$procesoActualRow}
+
+        {$secTitulo(4, 'Prioridad y alcance')}
+        <table class="ss-pdf-tabla">
+            <tr>
+                <td class="ss-pdf-lbl" width="22%">¿Qué tan urgente es?</td>
+                <td class="ss-pdf-val" width="28%">{$prioridadHtml}</td>
+                <td class="ss-pdf-lbl" width="22%">Fecha límite deseada</td>
+                <td class="ss-pdf-val" width="28%">{$texto($fechaLimite)}</td>
+            </tr>
+            {$filaPar('¿Cuántas personas lo usarían?', $usuariosTexto, '¿En qué sucursales o áreas se usaría?', $d['alcance'] ?? '')}
+        </table>
+
+        <div class="ss-pdf-autorizacion">
+        {$secTitulo(5, 'Autorización')}
+        <table class="ss-pdf-tabla">
+            {$fila('Nombre del jefe de área', $d['jefe_area'] ?? '')}
+        </table>
+
+        <table class="ss-pdf-firmas-wrap">
+            <tr>
+                <td class="ss-pdf-firma-col">
+                    <table width="100%" style="border-collapse:collapse;">
+                        <tr>
+                            <td style="height:48px;border-bottom:1.5px solid #1a1a1a;vertical-align:bottom;font-size:8pt;color:#aaa;">&nbsp;</td>
+                        </tr>
+                        <tr>
+                            <td style="padding-top:8px;text-align:center;">
+                                <p class="ss-pdf-firma-tit">Firma del solicitante</p>
+                                <p class="ss-pdf-firma-nom">{$nombreFirma}</p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+                <td class="ss-pdf-firma-col">
+                    <table width="100%" style="border-collapse:collapse;">
+                        <tr>
+                            <td style="height:48px;border-bottom:1.5px solid #1a1a1a;vertical-align:bottom;font-size:8pt;color:#aaa;">&nbsp;</td>
+                        </tr>
+                        <tr>
+                            <td style="padding-top:8px;text-align:center;">
+                                <p class="ss-pdf-firma-tit">Firma del jefe de área</p>
+                                <p class="ss-pdf-firma-nom">{$jefeFirma}</p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+                <td class="ss-pdf-firma-col-last">
+                    <table width="100%" style="border-collapse:collapse;">
+                        <tr>
+                            <td style="height:48px;border-bottom:1.5px solid #1a1a1a;vertical-align:bottom;font-size:8pt;color:#aaa;">&nbsp;</td>
+                        </tr>
+                        <tr>
+                            <td style="padding-top:8px;text-align:center;">
+                                <p class="ss-pdf-firma-tit">Vo. Bo. Área de Desarrollo</p>
+                                <p class="ss-pdf-firma-fecha">Fecha: ____ / ____ / ________</p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+        </div>
+        HTML;
+
+        return ['style' => $style, 'body' => $body];
     }
 }
