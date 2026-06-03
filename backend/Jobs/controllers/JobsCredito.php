@@ -236,17 +236,6 @@ class JobsCredito extends Job
     }
 
     /**
-     * Llama a CierreDiaService::finalizarCierre (registrar fin, enviar correo).
-     */
-    private function finalizarCierreApp($fechaCierre, $exito)
-    {
-        if (!class_exists(\App\services\CierreDiaService::class)) {
-            return;
-        }
-        \App\services\CierreDiaService::finalizarCierre($fechaCierre, $exito);
-    }
-
-    /**
      * Genera el reporte de días de atraso en CSV (PRN situación L, reporte completo).
      *
      * @param string $rutaSalida Directorio de salida; si vacío, usa USERPROFILE\Desktop
@@ -301,6 +290,798 @@ class JobsCredito extends Job
         self::SaveLog('CSV generado: ' . $archivo . ' (' . count($filas) . ' registros)');
         self::SaveLog('Finalizado');
     }
+
+    public function CierreDia($fecha, $usuario)
+    {
+        self::SaveLog('Inicio');
+        if (empty($fecha) || empty($usuario)) {
+            self::SaveLog('Finalizado con error: Fecha y usuario son requeridos');
+            return;
+        }
+
+        $dest = null;
+        $mensajeRes = null;
+        $datos = [
+            'fecha' => $fecha,
+            'usuario' => $usuario
+        ];
+
+        $resultado = JobsDao::CierreDia($datos);
+
+        if (isset($resultado['datos']) && isset($resultado['datos']['MENSAJE'])) {
+            $lineas = explode(PHP_EOL, trim($resultado['datos']['MENSAJE']));
+            $mensajeRes = end($lineas);
+            $resultado['datos']['MENSAJE'] = $mensajeRes;
+        }
+
+        if ($resultado['success']) {
+            $dest = $this->GetDestinatarios(JobsDao::GetDestinatarios_Aplicacion(5));
+            $mensaje = "Cierre de día concluido: fecha $fecha - usuario $usuario";
+        } else {
+            $dest = $this->GetDestinatarios(JobsDao::GetDestinatarios_Aplicacion(6));
+            $error = isset($resultado['error']) ? $resultado['error'] : $mensajeRes;
+            $mensaje = "Finalizado con error: $error";
+        }
+
+        if (!empty($dest)) {
+            try {
+                $fecha = new \DateTime($fecha);
+                $fecha = $fecha->format('d/m/Y');
+                Mensajero::EnviarCorreo(
+                    $dest,
+                    "Cierre del día $fecha",
+                    Mensajero::Notificaciones(self::PLantilla_mail_Cierre_Dia($resultado['datos'] ?? []))
+                );
+
+                $resCorreo = JobsDao::CorreoCierreDia($resultado['datos'] ?? []);
+                self::SaveLog('Estatus del correo: ' . $resCorreo['mensaje'] . ' -> ' . ($resCorreo['error'] ?? ''));
+            } catch (\Exception $e) {
+                self::SaveLog('Error al enviar correo: ' . $e->getMessage());
+            }
+        }
+
+        self::SaveLog($mensaje);
+    }
+
+    public function PLantilla_mail_Cierre_Dia($datos)
+    {
+        $moneda = new \NumberFormatter('es_MX', \NumberFormatter::CURRENCY);
+        $fecha = new \IntlDateFormatter(
+            'es_ES',
+            \IntlDateFormatter::LONG,
+            \IntlDateFormatter::NONE,
+            'America/Mexico_City',
+            \IntlDateFormatter::GREGORIAN,
+            "d 'de' MMMM 'de' y" // Definimos el patrón manualmente
+        );
+        $resumen = JobsDao::GetResumenCierreDia($datos);
+
+        $fecha_calculo = isset($datos['FECHA_CALCULO']) ? $fecha->format(\DateTime::createFromFormat('d/m/Y', $datos['FECHA_CALCULO'])) : 'N/A';
+
+        $devengo_registros = isset($datos['DEVENGO_REGISTROS']) ? $datos['DEVENGO_REGISTROS'] : '0';
+        $devengo_monto = isset($datos['DEVENGO_MONTO']) ? $moneda->formatCurrency(($datos['DEVENGO_MONTO'] ?? 0), 'MXN') : '$ 0.00';
+
+        if ($resumen['success']) {
+            $pagos = $resumen['datos']['pagos'] ?? [];
+            $detalle = $resumen['datos']['detalle'] ?? [];
+            $mp = $resumen['datos']['mp'] ?? [];
+
+            $pagos_total_registros = $pagos['TOTAL_REGISTROS'] ?? 0;
+            $pagos_total_monto = $moneda->formatCurrency(($pagos['TOTAL_MONTO'] ?? 0), 'MXN');
+            $pagos_pendiente_registros = $pagos['PENDIENTES_REGISTROS'] ?? 0;
+            $pagos_pendiente_monto = $moneda->formatCurrency(($pagos['PENDIENTES_MONTO'] ?? 0), 'MXN');
+            $pagos_aplicados_registros = $pagos['APLICADOS_REGISTROS'] ?? 0;
+            $pagos_aplicados_monto = $moneda->formatCurrency(($pagos['APLICADOS_MONTO'] ?? 0), 'MXN');
+            $pagos_registros = $detalle['PAGOS_REGISTROS'] ?? 0;
+            $pagos_monto = $moneda->formatCurrency(($detalle['PAGOS_MONTO'] ?? 0), 'MXN');
+            $garantias_registros = $detalle['GARANTIAS_REGISTROS'] ?? 0;
+            $garantias_monto = $moneda->formatCurrency(($detalle['GARANTIAS_MONTO'] ?? 0), 'MXN');
+            $incidencias_registros = $detalle['INCIDENCIAS_REGISTROS'] ?? 0;
+            $incidencias_monto = $moneda->formatCurrency(($detalle['INCIDENCIAS_MONTO'] ?? 0), 'MXN');
+            $mp_total_registros = $mp['TOTAL_REGISTROS'] ?? 0;
+            $mp_total_monto = $moneda->formatCurrency(($mp['TOTAL_MONTO'] ?? 0), 'MXN');
+            $mp_pendiente_registros = $mp['PENDIENTES_REGISTROS'] ?? 0;
+            $mp_pendiente_monto = $moneda->formatCurrency(($mp['PENDIENTES_MONTO'] ?? 0), 'MXN');
+            $mp_conciliados_registros = $mp['CONCILIADOS_REGISTROS'] ?? 0;
+            $mp_conciliados_monto = $moneda->formatCurrency(($mp['CONCILIADOS_MONTO'] ?? 0), 'MXN');
+        }
+
+        return <<<HTML
+            <table
+                role="presentation"
+                width="100%"
+                cellspacing="0"
+                cellpadding="0"
+                style="border-spacing: 0; border-collapse: separate"
+            >
+                <tr>
+                    <td colspan="3">
+                        <div
+                            style="
+                                background: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+                                border: 1px solid #dbe3ef;
+                                border-radius: 14px;
+                                padding: 16px;
+                                margin-bottom: 18px;
+                            "
+                        >
+                            Resumen de cierre del día $fecha_calculo
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="3">
+                        <div
+                            style="
+                                font-size: 13px;
+                                font-weight: 700;
+                                color: #475569;
+                                text-transform: uppercase;
+                                letter-spacing: 0.06em;
+                                margin-bottom: 10px;
+                            "
+                        >
+                            Proceso
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="width: 33.33%; padding: 0 6px 12px 0">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 12px;
+                                padding: 12px 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 4px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Usuario
+                            </div>
+                            <div style="font-size: 14px; color: #0f172a; font-weight: 700">
+                                {$datos['USUARIO']}
+                            </div>
+                        </div>
+                    </td>
+                    <td style="width: 33.33%; padding: 0 3px 12px 3px">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 12px;
+                                padding: 12px 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 4px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Inicio
+                            </div>
+                            <div style="font-size: 14px; color: #0f172a; font-weight: 700">
+                                {$datos['INICIO']}
+                            </div>
+                        </div>
+                    </td>
+                    <td style="width: 33.33%; padding: 0 0 12px 6px">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 12px;
+                                padding: 12px 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 4px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Fin
+                            </div>
+                            <div style="font-size: 14px; color: #0f172a; font-weight: 700">
+                                {$datos['FIN']}
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="width: 33.33%; padding: 0 6px 12px 0">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 12px;
+                                padding: 12px 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 4px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Registros
+                            </div>
+                            <div style="font-size: 14px; color: #0f172a; font-weight: 700">
+                                {$datos['CIERRE_REGISTROS']}
+                            </div>
+                        </div>
+                    </td>
+                    <td colspan="2" style="width: 33.33%; padding: 0 3px 12px 3px">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 12px;
+                                padding: 12px 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 4px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Estatus
+                            </div>
+                            <div style="font-size: 14px; color: #0f172a; font-weight: 700">
+                                {$datos['MENSAJE']}
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="3" style="padding: 6px 0 18px">
+                        <div style="height: 1px; background: #dbe3ef"></div>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="3">
+                        <div
+                            style="
+                                font-size: 13px;
+                                font-weight: 700;
+                                color: #475569;
+                                text-transform: uppercase;
+                                letter-spacing: 0.06em;
+                                margin-bottom: 10px;
+                            "
+                        >
+                            Pagos del día
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="width: 33.33%; padding: 0 6px 12px 0">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 14px;
+                                padding: 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 6px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Total
+                            </div>
+                            <div
+                                style="
+                                    font-size: 28px;
+                                    text-align: end;
+                                    line-height: 1;
+                                    color: #0f172a;
+                                    font-weight: 800;
+                                    letter-spacing: -0.02em;
+                                "
+                            >
+                                $pagos_total_registros
+                            </div>
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    text-align: end;
+                                    color: #334155;
+                                    margin-top: 8px;
+                                    font-weight: 600;
+                                "
+                            >
+                                $pagos_total_monto
+                            </div>
+                        </div>
+                    </td>
+                    <td style="width: 33.33%; padding: 0 3px 12px 3px">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 14px;
+                                padding: 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 6px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Pendientes
+                            </div>
+                            <div
+                                style="
+                                    font-size: 28px;
+                                    text-align: end;
+                                    line-height: 1;
+                                    color: #0f172a;
+                                    font-weight: 800;
+                                    letter-spacing: -0.02em;
+                                "
+                            >
+                                $pagos_pendiente_registros
+                            </div>
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    text-align: end;
+                                    color: #334155;
+                                    margin-top: 8px;
+                                    font-weight: 600;
+                                "
+                            >
+                                $pagos_pendiente_monto
+                            </div>
+                        </div>
+                    </td>
+                    <td style="width: 33.33%; padding: 0 0 12px 6px">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 14px;
+                                padding: 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 6px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Aplicados
+                            </div>
+                            <div
+                                style="
+                                    font-size: 28px;
+                                    text-align: end;
+                                    line-height: 1;
+                                    color: #0f172a;
+                                    font-weight: 800;
+                                    letter-spacing: -0.02em;
+                                "
+                            >
+                                $pagos_aplicados_registros
+                            </div>
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    text-align: end;
+                                    color: #334155;
+                                    margin-top: 8px;
+                                    font-weight: 600;
+                                "
+                            >
+                                $pagos_aplicados_monto
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="3">
+                        <div
+                            style="
+                                font-size: 13px;
+                                font-weight: 700;
+                                color: #475569;
+                                text-transform: uppercase;
+                                letter-spacing: 0.06em;
+                                margin-bottom: 10px;
+                            "
+                        >
+                            Identificados
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="width: 33.33%; padding: 0 6px 12px 0">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 14px;
+                                padding: 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 6px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Pagos
+                            </div>
+                            <div
+                                style="
+                                    font-size: 28px;
+                                    text-align: end;
+                                    line-height: 1;
+                                    color: #0f172a;
+                                    font-weight: 800;
+                                    letter-spacing: -0.02em;
+                                "
+                            >
+                                $pagos_registros
+                            </div>
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    text-align: end;
+                                    color: #334155;
+                                    margin-top: 8px;
+                                    font-weight: 600;
+                                "
+                            >
+                                $pagos_monto
+                            </div>
+                        </div>
+                    </td>
+                    <td style="width: 33.33%; padding: 0 3px 12px 3px">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 14px;
+                                padding: 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 6px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Garantías
+                            </div>
+                            <div
+                                style="
+                                    font-size: 28px;
+                                    text-align: end;
+                                    line-height: 1;
+                                    color: #0f172a;
+                                    font-weight: 800;
+                                    letter-spacing: -0.02em;
+                                "
+                            >
+                                $garantias_registros
+                            </div>
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    text-align: end;
+                                    color: #334155;
+                                    margin-top: 8px;
+                                    font-weight: 600;
+                                "
+                            >
+                                $garantias_monto
+                            </div>
+                        </div>
+                    </td>
+                    <td style="width: 33.33%; padding: 0 0 12px 6px">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 14px;
+                                padding: 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 6px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Incidencias
+                            </div>
+                            <div
+                                style="
+                                    font-size: 28px;
+                                    text-align: end;
+                                    line-height: 1;
+                                    color: #0f172a;
+                                    font-weight: 800;
+                                    letter-spacing: -0.02em;
+                                "
+                            >
+                                $incidencias_registros
+                            </div>
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    text-align: end;
+                                    color: #334155;
+                                    margin-top: 8px;
+                                    font-weight: 600;
+                                "
+                            >
+                                $incidencias_monto
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="3" style="padding: 6px 0 18px">
+                        <div style="height: 1px; background: #dbe3ef"></div>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="3">
+                        <div
+                            style="
+                                font-size: 13px;
+                                font-weight: 700;
+                                color: #475569;
+                                text-transform: uppercase;
+                                letter-spacing: 0.06em;
+                                margin-bottom: 10px;
+                            "
+                        >
+                            Conciliación
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="width: 33.33%; padding: 0 6px 12px 0">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 14px;
+                                padding: 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 6px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Total
+                            </div>
+                            <div
+                                style="
+                                    font-size: 28px;
+                                    text-align: end;
+                                    line-height: 1;
+                                    color: #0f172a;
+                                    font-weight: 800;
+                                    letter-spacing: -0.02em;
+                                "
+                            >
+                                $mp_total_registros
+                            </div>
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    text-align: end;
+                                    color: #334155;
+                                    margin-top: 8px;
+                                    font-weight: 600;
+                                "
+                            >
+                                $mp_total_monto
+                            </div>
+                        </div>
+                    </td>
+                    <td style="width: 33.33%; padding: 0 6px 12px 0">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 14px;
+                                padding: 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 6px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Pendientes
+                            </div>
+                            <div
+                                style="
+                                    font-size: 28px;
+                                    text-align: end;
+                                    line-height: 1;
+                                    color: #0f172a;
+                                    font-weight: 800;
+                                    letter-spacing: -0.02em;
+                                "
+                            >
+                                $mp_pendiente_registros
+                            </div>
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    text-align: end;
+                                    color: #334155;
+                                    margin-top: 8px;
+                                    font-weight: 600;
+                                "
+                            >
+                                $mp_pendiente_monto
+                            </div>
+                        </div>
+                    </td>
+                    <td style="width: 33.33%; padding: 0 3px 12px 3px">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 14px;
+                                padding: 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 6px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Conciliados
+                            </div>
+                            <div
+                                style="
+                                    font-size: 28px;
+                                    text-align: end;
+                                    line-height: 1;
+                                    color: #0f172a;
+                                    font-weight: 800;
+                                    letter-spacing: -0.02em;
+                                "
+                            >
+                                $mp_conciliados_registros
+                            </div>
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    text-align: end;
+                                    color: #334155;
+                                    margin-top: 8px;
+                                    font-weight: 600;
+                                "
+                            >
+                                $mp_conciliados_monto
+                            </div>
+                        </div>
+                    </td>
+                    <td style="width: 33.33%; padding: 0 0 12px 6px"></td>
+                </tr>
+                <tr>
+                    <td colspan="3" style="padding: 6px 0 18px">
+                        <div style="height: 1px; background: #dbe3ef"></div>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="3">
+                        <div
+                            style="
+                                font-size: 13px;
+                                font-weight: 700;
+                                color: #475569;
+                                text-transform: uppercase;
+                                letter-spacing: 0.06em;
+                                margin-bottom: 10px;
+                            "
+                        >
+                            Devengo para el día {$datos['DEVENGO_FECHA']}
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="width: 33.33%; padding: 0 6px 12px 0">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 14px;
+                                padding: 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 6px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Créditos
+                            </div>
+                            <div
+                                style="
+                                    font-size: 28px;
+                                    text-align: end;
+                                    line-height: 1;
+                                    color: #0f172a;
+                                    font-weight: 800;
+                                    letter-spacing: -0.02em;
+                                "
+                            >
+                                $devengo_registros
+                            </div>
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    text-align: end;
+                                    color: #334155;
+                                    margin-top: 8px;
+                                    font-weight: 600;
+                                "
+                            >
+                                $devengo_monto
+                            </div>
+                        </div>
+                    </td>
+                    <td style="width: 33.33%; padding: 0 3px 12px 3px"></td>
+                    <td style="width: 33.33%; padding: 0 0 12px 6px"></td>
+                </tr>
+            </table>
+        HTML;
+    }
 }
 
 if (isset($argv[1])) {
@@ -317,10 +1098,16 @@ if (isset($argv[1])) {
             $ruta = isset($argv[2]) ? $argv[2] : '';
             $jobs->RepDiasAtraso($ruta);
             break;
+        case 'CierreDia':
+            $fecha = isset($argv[2]) ? $argv[2] : NULL;
+            $usuario = isset($argv[3]) ? $argv[3] : NULL;
+            $jobs->CierreDia($fecha, $usuario);
+            break;
         case 'help':
             echo 'JobCheques: Actualiza los cheques de los créditos autorizados\n';
             echo 'SolicitudesFinalizadas: Evalúa el comentario final de la solicitud y la procesa para concluir con la solicitud\n';
             echo 'RepDiasAtraso [ruta]: Genera Rep_Días_atraso_YYYYMMDD.csv; ruta opcional (por defecto Desktop del usuario)\n';
+            echo 'CierreDia [fecha] [usuario]: Ejecuta el cierre del día para la fecha y usuario especificados\n';
             break;
         default:
             echo 'No se encontró el job solicitado.\nEjecute "php JobsAhorro.php help" para ver los jobs disponibles.\n';

@@ -133,58 +133,46 @@ sql;
     public static function SelectSucursalAllCreditoCambioSuc($noCredito, $ciclo = null)
     {
         $noCredito = self::normalizarNumeroCredito($noCredito);
-        if ($noCredito === '') {
+        if ($noCredito === '') return null;
+
+        $query = <<<SQL
+            SELECT 
+                SN.CDGNS NO_CREDITO,
+                GET_NOMBRE_CLIENTE(SC.CDGCL) CLIENTE,
+                SN.CICLO,
+                NVL(SN.CANTAUTOR, SN.CANTSOLIC) MONTO,
+                SN.SITUACION,
+                SN.CDGCO ID_SUCURSAL,
+                GET_NOMBRE_SUCURSAL(SN.CDGCO) SUCURSAL,
+                GET_NOMBRE_EMPLEADO(SN.CDGOCPE) EJECUTIVO
+            FROM 
+                SN
+                LEFT JOIN SC ON SC.CDGNS = SN.CDGNS AND SC.CICLO = SN.CICLO AND SC.CANTSOLIC <> '9999'
+            WHERE
+                SN.CDGNS = :credito
+                AND SN.CICLO FILTRO_CICLO
+            ORDER BY
+                SN.INICIO DESC
+        SQL;
+
+        $params = [
+            'credito' => $noCredito
+        ];
+
+        try {
+            $db = new Database();
+
+            if ($ciclo !== null) {
+                $query = str_replace('FILTRO_CICLO', '= :ciclo', $query);
+                $params['ciclo'] = $ciclo;
+                return $db->queryOne($query, $params);
+            } else {
+                $query = str_replace('FILTRO_CICLO', "NOT LIKE 'R%'", $query);
+                return $db->queryAll($query, $params);
+            }
+        } catch (\Exception $e) {
             return null;
         }
-
-        $ciclo = $ciclo !== null ? trim((string) $ciclo) : '';
-        $filtroCiclo = $ciclo !== '' ? "       AND SC.CICLO = '$ciclo'\n" : '';
-
-        $query = <<<sql
-        SELECT 
-		SC.CDGNS NO_CREDITO,
-		SC.CDGCL ID_CLIENTE,
-		GET_NOMBRE_CLIENTE(SC.CDGCL) CLIENTE,
-		SC.CICLO,
-		NVL(SC.CANTAUTOR,SC.CANTSOLIC) MONTO,
-		SC.SITUACION,
-		SN.PLAZOSOL PLAZO,
-		CALCULA_PARCIALIDAD(SN.PERIODICIDAD, SN.TASA, NVL(SC.CANTAUTOR,SC.CANTSOLIC), SN.PLAZOSOL) PARCIALIDAD,
-		Q2.CDGCL ID_AVAL,
-		GET_NOMBRE_CLIENTE(Q2.CDGCL) AVAL,
-		SN.CDGCO ID_SUCURSAL,
-		GET_NOMBRE_SUCURSAL(SN.CDGCO) SUCURSAL,
-		SN.CDGOCPE ID_EJECUTIVO,
-		GET_NOMBRE_EMPLEADO(SN.CDGOCPE) EJECUTIVO
-	FROM 
-		SN, SC, SC Q2, PRN 
-	WHERE
-		SC.CDGNS = '$noCredito'
-$filtroCiclo		AND SC.CDGNS = Q2.CDGNS
-		AND SC.CICLO = Q2.CICLO
-		AND SC.CDGCL <> Q2.CDGCL
-		AND SC.CDGNS = SN.CDGNS
-		AND SC.CICLO = SN.CICLO
-	  	AND SC.CICLO !='R1' 
-		AND SC.CICLO != 'R2'
-		AND SC.CICLO != 'R3'
-		AND SC.CICLO != 'R4'
-		AND SC.CICLO != 'R5'
-		AND SC.CICLO != 'R6'
-		AND SC.CICLO != 'R7'
-		AND PRN.CDGNS = SN.CDGNS
-		AND PRN.CICLO = SN.CICLO
-		AND PRN.SITUACION != 'T'
-		AND SC.CANTSOLIC <> '9999' order by SN.INICIO DESC
-sql;
-
-
-        $mysqli = new Database();
-        if ($ciclo !== '') {
-            return $mysqli->queryOne($query);
-        }
-
-        return $mysqli->queryAll($query);
     }
 
     private static function normalizarNumeroCredito($noCredito): string

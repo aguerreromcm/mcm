@@ -1639,4 +1639,127 @@ class JobsCredito extends Model
             return self::Responde(false, 'Error al consultar el reporte', null, $e->getMessage());
         }
     }
+
+    public static function CierreDia($datos)
+    {
+        $sp = "CALL SP_PAGOS_CIERRE_DEVENGO(TO_DATE(:fecha, 'YYYY-MM-DD'), :usuario, :output)";
+
+        $qry = <<<SQL
+            SELECT
+                TO_CHAR(FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CALCULO
+                ,USUARIO
+                ,TO_CHAR(INICIO, 'DD/MM/YYYY HH24:MI') AS INICIO
+                ,TO_CHAR(FIN, 'DD/MM/YYYY HH24:MI') AS FIN
+                ,EXITO
+                ,ID_IMPORTACION
+                ,ID_PROCESO
+                ,MENSAJE
+                ,CIERRE_REGISTROS
+                ,DEVENGO_REGISTROS
+                ,DEVENGO_MONTO
+                ,TO_CHAR(FECHA_CALCULO + 1, 'DD/MM/YYYY') AS DEVENGO_FECHA
+            FROM
+                BITACORA_CIERRE_DIARIO
+            WHERE ID_IMPORTACION = :id_importacion
+        SQL;
+
+        $parametros = [
+            'fecha' => $datos['fecha'],
+            'usuario' => $datos['usuario']
+        ];
+
+        try {
+            $db = new Database();
+            $res = $db->EjecutaSP($sp, $parametros);
+            $res = $db->queryOne($qry, ['id_importacion' => $res]);
+
+            return $res['EXITO'] == 1 ?
+                self::Responde(true, 'Proceso exitoso', $res) :
+                self::Responde(false, 'Error en el proceso', $res);
+        } catch (\Exception $e) {
+            return self::Responde(false, 'Error al ejecutar el SP de cierre de día.', null, $e->getMessage());
+        }
+    }
+
+    public static function GetResumenCierreDia($datos)
+    {
+        $pagos = <<<SQL
+            SELECT COUNT(*) AS TOTAL_REGISTROS,
+                SUM(MONTO) AS TOTAL_MONTO,
+                SUM(CASE WHEN ID_IMPORTACION IS NULL THEN 1 ELSE 0 END) AS PENDIENTES_REGISTROS,
+                SUM(CASE WHEN ID_IMPORTACION IS NULL THEN MONTO ELSE 0 END) AS PENDIENTES_MONTO,
+                SUM(CASE WHEN ID_IMPORTACION IS NOT NULL THEN 1 ELSE 0 END) AS APLICADOS_REGISTROS,
+                SUM(CASE WHEN ID_IMPORTACION IS NOT NULL THEN MONTO ELSE 0 END) AS APLICADOS_MONTO
+            FROM PAGOSDIA
+            WHERE
+                ESTATUS = 'A'
+                AND TIPO IN ('P', 'G', 'X')
+                AND MONTO!= 0
+                AND TRUNC(FECHA) = TO_DATE(:fecha, 'DD/MM/YYYY')
+        SQL;
+
+        $det = <<<SQL
+            SELECT SUM(CASE WHEN ESTATUS = 1 THEN NO_REGISTROS ELSE 0 END) AS PAGOS_REGISTROS,
+                 SUM(CASE WHEN ESTATUS = 1 THEN MONTO ELSE 0 END) AS PAGOS_MONTO,
+                 SUM(CASE WHEN ESTATUS = 2 THEN NO_REGISTROS ELSE 0 END) AS GARANTIAS_REGISTROS,
+                 SUM(CASE WHEN ESTATUS = 2 THEN MONTO ELSE 0 END) AS GARANTIAS_MONTO,
+                 SUM(CASE WHEN ESTATUS = 3 THEN NO_REGISTROS ELSE 0 END) AS INCIDENCIAS_REGISTROS,
+                 SUM(CASE WHEN ESTATUS = 3 THEN MONTO ELSE 0 END) AS INCIDENCIAS_MONTO
+            FROM IMPORTACIONPAGDET
+            WHERE ID_IMPORTACION = :id_importacion
+        SQL;
+
+        $mp = <<<SQL
+            SELECT COUNT(*) AS TOTAL_REGISTROS,
+                SUM(CANTIDAD) AS TOTAL_MONTO,
+                SUM(CASE WHEN CONCILIADO = 'C' THEN 1 ELSE 0 END) AS PENDIENTES_REGISTROS,
+                SUM(CASE WHEN CONCILIADO = 'C' THEN CANTIDAD ELSE 0 END) AS PENDIENTES_MONTO,
+                SUM(CASE WHEN CONCILIADO = 'D' THEN 1 ELSE 0 END) AS CONCILIADOS_REGISTROS,
+                SUM(CASE WHEN CONCILIADO = 'D' THEN CANTIDAD ELSE 0 END) AS CONCILIADOS_MONTO
+            FROM MP
+            WHERE TRUNC(FDEPOSITO) = TO_DATE(:fecha, 'DD/MM/YYYY')
+            AND TIPO = 'PD'
+            AND MODO = 'I'
+        SQL;
+
+        try {
+            $db = new Database();
+            $res_pagos = $db->queryOne($pagos, ['fecha' => $datos['FECHA_CALCULO']]);
+            $res_det = $db->queryOne($det, ['id_importacion' => $datos['ID_IMPORTACION']]);
+            $res_mp = $db->queryOne($mp, ['fecha' => $datos['FECHA_CALCULO']]);
+
+            return self::Responde(true, 'Consulta exitosa', [
+                'pagos' => $res_pagos,
+                'detalle' => $res_det,
+                'mp' => $res_mp
+            ]);
+        } catch (\Exception $e) {
+            return self::Responde(false, 'Error al consultar el resultado del cierre', null, $e->getMessage());
+        }
+    }
+
+    public static function CorreoCierreDia($datos)
+    {
+        $qry = <<<SQL
+            UPDATE BITACORA_CIERRE_DIARIO
+            SET CORREO = 1
+            WHERE TRUNC(FECHA_CALCULO) = TO_DATE(:fecha, 'DD/MM/YYYY')
+                AND ID_IMPORTACION = :id_importacion
+                AND ID_PROCESO = :id_proceso
+        SQL;
+
+        $params = [
+            'fecha' => $datos['FECHA_CALCULO'],
+            'id_importacion' => $datos['ID_IMPORTACION'],
+            'id_proceso' => $datos['ID_PROCESO']
+        ];
+
+        try {
+            $db = new Database();
+            $db->insertar($qry, $params);
+            return self::Responde(true, 'Estatus del correo actualizado');
+        } catch (\Exception $e) {
+            return self::Responde(false, 'Error al actualizar el estatus del correo', null, $e->getMessage());
+        }
+    }
 }
