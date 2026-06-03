@@ -129,7 +129,7 @@ class Operaciones extends Controller
                                     )
                                 })
                                 .join("")
-                            aplicarHorasLocalesTablaCierre(tbody)
+                            // aplicarHorasLocalesTablaCierre(tbody)
                         })
                         .catch(() => {})
                 }
@@ -296,8 +296,7 @@ class Operaciones extends Controller
                 }
 
                 const renuevaEjecucionActiva = () => {
-                    renueva = setTimeout(() => {
-                        fetch("/operaciones/ValidaCierreEnEjecucion", {
+                    fetch("/operaciones/ValidaCierreEnEjecucion", {
                             method: "GET",
                             headers: {
                                 "Content-Type": "application/json"
@@ -313,9 +312,8 @@ class Operaciones extends Controller
                             if (ejecutabaAntes && !ejecutando) {
                                 refrescarPantallaTrasCierre()
                             }
-                            validaEjecucionActiva()
+                            // validaEjecucionActiva()
                         })
-                    }, 10000)
                 }
 
                 $(document).ready(() => {
@@ -427,35 +425,27 @@ class Operaciones extends Controller
     function ProcesaCierreDiario()
     {
         $this->limpiaSalidaParaJson();
-        set_time_limit(3600);
         try {
             $fecha = isset($_POST['fecha']) ? trim((string) $_POST['fecha']) : '';
             $usuario = isset($this->__usuario) ? (string) $this->__usuario : '';
-            $regenerar = !empty($_POST['regenerar']) ? 1 : 0;
 
-            if ($fecha === '') {
-                if (ob_get_level()) ob_end_clean();
-                header('Content-Type: application/json; charset=utf-8');
-                echo json_encode(['success' => false, 'mensaje' => 'No se ha indicado la fecha para el cierre diario.']);
+            if (empty($fecha) || empty($usuario)) {
+                echo json_encode(\Core\Model::Responde(false, 'No se ha indicado los parámetros necesarios para el cierre diario.'));
                 exit;
             }
 
-            // Como en VB6: la fecha seleccionada es la fecha de cierre
             $fechaCierre = date('Y-m-d', strtotime($fecha));
-            $resp = CierreDiaService::registrarInicioYResponder($fechaCierre, $usuario, $regenerar);
-            if (!$resp['success']) {
-                if (ob_get_level()) ob_end_clean();
-                header('Content-Type: application/json; charset=utf-8');
-                echo json_encode($resp);
-                exit;
-            }
 
-            $resp = CierreDiaService::ejecutarCierreDiario($fechaCierre, $usuario, $regenerar);
+            ignore_user_abort(true);
+            $dir = __DIR__ . '/../../Jobs/Controllers/';
 
-            if (ob_get_level()) ob_end_clean();
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode($resp);
-            exit;
+            $cmd = PHP_OS_FAMILY === 'Windows' ?
+                "start /B C:\\xampp\\php\\php.exe \"{$dir}JobsCredito.php\" \"CierreDia\" \"{$fechaCierre}\" \"{$usuario}\"" :
+                "nohup php '{$dir}JobsCredito.php' 'CierreDia' '{$fechaCierre}' '{$usuario}' > /dev/null 2>&1 &";
+
+            exec($cmd);
+
+            echo json_encode(\Core\Model::Responde(true, 'El proceso de cierre diario ha sido iniciado. Se enviará un correo con el resumen al finalizar.'));
         } catch (\Throwable $e) {
             if (ob_get_level()) ob_end_clean();
             header('Content-Type: application/json; charset=utf-8');

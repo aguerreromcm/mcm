@@ -64,16 +64,6 @@ class CierreDiaRepository
                 return [];
             }
 
-            // Limpieza preventiva: si hay EXITO definido pero FIN sigue null,
-            // entonces el registro está inconsistente. Marcamos FIN para evitar falsos positivos.
-            try {
-                $db->db_activa
-                    ->prepare("UPDATE BITACORA_CIERRE_DIARIO SET FIN = SYSDATE WHERE FIN IS NULL AND EXITO IS NOT NULL")
-                    ->execute();
-            } catch (\Exception $e) {
-                // Si falla la limpieza, seguimos con la validación por estado/consistencia.
-            }
-
             // Proceso activo: solo bitácora (no TBL_CIERRE_DIA). Criterio: FIN IS NULL = aún no terminó.
             $qryConCierrePendiente = <<<SQL
                 SELECT COUNT(*) AS TOTAL
@@ -91,8 +81,8 @@ class CierreDiaRepository
 
             $qry = <<<SQL
                 SELECT
-                    TO_CHAR(INICIO, 'DD/MM/YYYY HH24:MI:SS') AS INICIO,
                     TO_CHAR(FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CIERRE,
+                    TO_CHAR(INICIO, 'DD/MM/YYYY HH24:MI:SS') AS INICIO,
                     USUARIO
                 FROM BITACORA_CIERRE_DIARIO
                 WHERE FIN IS NULL
@@ -471,7 +461,9 @@ SQL;
                     return [];
                 }
                 $lista = array_unique(array_map('trim', explode(',', $correo)));
-                return array_values(array_filter($lista, function ($e) { return $e !== ''; }));
+                return array_values(array_filter($lista, function ($e) {
+                    return $e !== '';
+                }));
             } catch (\Exception $e) {
                 return [];
             }
@@ -712,5 +704,4 @@ SQL;
             ];
         });
     }
-
 }

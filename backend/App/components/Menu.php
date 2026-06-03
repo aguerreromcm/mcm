@@ -230,6 +230,7 @@ class Menu
     private function opcionesHerramientas()
     {
         return [
+            $this->enlace('Solicitud de Software', '/Herramientas/SolicitudSoftware/', ['*']),
             $this->enlace('Auditoría Devengo', '/Herramientas/AuditoriaDevengo/', ['AMGM']),
             $this->enlace('Estatus BD', '/Herramientas/EstatusBD/', ['AMGM']),
         ];
@@ -339,6 +340,9 @@ class Menu
 
     private function ValidaPermisos($permisos)
     {
+        if (in_array('*', $permisos, true)) {
+            return true;
+        }
         return in_array($this->perfil, $permisos) || in_array($this->usuario, $permisos);
     }
 }

@@ -65,8 +65,17 @@ class Controller
                     fncOK(res)
                 },
                 error: (xhr, textStatus, errorThrown) => {
+                    swal.close()
                     console.error("consultaServidor error:", textStatus, errorThrown, xhr.responseText)
-                    const msg = textStatus === "parsererror" ? "La respuesta del servidor no es JSON válido. Revise que no haya errores en el servidor." : "Ocurrió un error al procesar la solicitud."
+                    let msg = textStatus === "parsererror" ? "La respuesta del servidor no es JSON válido. Revise que no haya errores en el servidor." : "Ocurrió un error al procesar la solicitud."
+                    if (xhr.responseJSON && xhr.responseJSON.mensaje) {
+                        msg = xhr.responseJSON.mensaje
+                    } else if (xhr.responseText) {
+                        try {
+                            const j = JSON.parse(xhr.responseText)
+                            if (j.mensaje) msg = j.mensaje
+                        } catch (e) { /* mantener msg por defecto */ }
+                    }
                     showError(msg)
                 }
             }
