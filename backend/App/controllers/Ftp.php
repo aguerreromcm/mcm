@@ -18,16 +18,10 @@ class Ftp extends Controller
      */
     private static $directoriosRaiz = [
         [
-            'id'       => 'reportes_2026',
-            'etiqueta' => 'Reportes 2026',
-            'ruta'     => 'C:/reportes/2026',
-            'usuarios' => ['ADMIN', 'AMGM'],
-        ],
-        [
-            'id'       => 'imagenes_2026',
-            'etiqueta' => 'Imágenes 2026',
-            'ruta'     => 'C:/imagenes/2026',
-            'usuarios' => ['ADMIN', 'AMGM'],
+            'id'       => 'reportes',
+            'etiqueta' => 'Reportes',
+            'ruta'     => 'C:/reportes',
+            'usuarios' => ['ADMIN', 'AMGM', 'FECR', 'ORHM'],
         ],
     ];
 
