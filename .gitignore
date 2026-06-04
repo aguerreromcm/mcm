@@ -5,3 +5,4 @@ backend/Jobs/Logs/*
 .idea
 VB6/
 backend/logs/
+storage/

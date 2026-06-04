@@ -152,7 +152,7 @@ class Menu
     private function opcionesOperaciones()
     {
         return [
-            $this->enlace('Cierre de día', '/Operaciones/CierreDiario/', ['AMGM']),
+            $this->enlace('Cierre de día', '/Operaciones/CierreDiario/', ['AMGM', 'FECR', 'ORHM']),
             $this->enlace('Reporte Cliente y Aval Consolidado', '/Operaciones/ReportePC', ['ADMIN', 'PHEE', 'MCDP', 'FECR', 'ORHM']),
             $this->enlace('Reporte Interés Devengado', '/Operaciones/ReporteInteresDevengado', ['AMGM', 'ORHM']),
             $this->enlace('Reporte Acreditado', '/Operaciones/ReporteAcreditado', ['ADMIN', 'ORHM', 'LGFR', 'MCDP', 'MAPH'])
