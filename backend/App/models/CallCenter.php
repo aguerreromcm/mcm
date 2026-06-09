@@ -778,12 +778,16 @@ sql;
                     NULL AS AN,
                     RAC.COMENTARIO_INTERNO AS AO,
                     RAC.COMENTARIO_EXTERNO AS AP,
-                    CASE RAC.ESTATUS
-                        WHEN 'I' THEN 'INCOMPLETA'
-                        WHEN 'C' THEN 'COMPLETA'
-                        WHEN 'R' THEN 'RECHAZADA'
-                        ELSE 'PENDIENTE'
-                    END AS AQ,
+                    NVL(
+                        RAC.ETIQUETA_ESTATUS,
+                        CASE RA.ESTATUS
+                            WHEN 'P' THEN 'Pendiente'
+                            WHEN 'R' THEN 'Rechazada por el cliente'
+                            WHEN 'C' THEN 'Cancelada por el cliente'
+                            WHEN 'V' THEN 'Validada'
+                            ELSE NULL
+                        END
+                    ) AS AQ,
                     NULL AS AR,
                     NULL AS AS_,
                     GET_NOMBRE_EMPLEADO(RAC.CDGPE) AS AT_,
@@ -853,6 +857,22 @@ sql;
 
         $db = new Database();
         return $db->queryAll($qry);
+    }
+
+    public static function mapEtiquetaRetiroToEstatus($etiqueta)
+    {
+        $map = [
+            'PENDIENTE' => 'P',
+            'PENDIENTE, CORRECCION DE DATOS' => 'P',
+            'CANCELADA, NO LOCALIZADOS' => 'R',
+            'CANCELADA POR CLIENTE' => 'C',
+            'CANCELADA POR POLITICAS' => 'R',
+            'CANCELADA POR GERENTE' => 'R',
+            'LISTA CON OBSERVACION' => 'V',
+            'LISTA SIN INCIDENCIA' => 'V',
+        ];
+
+        return $map[strtoupper(trim((string) $etiqueta))] ?? null;
     }
 
     public static function getSolicitudesRetiro($cdgco)
@@ -930,12 +950,20 @@ sql;
                 , RAC.COMENTARIO_EXTERNO
                 , TO_CHAR(RA.FECHA_CREACION, 'DD/MM/YYYY HH24:MI:SS') AS FECHA_CREACION
                 , NVL(RAC.ESTATUS, 'P') AS ESTATUS
-                , CASE NVL(RAC.ESTATUS, 'P')
-                    WHEN 'I' THEN 'INCOMPLETA'
-                    WHEN 'C' THEN 'COMPLETA'
-                    WHEN 'R' THEN 'RECHAZADA'
-                    ELSE 'PENDIENTE'
-                  END AS ESTATUS_ETIQUETA
+                , NVL(
+                    RAC.ETIQUETA_ESTATUS,
+                    CASE RA.ESTATUS
+                        WHEN 'V' THEN 'LISTA SIN INCIDENCIA'
+                        WHEN 'C' THEN 'CANCELADA POR CLIENTE'
+                        WHEN 'R' THEN 'CANCELADA, NO LOCALIZADOS'
+                        WHEN 'P' THEN 'PENDIENTE'
+                        ELSE CASE NVL(RAC.ESTATUS, 'P')
+                            WHEN 'I' THEN 'INCOMPLETA'
+                            WHEN 'C' THEN 'COMPLETA'
+                            ELSE 'PENDIENTE'
+                        END
+                    END
+                  ) AS ESTATUS_ETIQUETA
                 , NVL(RAC.INTENTOS, 0) AS INTENTOS
                 , TO_CHAR(RAC.FECHA_LLAMADA_1, 'DD/MM/YYYY HH24:MI:SS') AS FECHA_LLAMADA_1
                 , TO_CHAR(RAC.FECHA_LLAMADA_2, 'DD/MM/YYYY HH24:MI:SS') AS FECHA_LLAMADA_2
@@ -1128,28 +1156,80 @@ sql;
 
     public static function FinalizaSolicitudRetiro($datos)
     {
-        $qry = <<<SQL
+        $etiqueta = isset($datos['etiqueta_estatus']) ? $datos['etiqueta_estatus'] : '';
+        $estatus = self::mapEtiquetaRetiroToEstatus($etiqueta);
+
+        if (!$estatus && isset($datos['estatus']) && in_array($datos['estatus'], ['P', 'R', 'C', 'V'], true)) {
+            $estatus = $datos['estatus'];
+        }
+
+        if (!$estatus) {
+            return self::Responde(false, 'La etiqueta de estatus seleccionada no es válida', null);
+        }
+
+        $qryRetiro = <<<SQL
             UPDATE RETIROS_AHORRO
             SET
                 ESTATUS = :estatus
-                , CDGPE_CANCELACION = CASE WHEN :estatus IN ('C', 'R') THEN :usuario ELSE NULL END
-                , MOTIVO_CANCELACION = CASE :estatus WHEN 'C' THEN 'CANCELADO POR CALL CENTER' WHEN 'R' THEN 'RECHAZADO POR CALL CENTER' ELSE NULL END
-                , FECHA_CANCELACION = CASE WHEN :estatus IN ('C', 'R') THEN SYSDATE ELSE NULL END
+                , CDGPE_CANCELACION = CASE WHEN :estatus_cr IN ('C', 'R') THEN :usuario ELSE NULL END
+                , MOTIVO_CANCELACION = CASE :estatus_mot WHEN 'C' THEN 'CANCELADO POR CALL CENTER' WHEN 'R' THEN 'RECHAZADO POR CALL CENTER' ELSE NULL END
+                , FECHA_CANCELACION = CASE WHEN :estatus_fc IN ('C', 'R') THEN SYSDATE ELSE NULL END
             WHERE
                 ID = :retiro
         SQL;
 
-        $prms = [
+        $qryEtiqueta = <<<SQL
+            MERGE INTO RETIROS_AHORRO_CALLCENTER RAC
+            USING (
+                SELECT :retiro_src AS RETIRO FROM DUAL
+            ) S
+            ON (RAC.RETIRO = S.RETIRO)
+            WHEN MATCHED THEN
+                UPDATE SET
+                    ETIQUETA_ESTATUS = :etiqueta_upd
+                    , ACTUALIZACION = SYSDATE
+            WHEN NOT MATCHED THEN
+                INSERT (
+                    RETIRO
+                    , CDGPE
+                    , ETIQUETA_ESTATUS
+                )
+                VALUES (
+                    :retiro_ins
+                    , :usuario_ins
+                    , :etiqueta_ins
+                )
+        SQL;
+
+        $prmsRetiro = [
             'retiro' => $datos['retiro'],
-            'estatus' => $datos['estatus'],
-            'usuario' => $datos['usuario']
+            'estatus' => $estatus,
+            'estatus_cr' => $estatus,
+            'estatus_mot' => $estatus,
+            'estatus_fc' => $estatus,
+            'usuario' => $datos['usuario'],
         ];
 
+        $prmsEtiqueta = [
+            'retiro_src' => $datos['retiro'],
+            'retiro_ins' => $datos['retiro'],
+            'usuario_ins' => $datos['usuario'],
+            'etiqueta_upd' => $etiqueta,
+            'etiqueta_ins' => $etiqueta,
+        ];
+
+        $db = null;
         try {
             $db = new Database();
-            $db->insertar($qry, $prms);
+            $db->IniciaTransaccion();
+            $db->insertar($qryRetiro, $prmsRetiro);
+            $db->insertar($qryEtiqueta, $prmsEtiqueta);
+            $db->ConfirmaTransaccion();
             return self::Responde(true, 'Solicitud de retiro finalizada correctamente', null);
         } catch (\Exception $e) {
+            if ($db !== null && $db->db_activa && $db->db_activa->inTransaction()) {
+                $db->CancelaTransaccion();
+            }
             return self::Responde(false, 'Error al finalizar solicitud de retiro', null, $e->getMessage());
         }
     }

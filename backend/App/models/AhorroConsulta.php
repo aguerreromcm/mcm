@@ -271,16 +271,19 @@ class AhorroConsulta extends Model
                 , CO.CODIGO AS SUCURSAL
                 , CO.NOMBRE AS NOMBRE_SUCURSAL
                 , RA.ESTATUS
-                , CASE RA.ESTATUS
-                    WHEN 'V' THEN 'Validado'
-                    WHEN 'C' THEN 'Cancelado'
-                    WHEN 'R' THEN 'Rechazado'
-                    WHEN 'P' THEN 'Pendiente'
-                    WHEN 'A' THEN 'Aprobado'
-                    WHEN 'E' THEN 'Entregado'
-                    WHEN 'D' THEN 'Devuelto'
-                    ELSE NULL
-                 END AS ESTATUS_ETIQUETA
+                , NVL(
+                    RAC.ETIQUETA_ESTATUS,
+                    CASE RA.ESTATUS
+                        WHEN 'V' THEN 'LISTA SIN INCIDENCIA'
+                        WHEN 'C' THEN 'CANCELADA POR CLIENTE'
+                        WHEN 'R' THEN 'CANCELADA, NO LOCALIZADOS'
+                        WHEN 'P' THEN 'PENDIENTE'
+                        WHEN 'A' THEN 'APROBADO'
+                        WHEN 'E' THEN 'ENTREGADO'
+                        WHEN 'D' THEN 'DEVUELTO'
+                        ELSE NULL
+                    END
+                  ) AS ESTATUS_ETIQUETA
                 , RAC.CDGPE AS CALLCENTER
                 , GET_NOMBRE_EMPLEADO(RAC.CDGPE) AS NOMBRE_CALLCENTER
                 , CASE WHEN RAC.TIPO_LLAMADA_2 IS NOT NULL THEN 2 ELSE 1 END AS TOTAL_LLAMADAS
