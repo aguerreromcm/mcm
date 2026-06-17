@@ -1468,4 +1468,32 @@ SQL;
             ];
         }
     }
+
+    /**
+     * Catálogo de sucursales (CO) para solicitud de software.
+     * Excluye sucursales con región 007 (CDGRG).
+     *
+     * @return array<int, array{CODIGO: string, NOMBRE: string}>
+     */
+    public static function getSucursalesSolicitudSoftware()
+    {
+        $qry = <<<SQL
+            SELECT
+                CO.CODIGO,
+                CO.NOMBRE
+            FROM
+                CO
+            WHERE
+                NVL(CO.CDGRG, ' ') <> '007'
+            ORDER BY
+                CO.NOMBRE
+        SQL;
+
+        try {
+            $db = new Database();
+            return $db->queryAll($qry);
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
 }

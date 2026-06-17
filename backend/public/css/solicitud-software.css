@@ -255,6 +255,10 @@
     max-width: 420px;
 }
 
+.ss-otro-input {
+    margin-top: 10px;
+}
+
 .ss-field label {
     display: block;
     font-weight: 600;
@@ -432,8 +436,8 @@
 
 /* Opciones tipo tarjeta */
 .ss-options {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 12px;
 }
 
@@ -448,6 +452,7 @@
     transition: all 0.2s ease;
     background: #fafbfc;
     position: relative;
+    min-width: 0;
 }
 
 .ss-option-card:hover {
@@ -672,6 +677,10 @@
 
     .ss-section-body {
         padding: 18px 16px;
+    }
+
+    .ss-options {
+        grid-template-columns: 1fr;
     }
 }
 
