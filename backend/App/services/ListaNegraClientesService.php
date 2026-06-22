@@ -153,9 +153,7 @@ class ListaNegraClientesService
                           AND ROWNUM = 1
                     )
                     ELSE NULL
-                END AS NOMBRE_CREDITO,
-                TRIM(GET_NOMBRE_EMPLEADO(TRIM(M.ALTAPE))) AS NOMBRE_EMPLEADO_ALTA,
-                TRIM(GET_NOMBRE_EMPLEADO(TRIM(M.BAJAPE))) AS NOMBRE_EMPLEADO_BAJA
+                END AS NOMBRE_CREDITO
             FROM CL_MARCA M
             WHERE M.CDGEM = :cdgem
               AND (
@@ -352,19 +350,11 @@ SQL;
         return '$' . number_format((float) $monto, 2, '.', ',');
     }
 
-    private static function formatearUsuario(?string $codigo, ?string $nombre): ?string
+    private static function formatearUsuario(?string $codigo): ?string
     {
         $codigo = $codigo !== null ? trim($codigo) : '';
-        if ($codigo === '') {
-            return null;
-        }
 
-        $nombre = $nombre !== null ? trim($nombre) : '';
-        if ($nombre === '' || strcasecmp($nombre, $codigo) === 0) {
-            return $codigo;
-        }
-
-        return $nombre . ' (' . $codigo . ')';
+        return $codigo === '' ? null : $codigo;
     }
 
     /**
@@ -401,15 +391,8 @@ SQL;
         $row['CDGEM_FMT'] = self::descripcionEmpresa($row['CDGEM'] ?? null);
         $row['MONTOMAX_FMT'] = self::formatearMonto($row['MONTOMAX'] ?? null);
 
-        $row['USUARIO_ALTA_FMT'] = self::formatearUsuario(
-            isset($row['ALTAPE']) ? (string) $row['ALTAPE'] : null,
-            isset($row['NOMBRE_EMPLEADO_ALTA']) ? (string) $row['NOMBRE_EMPLEADO_ALTA'] : null
-        );
-        $row['USUARIO_BAJA_FMT'] = self::formatearUsuario(
-            isset($row['BAJAPE']) ? (string) $row['BAJAPE'] : null,
-            isset($row['NOMBRE_EMPLEADO_BAJA']) ? (string) $row['NOMBRE_EMPLEADO_BAJA'] : null
-        );
-        unset($row['NOMBRE_EMPLEADO_ALTA'], $row['NOMBRE_EMPLEADO_BAJA']);
+        $row['USUARIO_ALTA_FMT'] = self::formatearUsuario(isset($row['ALTAPE']) ? (string) $row['ALTAPE'] : null);
+        $row['USUARIO_BAJA_FMT'] = self::formatearUsuario(isset($row['BAJAPE']) ? (string) $row['BAJAPE'] : null);
 
         return $row;
     }
