@@ -46,7 +46,7 @@ class Clientes extends Controller
                             { key: "CDGCL", label: "No. cliente", mono: true },
                             { key: "NOMBRE_CLIENTE", label: "Nombre", full: true },
                             { key: "CURP", label: "CURP", mono: true, full: true },
-                            { key: "CREDITOS_ACTIVOS_FMT", label: "Grupos o créditos registrados", mono: true, full: true }
+                            { key: "CREDITOS_ACTIVOS_FMT", label: "Grupos asignados", mono: true, full: true }
                         ]
                     },
                     {
@@ -185,7 +185,54 @@ class Clientes extends Controller
                     return '<div class="ln-registro-paneles">' + partes.join("") + '</div>';
                 };
 
+                const esSoloCliente = (registro) => registro.SOLO_CLIENTE === true;
+
+                const esResultadoSoloCliente = (datos) => {
+                    return Array.isArray(datos) && datos.length > 0 && datos.every((r) => esSoloCliente(r));
+                };
+
+                const seccionSoloCliente = {
+                    titulo: "Cliente",
+                    campos: [
+                        { key: "CDGCL", label: "No. cliente", mono: true },
+                        { key: "NOMBRE_CLIENTE", label: "Nombre", full: true },
+                        { key: "CURP", label: "CURP", mono: true, full: true }
+                    ]
+                };
+
+                const crearRegistroSoloCliente = (registro) => {
+                    const nombre = registro.NOMBRE_CLIENTE || "Cliente";
+                    const cuerpo = (
+                        '<div class="ln-registro-paneles ln-registro-paneles--solo-cliente">' +
+                            crearSeccion(seccionSoloCliente, registro, 1, 1, 2) +
+                        '</div>'
+                    );
+
+                    return (
+                        '<article class="ln-registro ln-registro--solo-cliente estatus-baja">' +
+                            '<button type="button" class="ln-registro-cabecera" aria-expanded="false" aria-label="' + esc("Cliente " + nombre + ". Clic para ver el detalle.") + '">' +
+                                '<span class="ln-registro-avatar" aria-hidden="true">' + esc(iniciales(nombre)) + '</span>' +
+                                '<span class="ln-registro-identidad">' +
+                                    '<span class="ln-registro-nombre">' + esc(nombre) + '</span>' +
+                                    '<span class="ln-registro-hint">Clic para ver detalle</span>' +
+                                '</span>' +
+                                '<span class="ln-registro-etiquetas">' +
+                                    '<span class="ln-badge ln-badge-baja">Sin registro en lista negra</span>' +
+                                '</span>' +
+                                '<span class="ln-registro-toggle" aria-hidden="true">' +
+                                    '<i class="glyphicon glyphicon-chevron-down"></i>' +
+                                '</span>' +
+                            '</button>' +
+                            '<div class="ln-registro-cuerpo" aria-hidden="true">' + cuerpo + '</div>' +
+                        '</article>'
+                    );
+                };
+
                 const crearRegistro = (registro, indice, total) => {
+                    if (esSoloCliente(registro)) {
+                        return crearRegistroSoloCliente(registro);
+                    }
+
                     const estatus = String(registro.ESTATUS || "").trim().toUpperCase();
                     const nombre = [registro.NOMBRE_CLIENTE, registro.NOMBRE_CREDITO]
                         .find((val) => tieneValor(val)) || "Registro sin nombre";
@@ -315,7 +362,11 @@ class Clientes extends Controller
                     }
                 };
 
-                const mensajeBannerResultados = (datos) => {
+                const mensajeBannerResultados = (datos, mensaje) => {
+                    if (esResultadoSoloCliente(datos)) {
+                        return mensaje || "El cliente existe en el sistema pero no tiene registros en lista negra.";
+                    }
+
                     const total = datos.length;
                     const activos = contarActivos(datos);
                     if (total === 1) {
@@ -340,8 +391,10 @@ class Clientes extends Controller
                     }
 
                     contenedor.html(datos.map((registro, idx) => crearRegistro(registro, idx + 1, datos.length)).join(""));
-                    mostrarBanner("resultados", mensajeBannerResultados(datos), datos.length);
+                    const tipoBanner = esResultadoSoloCliente(datos) ? "vacio" : "resultados";
+                    mostrarBanner(tipoBanner, mensajeBannerResultados(datos, mensaje), datos.length);
                     mostrarEstado("datos");
+                    $("#ln-resultados-ayuda").prop("hidden", false);
                     $("#cdgcl").val("");
                     $("#curp").val("");
                 };

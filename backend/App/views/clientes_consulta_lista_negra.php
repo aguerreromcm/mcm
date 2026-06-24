@@ -13,7 +13,7 @@
                     </div>
                     <div class="ln-page-header-text">
                         <h1 class="ln-page-title">Consulta lista negra</h1>
-                        <p class="ln-page-subtitle">Verifique si un cliente se encuentra en lista negra antes de continuar con la operación en caja.</p>
+                        <p class="ln-page-subtitle">Verifique si un cliente se encuentra en lista negra</p>
                     </div>
                 </header>
 

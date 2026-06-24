@@ -215,6 +215,15 @@ SQL;
 
         $datos = is_array($res) ? $res : [];
         if (count($datos) === 0) {
+            $clienteCl = self::buscarClienteEnCl($db, $cdgclNorm, $curpNorm);
+            if ($clienteCl !== null) {
+                return Model::Responde(
+                    true,
+                    'El cliente existe en el sistema pero no tiene registros en lista negra.',
+                    [$clienteCl]
+                );
+            }
+
             return Model::Responde(true, 'No se encontraron registros en lista negra para los criterios indicados.', []);
         }
 
@@ -254,6 +263,70 @@ SQL;
             }
             self::$catalogoCausas[self::claveCausa($tipo, $codigo)] = $desc;
         }
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function buscarClienteEnCl(Database $db, string $cdgclNorm, string $curpNorm): ?array
+    {
+        $condiciones = [];
+        $params = ['cdgem' => self::CDGEM];
+
+        if ($cdgclNorm !== '' && $curpNorm !== '') {
+            $condiciones[] = '(CL.CODIGO = :cdgcl AND UPPER(TRIM(CL.CURP)) = :curp)';
+            $params['cdgcl'] = $cdgclNorm;
+            $params['curp'] = $curpNorm;
+        } elseif ($cdgclNorm !== '') {
+            $condiciones[] = 'CL.CODIGO = :cdgcl';
+            $params['cdgcl'] = $cdgclNorm;
+        } elseif ($curpNorm !== '') {
+            $condiciones[] = 'UPPER(TRIM(CL.CURP)) = :curp';
+            $params['curp'] = $curpNorm;
+        } else {
+            return null;
+        }
+
+        $sql = <<<SQL
+            SELECT
+                CL.CODIGO AS CDGCL,
+                TRIM(CL.CURP) AS CURP,
+                TRIM(
+                    COALESCE(
+                        NULLIF(TRIM(NVL(GET_NOMBRE_CLIENTE(CL.CODIGO), '')), ''),
+                        NULLIF(TRIM(CONCATENA_NOMBRE(CL.NOMBRE1, CL.NOMBRE2, CL.PRIMAPE, CL.SEGAPE)), '')
+                    )
+                ) AS NOMBRE_CLIENTE
+            FROM CL
+            WHERE CL.CDGEM = :cdgem
+              AND (
+SQL;
+        $sql .= implode("\n                  OR ", $condiciones);
+        $sql .= <<<SQL
+
+              )
+              AND ROWNUM = 1
+SQL;
+
+        $row = $db->queryOne($sql, $params);
+        if (!is_array($row)) {
+            return null;
+        }
+
+        $cdgcl = self::normalizarCdgcl((string) ($row['CDGCL'] ?? ''));
+        if ($cdgcl === '') {
+            return null;
+        }
+
+        $nombre = trim(preg_replace('/\s+/u', ' ', (string) ($row['NOMBRE_CLIENTE'] ?? '')));
+        $curp = trim((string) ($row['CURP'] ?? ''));
+
+        return [
+            'SOLO_CLIENTE' => true,
+            'CDGCL' => $cdgcl,
+            'NOMBRE_CLIENTE' => $nombre !== '' ? $nombre : null,
+            'CURP' => $curp !== '' ? $curp : null,
+        ];
     }
 
     private static function claveCausa(string $tipo, string $codigo): string
@@ -382,7 +455,7 @@ SQL;
         ];
 
         if (isset($map[$c])) {
-            return $map[$c] . ' (' . $c . ')';
+            return $map[$c];
         }
 
         return $clns !== null && trim($clns) !== '' ? trim($clns) : null;
@@ -431,7 +504,7 @@ SQL;
             return $codigo;
         }
 
-        return $nombre;
+        return $nombre . ' (' . $codigo . ')';
     }
 
     /**

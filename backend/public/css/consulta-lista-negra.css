@@ -653,6 +653,10 @@
     box-sizing: border-box;
 }
 
+.ln-registro-paneles--solo-cliente {
+    grid-template-columns: 1fr;
+}
+
 .ln-seccion-titulo {
     margin: 0 0 14px;
     padding-bottom: 10px;
