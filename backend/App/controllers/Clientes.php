@@ -41,42 +41,40 @@ class Clientes extends Controller
 
                 const secciones = [
                     {
-                        titulo: "Identificación",
+                        titulo: "Cliente",
                         campos: [
-                            { key: "CDGCL", label: "No. cliente" },
-                            { key: "NOMBRE_CLIENTE", label: "Nombre" },
-                            { key: "CURP", label: "CURP", mono: true }
+                            { key: "CDGCL", label: "No. cliente", mono: true },
+                            { key: "NOMBRE_CLIENTE", label: "Nombre", full: true },
+                            { key: "CURP", label: "CURP", mono: true, full: true },
+                            { key: "CREDITOS_ACTIVOS_FMT", label: "Grupos o créditos registrados", mono: true, full: true }
                         ]
                     },
                     {
-                        titulo: "Marca y estatus",
+                        titulo: "Lista negra",
                         campos: [
-                            { key: "TIPOMARCA_FMT", label: "Tipo marca" },
                             { key: "ESTATUS_FMT", label: "Estatus" },
                             { key: "MONTOMAX_FMT", label: "Monto máximo" },
-                            { key: "CAUSA_FMT", label: "Causa de alta" },
-                            { key: "CAUSABAJA_FMT", label: "Causa de baja" }
+                            { key: "CAUSA_FMT", label: "Causa de alta", full: true },
+                            { key: "CAUSABAJA_FMT", label: "Causa de baja", full: true }
                         ]
                     },
                     {
                         titulo: "Crédito / NS",
                         campos: [
-                            { key: "CDGCLNS", label: "No. crédito / NS" },
-                            { key: "NOMBRE_CREDITO", label: "Nombre del grupo" },
+                            { key: "CDGCLNS", label: "No. crédito / NS", mono: true },
                             { key: "CICLO", label: "Ciclo" },
+                            { key: "NOMBRE_CREDITO", label: "Nombre del grupo", full: true },
                             { key: "CLNS_FMT", label: "Tipo crédito" }
                         ]
                     },
                     {
-                        titulo: "Auditoría",
+                        titulo: "Historial del registro",
                         campos: [
-                            { key: "ALTA_FMT", label: "Fecha alta" },
-                            { key: "BAJA_FMT", label: "Fecha baja" },
-                            { key: "USUARIO_ALTA_FMT", label: "Usuario alta" },
-                            { key: "USUARIO_BAJA_FMT", label: "Usuario baja" },
-                            { key: "FREGISTRO_FMT", label: "F. registro" },
-                            { key: "SECUENCIA", label: "Secuencia" },
-                            { key: "CDGEM_FMT", label: "Empresa" }
+                            { key: "ALTA_FMT", label: "Fecha de alta" },
+                            { key: "USUARIO_ALTA_FMT", label: "Registró" },
+                            { key: "BAJA_FMT", label: "Fecha de baja" },
+                            { key: "USUARIO_BAJA_FMT", label: "Dio de baja" },
+                            { key: "FREGISTRO_FMT", label: "Captura en sistema", mono: true, full: true }
                         ]
                     }
                 ];
@@ -104,23 +102,13 @@ class Clientes extends Controller
 
                 const etiquetaEstatus = (registro) => {
                     const val = String(registro.ESTATUS || "").trim().toUpperCase();
-                    const tipo = String(registro.TIPOMARCA || "").trim().toUpperCase();
                     if (val === "A") {
-                        const txt = tipo === "LN" ? "Activo en lista negra" : "Marca activa";
-                        return '<span class="ln-badge ln-badge-activo">' + esc(txt) + '</span>';
+                        return '<span class="ln-badge ln-badge-activo">Bloqueado</span>';
                     }
                     if (val === "B") {
-                        const txt = tipo === "LN" ? "Baja de lista negra" : "Marca dada de baja";
-                        return '<span class="ln-badge ln-badge-baja">' + esc(txt) + '</span>';
+                        return '<span class="ln-badge ln-badge-baja">Sin bloqueo</span>';
                     }
                     return '<span class="ln-badge ln-badge-baja">' + esc(registro.ESTATUS_FMT || val || "Sin estatus") + '</span>';
-                };
-
-                const etiquetaTipoMarca = (registro) => {
-                    if (!tieneValor(registro.TIPOMARCA)) return "";
-                    const desc = String(registro.TIPOMARCA_FMT || registro.TIPOMARCA || "");
-                    const corto = desc.indexOf(" — ") >= 0 ? desc.split(" — ")[1] : desc;
-                    return '<span class="ln-badge ln-badge-tipo" title="' + esc(desc) + '">' + esc(registro.TIPOMARCA) + ': ' + esc(corto) + '</span>';
                 };
 
                 const contarActivos = (datos) => {
@@ -142,42 +130,103 @@ class Clientes extends Controller
                     const clases = ["ln-dato-valor"];
                     if (campo.mono) clases.push("mono");
 
+                    const datoClases = ["ln-dato"];
+                    if (campo.full) datoClases.push("ln-dato--full");
+
                     return (
-                        '<div class="ln-dato">' +
+                        '<div class="' + datoClases.join(" ") + '">' +
                             '<span class="ln-dato-label">' + esc(campo.label) + '</span>' +
                             '<span class="' + clases.join(" ") + '">' + esc(valor) + '</span>' +
                         '</div>'
                     );
                 };
 
-                const crearSeccion = (seccion, registro) => {
+                const crearSeccion = (seccion, registro, fila, columna, colspan) => {
                     const datos = seccion.campos.map((campo) => crearDato(campo, registro)).join("");
                     if (!datos) return "";
 
+                    let gridStyle = "";
+                    if (fila && columna) {
+                        const col = colspan ? columna + " / span " + colspan : String(columna);
+                        gridStyle = ' style="grid-row:' + fila + ";grid-column:" + col + ';"';
+                    }
+
                     return (
-                        '<div class="ln-seccion">' +
+                        '<section class="ln-seccion"' + gridStyle + '>' +
                             '<h5 class="ln-seccion-titulo">' + esc(seccion.titulo) + '</h5>' +
                             '<div class="ln-datos">' + datos + '</div>' +
-                        '</div>'
+                        '</section>'
                     );
+                };
+
+                const seccionTieneDatos = (seccion, registro) => {
+                    return seccion.campos.some((campo) => tieneValor(registro[campo.key]));
+                };
+
+                const crearPaneles = (registro) => {
+                    const creditoTieneDatos = seccionTieneDatos(secciones[2], registro);
+                    let partes;
+
+                    if (creditoTieneDatos) {
+                        partes = [
+                            crearSeccion(secciones[0], registro, 1, 1),
+                            crearSeccion(secciones[2], registro, 1, 2),
+                            crearSeccion(secciones[1], registro, 2, 1),
+                            crearSeccion(secciones[3], registro, 2, 2)
+                        ];
+                    } else {
+                        partes = [
+                            crearSeccion(secciones[0], registro, 1, 1),
+                            crearSeccion(secciones[1], registro, 1, 2),
+                            crearSeccion(secciones[3], registro, 2, 1, 2)
+                        ];
+                    }
+
+                    return '<div class="ln-registro-paneles">' + partes.join("") + '</div>';
                 };
 
                 const crearRegistro = (registro, indice, total) => {
                     const estatus = String(registro.ESTATUS || "").trim().toUpperCase();
                     const nombre = [registro.NOMBRE_CLIENTE, registro.NOMBRE_CREDITO]
                         .find((val) => tieneValor(val)) || "Registro sin nombre";
-                    const tipoMarca = etiquetaTipoMarca(registro);
-                    const cuerpo = secciones.map((seccion) => crearSeccion(seccion, registro)).join("");
+                    const cuerpo = crearPaneles(registro);
                     const metaPartes = [];
                     if (total > 1) {
-                        metaPartes.push("<span>Registro <strong>" + indice + "</strong> de <strong>" + total + "</strong></span>");
+                        metaPartes.push(
+                            '<span class="ln-meta-item">' +
+                                '<span class="ln-meta-label">Registro</span>' +
+                                '<span class="ln-meta-valor">' + indice + ' de ' + total + '</span>' +
+                            '</span>'
+                        );
                     }
                     if (tieneValor(registro.CDGCL)) {
-                        metaPartes.push("<span>Cliente <strong>" + esc(registro.CDGCL) + "</strong></span>");
+                        metaPartes.push(
+                            '<span class="ln-meta-item">' +
+                                '<span class="ln-meta-label">Cliente</span>' +
+                                '<span class="ln-meta-valor mono">' + esc(registro.CDGCL) + '</span>' +
+                            '</span>'
+                        );
                     }
                     if (tieneValor(registro.CURP)) {
-                        metaPartes.push("<span>CURP <strong>" + esc(registro.CURP) + "</strong></span>");
+                        metaPartes.push(
+                            '<span class="ln-meta-item">' +
+                                '<span class="ln-meta-label">CURP</span>' +
+                                '<span class="ln-meta-valor mono">' + esc(registro.CURP) + '</span>' +
+                            '</span>'
+                        );
                     }
+                    if (estatus === "A" && tieneValor(registro.CAUSA_FMT)) {
+                        metaPartes.push(
+                            '<span class="ln-meta-item ln-meta-item--causa">' +
+                                '<span class="ln-meta-label">Causa</span>' +
+                                '<span class="ln-meta-valor">' + esc(registro.CAUSA_FMT) + '</span>' +
+                            '</span>'
+                        );
+                    }
+
+                    const metaHtml = metaPartes.length
+                        ? '<span class="ln-registro-meta">' + metaPartes.join("") + '</span>'
+                        : "";
 
                     return (
                         '<article class="ln-registro ' + (estatus === "B" ? "estatus-baja" : "estatus-activo") + '">' +
@@ -185,12 +234,11 @@ class Clientes extends Controller
                                 '<span class="ln-registro-avatar" aria-hidden="true">' + esc(iniciales(nombre)) + '</span>' +
                                 '<span class="ln-registro-identidad">' +
                                     '<span class="ln-registro-nombre">' + esc(nombre) + '</span>' +
-                                    (metaPartes.length ? '<span class="ln-registro-meta">' + metaPartes.join("") + '</span>' : "") +
+                                    metaHtml +
                                     '<span class="ln-registro-hint">Clic para ver detalle</span>' +
                                 '</span>' +
                                 '<span class="ln-registro-etiquetas">' +
                                     etiquetaEstatus(registro) +
-                                    tipoMarca +
                                 '</span>' +
                                 '<span class="ln-registro-toggle" aria-hidden="true">' +
                                     '<i class="glyphicon glyphicon-chevron-down"></i>' +
@@ -272,11 +320,11 @@ class Clientes extends Controller
                     const activos = contarActivos(datos);
                     if (total === 1) {
                         return activos === 1
-                            ? "Se encontró un registro activo en lista negra."
-                            : "Se encontró un registro en lista negra (sin marcas activas).";
+                            ? "Se encontró un registro bloqueado."
+                            : "Se encontró un registro en lista negra (sin bloqueo activo).";
                     }
                     if (activos > 0) {
-                        return "Se encontraron " + total + " registros; " + activos + " con marca activa.";
+                        return "Se encontraron " + total + " registros; " + activos + " bloqueado(s).";
                     }
                     return "Se encontraron " + total + " registros en lista negra (ninguno con marca activa).";
                 };
@@ -294,6 +342,8 @@ class Clientes extends Controller
                     contenedor.html(datos.map((registro, idx) => crearRegistro(registro, idx + 1, datos.length)).join(""));
                     mostrarBanner("resultados", mensajeBannerResultados(datos), datos.length);
                     mostrarEstado("datos");
+                    $("#cdgcl").val("");
+                    $("#curp").val("");
                 };
 
                 const manejarErrorBusqueda = (mensaje) => {
@@ -391,9 +441,9 @@ class Clientes extends Controller
         $curp = isset($_POST['curp']) ? trim((string) $_POST['curp']) : '';
 
         try {
-            echo json_encode(ListaNegraClientesService::consultar($cdgcl, $curp));
+            echo json_encode(ListaNegraClientesService::consultar($cdgcl, $curp), JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
-            echo json_encode(\Core\Model::Responde(false, 'No se pudo consultar la lista negra.', null, $e->getMessage()));
+            echo json_encode(\Core\Model::Responde(false, 'No se pudo consultar la lista negra.', null, $e->getMessage()), JSON_UNESCAPED_UNICODE);
         }
     }
 }

@@ -118,6 +118,15 @@ class ListaNegraClientesService
                               AND ROWNUM = 1
                         ), ''),
                         NULLIF((
+                            SELECT TRIM(RCC.NOMBRES || ' ' || RCC.PATERNO || ' ' || RCC.MATERNO)
+                            FROM REP_CIRCULO_CRED RCC
+                            WHERE RCC.CDGEM = M.CDGEM
+                              AND M.CURP IS NOT NULL
+                              AND LENGTH(TRIM(M.CURP)) > 0
+                              AND UPPER(TRIM(RCC.CURP)) = UPPER(TRIM(M.CURP))
+                              AND ROWNUM = 1
+                        ), ''),
+                        NULLIF((
                             SELECT TRIM(CONCATENA_NOMBRE(SN.NOMBRE1, SN.NOMBRE2, SN.PRIMAPE, SN.SEGAPE))
                             FROM (
                                 SELECT SN2.NOMBRE1, SN2.NOMBRE2, SN2.PRIMAPE, SN2.SEGAPE
@@ -131,15 +140,6 @@ class ListaNegraClientesService
                                 ORDER BY SN2.FCONSULTA DESC
                             ) SN
                             WHERE ROWNUM = 1
-                        ), ''),
-                        NULLIF((
-                            SELECT TRIM(RCC.PATERNO || ' ' || RCC.MATERNO || ' ' || RCC.NOMBRES)
-                            FROM REP_CIRCULO_CRED RCC
-                            WHERE RCC.CDGEM = M.CDGEM
-                              AND M.CURP IS NOT NULL
-                              AND LENGTH(TRIM(M.CURP)) > 0
-                              AND UPPER(TRIM(RCC.CURP)) = UPPER(TRIM(M.CURP))
-                              AND ROWNUM = 1
                         ), '')
                     )
                 ) AS NOMBRE_CLIENTE,
@@ -153,7 +153,47 @@ class ListaNegraClientesService
                           AND ROWNUM = 1
                     )
                     ELSE NULL
-                END AS NOMBRE_CREDITO
+                END AS NOMBRE_CREDITO,
+                TRIM(
+                    COALESCE(
+                        NULLIF(TRIM(GET_NOMBRE_EMPLEADO(TRIM(M.ALTAPE))), ''),
+                        NULLIF((
+                            SELECT TRIM(CONCATENA_NOMBRE(PU.NOMBRE1, PU.NOMBRE2, PU.PRIMAPE, PU.SEGAPE))
+                            FROM PE_USUARIO PU
+                            WHERE PU.CODIGO = TRIM(M.ALTAPE)
+                              AND ROWNUM = 1
+                        ), ''),
+                        NULLIF((
+                            SELECT TRIM(RS.NOMPE)
+                            FROM REG_SUBORD RS
+                            WHERE RS.CDGEM = M.CDGEM
+                              AND RS.CDGPE = TRIM(M.ALTAPE)
+                              AND RS.NOMPE IS NOT NULL
+                              AND LENGTH(TRIM(RS.NOMPE)) > 0
+                              AND ROWNUM = 1
+                        ), '')
+                    )
+                ) AS NOMBRE_EMPLEADO_ALTA,
+                TRIM(
+                    COALESCE(
+                        NULLIF(TRIM(GET_NOMBRE_EMPLEADO(TRIM(M.BAJAPE))), ''),
+                        NULLIF((
+                            SELECT TRIM(CONCATENA_NOMBRE(PU.NOMBRE1, PU.NOMBRE2, PU.PRIMAPE, PU.SEGAPE))
+                            FROM PE_USUARIO PU
+                            WHERE PU.CODIGO = TRIM(M.BAJAPE)
+                              AND ROWNUM = 1
+                        ), ''),
+                        NULLIF((
+                            SELECT TRIM(RS.NOMPE)
+                            FROM REG_SUBORD RS
+                            WHERE RS.CDGEM = M.CDGEM
+                              AND RS.CDGPE = TRIM(M.BAJAPE)
+                              AND RS.NOMPE IS NOT NULL
+                              AND LENGTH(TRIM(RS.NOMPE)) > 0
+                              AND ROWNUM = 1
+                        ), '')
+                    )
+                ) AS NOMBRE_EMPLEADO_BAJA
             FROM CL_MARCA M
             WHERE M.CDGEM = :cdgem
               AND (
@@ -179,7 +219,10 @@ SQL;
         }
 
         self::cargarCatalogoCausas($db);
-        $datos = array_map([self::class, 'enriquecerRegistro'], $datos);
+        $creditosPorCliente = self::cargarCreditosActivos($db, array_column($datos, 'CDGCL'));
+        $datos = array_map(function (array $row) use ($creditosPorCliente) {
+            return self::enriquecerRegistro($row, $creditosPorCliente);
+        }, $datos);
 
         return Model::Responde(true, 'OK', $datos);
     }
@@ -287,25 +330,47 @@ SQL;
     private static function descripcionEstatus(?string $estatus, ?string $tipoMarca): string
     {
         $e = strtoupper(trim((string) $estatus));
-        $tipo = strtoupper(trim((string) $tipoMarca));
 
         if ($e === 'A') {
-            if ($tipo === 'LN') {
-                return 'Activo — el cliente está en lista negra';
-            }
-
-            return 'Activo — la marca está vigente';
+            return 'Bloqueado';
         }
 
         if ($e === 'B') {
-            if ($tipo === 'LN') {
-                return 'Baja — ya no está en lista negra';
-            }
-
-            return 'Baja — la marca fue cancelada';
+            return 'Sin bloqueo';
         }
 
         return $estatus !== null && trim($estatus) !== '' ? trim($estatus) : 'Sin estatus';
+    }
+
+    /**
+     * @param array<int|string, mixed> $cdgcls
+     * @return array<string, string|null>
+     */
+    private static function cargarCreditosActivos(Database $db, array $cdgcls): array
+    {
+        $map = [];
+        $unicos = [];
+        foreach ($cdgcls as $cdgcl) {
+            $cdgcl = self::normalizarCdgcl(trim((string) $cdgcl));
+            if ($cdgcl !== '') {
+                $unicos[$cdgcl] = true;
+            }
+        }
+
+        foreach (array_keys($unicos) as $cdgcl) {
+            $row = $db->queryOne(
+                "SELECT LISTAGG(CDGNS, ', ') WITHIN GROUP (ORDER BY CDGNS) AS LISTA
+                 FROM CN
+                 WHERE FIN IS NULL
+                   AND ESTATUS = 'A'
+                   AND CDGCL = :cdgcl",
+                ['cdgcl' => $cdgcl]
+            );
+            $lista = is_array($row) ? trim((string) ($row['LISTA'] ?? '')) : '';
+            $map[$cdgcl] = $lista !== '' ? $lista : null;
+        }
+
+        return $map;
     }
 
     private static function descripcionClns(?string $clns): ?string
@@ -350,18 +415,31 @@ SQL;
         return '$' . number_format((float) $monto, 2, '.', ',');
     }
 
-    private static function formatearUsuario(?string $codigo): ?string
+    private static function formatearUsuario(?string $codigo, ?string $nombre): ?string
     {
         $codigo = $codigo !== null ? trim($codigo) : '';
+        if ($codigo === '') {
+            return null;
+        }
 
-        return $codigo === '' ? null : $codigo;
+        $nombre = $nombre !== null ? trim($nombre) : '';
+        if ($nombre === '' || strcasecmp($nombre, $codigo) === 0) {
+            return $codigo;
+        }
+
+        if (preg_match('/^(' . preg_quote($codigo, '/') . '\s*)+$/iu', $nombre)) {
+            return $codigo;
+        }
+
+        return $nombre;
     }
 
     /**
      * @param array<string, mixed> $row
+     * @param array<string, string|null> $creditosPorCliente
      * @return array<string, mixed>
      */
-    private static function enriquecerRegistro(array $row): array
+    private static function enriquecerRegistro(array $row, array $creditosPorCliente = []): array
     {
         $tipoMarca = trim((string) ($row['TIPOMARCA'] ?? ''));
         $causa = isset($row['CAUSA']) ? trim((string) $row['CAUSA']) : '';
@@ -376,7 +454,7 @@ SQL;
 
         $descCausa = self::descripcionCausa($causa, 'A');
         $row['CAUSA_FMT'] = $descCausa !== null
-            ? self::normalizarCodigoNumerico($causa) . ' — ' . $descCausa
+            ? $descCausa
             : ($causa !== '' ? $causa : null);
 
         $descCausaBaja = self::descripcionCausa($causaBaja, 'B');
@@ -384,15 +462,29 @@ SQL;
             $descCausaBaja = self::descripcionCausa($causaBaja, 'A');
         }
         $row['CAUSABAJA_FMT'] = $descCausaBaja !== null
-            ? self::normalizarCodigoNumerico($causaBaja) . ' — ' . $descCausaBaja
+            ? $descCausaBaja
             : ($causaBaja !== '' ? $causaBaja : null);
 
         $row['CLNS_FMT'] = self::descripcionClns($row['CLNS'] ?? null);
-        $row['CDGEM_FMT'] = self::descripcionEmpresa($row['CDGEM'] ?? null);
         $row['MONTOMAX_FMT'] = self::formatearMonto($row['MONTOMAX'] ?? null);
 
-        $row['USUARIO_ALTA_FMT'] = self::formatearUsuario(isset($row['ALTAPE']) ? (string) $row['ALTAPE'] : null);
-        $row['USUARIO_BAJA_FMT'] = self::formatearUsuario(isset($row['BAJAPE']) ? (string) $row['BAJAPE'] : null);
+        $row['USUARIO_ALTA_FMT'] = self::formatearUsuario(
+            isset($row['ALTAPE']) ? (string) $row['ALTAPE'] : null,
+            isset($row['NOMBRE_EMPLEADO_ALTA']) ? (string) $row['NOMBRE_EMPLEADO_ALTA'] : null
+        );
+        $row['USUARIO_BAJA_FMT'] = self::formatearUsuario(
+            isset($row['BAJAPE']) ? (string) $row['BAJAPE'] : null,
+            isset($row['NOMBRE_EMPLEADO_BAJA']) ? (string) $row['NOMBRE_EMPLEADO_BAJA'] : null
+        );
+
+        $nombreCliente = trim(preg_replace('/\s+/u', ' ', (string) ($row['NOMBRE_CLIENTE'] ?? '')));
+        $row['NOMBRE_CLIENTE'] = $nombreCliente !== '' ? $nombreCliente : null;
+
+        $cdgcl = self::normalizarCdgcl((string) ($row['CDGCL'] ?? ''));
+        $creditos = $cdgcl !== '' ? ($creditosPorCliente[$cdgcl] ?? null) : null;
+        $row['CREDITOS_ACTIVOS_FMT'] = $creditos !== null && $creditos !== '' ? $creditos : null;
+
+        unset($row['NOMBRE_EMPLEADO_ALTA'], $row['NOMBRE_EMPLEADO_BAJA']);
 
         return $row;
     }
