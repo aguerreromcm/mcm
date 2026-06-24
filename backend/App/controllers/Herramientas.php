@@ -996,6 +996,38 @@ class Herramientas extends Controller
                 }, 200);
             }
 
+            function generarNuevoFolio() {
+                const d = new Date();
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, "0");
+                const day = String(d.getDate()).padStart(2, "0");
+                const sufijo = Math.random().toString(36).slice(2, 7).toUpperCase();
+                return "SS-" + y + m + day + "-" + sufijo;
+            }
+
+            function fechaCapturaHoy() {
+                const d = new Date();
+                return String(d.getDate()).padStart(2, "0") + "/"
+                    + String(d.getMonth() + 1).padStart(2, "0") + "/"
+                    + d.getFullYear();
+            }
+
+            function actualizarFolioYFecha() {
+                \$("#ss-folio").text(generarNuevoFolio());
+                \$("#ss-fecha").text(fechaCapturaHoy());
+            }
+
+            function resetFormularioSolicitud() {
+                document.getElementById("form-solicitud-software").reset();
+                const editor = getEditorProceso();
+                if (editor) editor.innerHTML = "";
+                deseleccionarImagen();
+                \$(".ss-option-card, .ss-priority-btn").removeClass("ss-selected");
+                \$(".ss-field.ss-error").removeClass("ss-error");
+                \$("#ss-alert-error").hide();
+                ocultarCamposOtro();
+                updateSectionStatus();
+            }
             function procesarRespuestaPdf(blob, folio) {
                 if (!(blob instanceof Blob)) {
                     showError("Error al generar PDF");
@@ -1017,6 +1049,8 @@ class Herramientas extends Controller
                 }
                 descargarBlob(blob, "Solicitud_Software_" + folio + ".pdf");
                 showSuccess("PDF generado correctamente.");
+                actualizarFolioYFecha();
+                resetFormularioSolicitud();
             }
 
             function generarPdf() {
@@ -1069,15 +1103,7 @@ class Herramientas extends Controller
                 swal({ title: "¿Limpiar el formulario?", text: "Se borrarán todos los datos capturados.", icon: "warning", buttons: ["Cancelar", "Sí, limpiar"], dangerMode: true })
                     .then(function (ok) {
                         if (!ok) return;
-                        document.getElementById("form-solicitud-software").reset();
-                        const editor = getEditorProceso();
-                        if (editor) editor.innerHTML = "";
-                        deseleccionarImagen();
-                        \$(".ss-option-card, .ss-priority-btn").removeClass("ss-selected");
-                        \$(".ss-field.ss-error").removeClass("ss-error");
-                        \$("#ss-alert-error").hide();
-                        ocultarCamposOtro();
-                        updateSectionStatus();
+                        resetFormularioSolicitud();
                     });
             }
 

@@ -214,6 +214,7 @@ class Menu
     private function opcionesReportes()
     {
         return [
+            $this->enlace('Solicitud de Software', '/Herramientas/SolicitudSoftware/', ['*', 'FLHR']),
             $this->enlace('FTP', '/Ftp/Explorer/', FtpExplorerConfig::menuPermisos()),
         ];
     }
@@ -238,7 +239,6 @@ class Menu
     private function opcionesHerramientas()
     {
         return [
-            $this->enlace('Solicitud de Software', '/Herramientas/SolicitudSoftware/', ['*']),
             $this->enlace('Auditoría Devengo', '/Herramientas/AuditoriaDevengo/', ['AMGM']),
             $this->enlace('Estatus BD', '/Herramientas/EstatusBD/', ['AMGM']),
         ];
