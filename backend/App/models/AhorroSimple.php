@@ -240,16 +240,6 @@ sql;
     public static function ActualizaExcepciones($datos)
     {
         // $datos es un stdClass, no un array
-        $cdgns = $datos->_no_credito;
-        $ciclo = $datos->_ciclo;
-
-        $uno = $datos->_exc_uno;
-        $dos = $datos->_exc_dos;
-        $tres = $datos->_exc_tres;
-        $cuatro = $datos->_exc_cuatro;
-        $cinco = $datos->_exc_cinco;
-        $seis = $datos->_exc_seis;
-
         $mysqli = new Database();
 
         // Buscar si ya existe una excepción activa
@@ -257,7 +247,6 @@ sql;
         SELECT ID_EXCEPCION
         FROM ESIACOM.EXCEPCIONES_CREDITO
         WHERE CDGNS = '$cdgns'
-          AND CICLO = '$ciclo'
           AND ESTATUS = 'ACTIVO'
           AND ROWNUM = 1
 sql;
@@ -269,13 +258,25 @@ sql;
 
             $query = <<<sql
             INSERT INTO ESIACOM.EXCEPCIONES_CREDITO
-            (CDGNS, CICLO, EXC_UNO, EXC_DOS, EXC_TRES, EXC_CUATRO, EXC_CINCO, EXC_SEIS, ESTATUS, FECHA_CARGA, USUARIO_CARGA)
+            (CDGNS, CICLO, USUARIO_CARGA, EXC_UNO, EXC_DOS, EXC_TRES, EXC_CUATRO, EXC_CINCO, EXC_SEIS, ESTATUS, FECHA_CARGA)
             VALUES
-            ('$cdgns', '$ciclo', '$uno','$dos','$tres','$cuatro','$cinco','$seis','ACTIVO', SYSTIMESTAMP, NULL)
+            (:cdgns, :ciclo, :usuario, :uno,:dos,:tres,:cuatro,:cinco,:seis,'ACTIVO', SYSTIMESTAMP)
 sql;
 
-            $mysqli->queryAll($query);
-            return "INSERT";
+        $params = [
+            'cdgns' => $datos->_no_credito,
+            'ciclo' => $datos->_ciclo,
+            'usuario' => $_SESSION['usuario'],
+            'uno' => $datos->_exc_uno,
+            'dos' => $datos->_exc_dos,
+            'tres' => $datos->_exc_tres,
+            'cuatro' => $datos->_exc_cuatro,
+            'cinco' => $datos->_exc_cinco,
+            'seis' => $datos->_exc_seis,
+        ];
+
+            $mysqli->insertar($query, $params);
+            return '1';
         } else {
 
             // Si existe → UPDATE
@@ -292,7 +293,6 @@ sql;
                 FECHA_CARGA=SYSTIMESTAMP,
                 USUARIO_CARGA=NULL
             WHERE CDGNS = '$cdgns'
-          AND CICLO = '$ciclo'
 sql;
 
             return $mysqli->insert($query);

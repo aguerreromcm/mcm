@@ -116,14 +116,14 @@ class Menu
     private function opcionesCreditos()
     {
         return [
-            $this->enlace('Control de Garantías', '/Creditos/ControlGarantias/', ['ADMIN', 'GARAN', 'ORHM', 'MAPH', 'AMOCA']),
-            $this->enlace('Calculo Descuento Telaraña', '/Promociones/Telarana/', ['ADMIN', 'ORHM', 'MAPH']),
-            $this->enlace('Registro Telaraña', '/Validaciones/RegistroTelarana/', ['ADMIN', 'ORHM', 'MAPH']),
-            $this->enlace('Actualización de Créditos', '/Creditos/ActualizaCredito/', ['ADMIN', 'ORHM', 'MAPH']),
-            $this->enlace('Cambio de Sucursal', '/Creditos/CambioSucursal/', ['ADMIN', 'CAMAG', 'ORHM', 'MAPH']),
-            $this->enlace('Cancelación de Ref', '/CancelaRef/', ['ADMIN', 'CAMAG', 'ORHM', 'MAPH']),
-            $this->enlace('Corrección Mov Ajustes', '/CorreccionAjustes/', ['ADMIN', 'CAMAG', 'ORHM', 'MAPH']),
-            $this->enlace('Consulta Clientes Solicitudes', '/Cultiva/', ['ADMIN', 'CAMAG', 'ORHM', 'MAPH']),
+            $this->enlace('Control de Garantías', '/Creditos/ControlGarantias/', ['ADMIN', 'GARAN', 'GOBA', 'MAPH', 'AMOCA']),
+            $this->enlace('Calculo Descuento Telaraña', '/Promociones/Telarana/', ['ADMIN', 'GOBA', 'MAPH']),
+            $this->enlace('Registro Telaraña', '/Validaciones/RegistroTelarana/', ['ADMIN', 'GOBA', 'MAPH']),
+            $this->enlace('Actualización de Créditos', '/Creditos/ActualizaCredito/', ['ADMIN', 'GOBA', 'MAPH']),
+            $this->enlace('Cambio de Sucursal', '/Creditos/CambioSucursal/', ['ADMIN', 'CAMAG', 'GOBA', 'MAPH']),
+            $this->enlace('Cancelación de Ref', '/CancelaRef/', ['ADMIN', 'CAMAG', 'GOBA', 'MAPH']),
+            $this->enlace('Corrección Mov Ajustes', '/CorreccionAjustes/', ['ADMIN', 'CAMAG', 'GOBA', 'MAPH']),
+            $this->enlace('Consulta Clientes Solicitudes', '/Cultiva/', ['ADMIN', 'CAMAG', 'GOBA', 'MAPH']),
         ];
     }
 
@@ -152,10 +152,10 @@ class Menu
     private function opcionesOperaciones()
     {
         return [
-            $this->enlace('Cierre de día', '/Operaciones/CierreDiario/', ['AMGM', 'FECR', 'EZJL']),
-            $this->enlace('Reporte Cliente y Aval Consolidado', '/Operaciones/ReportePC', ['ADMIN', 'PHEE', 'MCDP', 'FECR', 'ORHM']),
-            $this->enlace('Reporte Interés Devengado', '/Operaciones/ReporteInteresDevengado', ['AMGM', 'ORHM']),
-            $this->enlace('Reporte Acreditado', '/Operaciones/ReporteAcreditado', ['ADMIN', 'ORHM', 'LGFR', 'MCDP', 'MAPH'])
+            $this->enlace('Cierre de día', '/Operaciones/CierreDiario/', ['AMGM', 'FECR', 'EZJL', 'GOBA']),
+            $this->enlace('Reporte Cliente y Aval Consolidado', '/Operaciones/ReportePC', ['ADMIN', 'PHEE', 'MCDP', 'FECR', 'GOBA']),
+            $this->enlace('Reporte Interés Devengado', '/Operaciones/ReporteInteresDevengado', ['AMGM', 'GOBA']),
+            $this->enlace('Reporte Acreditado', '/Operaciones/ReporteAcreditado', ['ADMIN', 'CPAGO', 'GOBA', 'LGFR', 'MCDP', 'MAPH', 'VMSM'])
         ];
     }
 
@@ -164,7 +164,7 @@ class Menu
     {
         return [
             $this->enlace('Reporte Productora Cultiva', '/Tesoreria/ReportePC', ['ADMIN', 'PLMV', 'MCDP', 'LGFR', 'MACI', 'MGJC', 'LVGA', 'FLHR']),
-            $this->enlace('Solicitudes de Retiro', '/Ahorro/Retiros/', ['ADMIN', 'CAJA', 'PLMV', 'MCDP', 'LGFR', 'MACI', 'MGJC', 'LVGA', 'FLHR', 'ESMM']),
+            $this->enlace('Solicitudes de Retiro', '/Ahorro/Retiros/', ['ADMIN', 'CAJA', 'PLMV', 'MCDP', 'LGFR', 'MACI', 'MGJC', 'LVGA', 'FLHR', 'ESMM', 'GOBA']),
         ];
     }
 
@@ -194,11 +194,11 @@ class Menu
         return [
             $this->enlace('Ajustar Hora de Cierre', '/Pagos/AjusteHoraCierre/', ['ADMIN', 'LGFR']),
             $this->enlace('Asignación Días Festivos', '/Pagos/DiasFestivos/', ['ADMIN', 'LGFR']),
-            $this->enlace('Lista Negra (empleados)', '/Administracion/ListaNegraEmpleados/', ['ADMIN', 'LGFR', 'MAPH', 'MCDP', 'ORHM', 'FECR']),
-            $this->enlace('Reporte Usuarios SICAFIN MCM', '/Reportes/UsuariosMCM/', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM', 'FECR']),
-            $this->enlace('Reporte Usuarios SICAFIN Cultiva', '/Reportes/UsuariosCultiva/', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM', 'FECR']),
-            $this->enlace('Situación Cartera', '/Creditos/cierreDiario', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM', 'FECR']),
-            $this->enlace('Administración de Correos', '/Creditos/AdminCorreos', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'ORHM', 'FECR']),
+            $this->enlace('Lista Negra (empleados)', '/Administracion/ListaNegraEmpleados/', ['ADMIN', 'LGFR', 'MAPH', 'MCDP', 'GOBA', 'FECR']),
+            $this->enlace('Reporte Usuarios SICAFIN MCM', '/Reportes/UsuariosMCM/', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'GOBA', 'FECR']),
+            $this->enlace('Reporte Usuarios SICAFIN Cultiva', '/Reportes/UsuariosCultiva/', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'GOBA', 'FECR']),
+            $this->enlace('Situación Cartera', '/Creditos/cierreDiario', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'GOBA', 'FECR']),
+            $this->enlace('Administración de Correos', '/Creditos/AdminCorreos', ['ADMIN', 'MAPH', 'HSEJ', 'PHEE', 'GOBA', 'FECR']),
         ];
     }
 

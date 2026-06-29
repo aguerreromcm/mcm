@@ -122,7 +122,7 @@ class Indicadores extends Model
                 JOIN PE ON PE.CODIGO = T.CDGPE
             WHERE
                 PE.ACTIVO = 'S'
-                AND PE.CODIGO IN ('MCDP', 'LVGA', 'ORHM', 'MAPH', 'PHEE', 'JUJG', 'HTMP','HZDA', 'FSBA', 'CSLL', 'HELL', 'BCHF', 'JVRE', 'ESMM', 'GAGR')
+                AND PE.CODIGO IN ('MCDP', 'LVGA', 'GOBA', 'MAPH', 'PHEE', 'JUJG', 'HTMP','HZDA', 'FSBA', 'CSLL', 'HELL', 'BCHF', 'JVRE', 'ESMM', 'GAGR')
             ORDER BY
                 T.ANO DESC,
                 T.MES DESC,
