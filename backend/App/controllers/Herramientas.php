@@ -7,6 +7,8 @@ defined("APPPATH") or die("Access denied");
 use Core\View;
 use Core\Controller;
 use App\models\Herramientas as HerramientasDao;
+use App\models\ProductividadOP as ProductividadOPDao;
+use App\models\Indicadores as IndicadoresDao;
 use App\services\AuditoriaDevengoService;
 
 require_once dirname(__DIR__) . '/../libs/mpdf/mpdf.php';
@@ -23,6 +25,41 @@ class Herramientas extends Controller
         $this->_contenedor = new Contenedor;
         View::set('header', $this->_contenedor->header());
         View::set('footer', $this->_contenedor->footer());
+    }
+
+    /** Respuesta JSON limpia (sin salida previa de errores Oracle en HTML/texto). */
+    private function respondeJson(array $payload): void
+    {
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/json; charset=UTF-8');
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($json === false) {
+            $json = json_encode([
+                'success' => false,
+                'mensaje' => 'Error al generar la respuesta JSON',
+                'error' => json_last_error_msg(),
+            ]);
+        }
+        echo $json;
+        exit;
+    }
+
+    /** Ejecuta callback capturando ecos de error de Database antes del JSON. */
+    private function productividadJson(callable $fn): void
+    {
+        set_time_limit(180);
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        ob_start();
+        try {
+            $payload = $fn();
+        } catch (\Throwable $e) {
+            $payload = \Core\Model::Responde(false, 'Error en productividad', null, $e->getMessage());
+        }
+        $this->respondeJson($payload);
     }
 
     /**
@@ -613,6 +650,105 @@ class Herramientas extends Controller
         } catch (\Throwable $e) {
             echo json_encode(\Core\Model::Responde(false, 'Ocurrió un error al consultar el estatus de las bases.', null, $e->getMessage()));
         }
+    }
+
+    private $graficasProductividad = '<script src="/js/chart.min.js"></script>';
+
+    /**
+     * Vista propuesta: Productividad Operaciones (datos en vivo, previo a Indicadores).
+     */
+    public function ProductividadOP()
+    {
+        $extraCss = '<link href="/css/herramientas-productividad-op.css" rel="stylesheet">';
+        $extraFooter = <<<HTML
+            <script src="/js/herramientas-productividad-op.js"></script>
+            <script>
+                {$this->mensajes}
+                {$this->configuraTabla}
+                {$this->consultaServidor}
+                {$this->formatoMoneda}
+            </script>
+        HTML;
+
+        View::set('header', $this->_contenedor->header($this->GetExtraHeader('Productividad Operaciones (Propuesta)', [$this->graficasProductividad, $extraCss])));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::render('herramientas_productividadOP');
+    }
+
+    public function GetProductividadResumen()
+    {
+        $this->productividadJson(fn () => ProductividadOPDao::GetResumen($_GET));
+    }
+
+    public function GetProductividadConsulta()
+    {
+        set_time_limit(180);
+        $this->productividadJson(fn () => ProductividadOPDao::GetConsulta($_GET));
+    }
+
+    public function GetProductividadCatalogos()
+    {
+        set_time_limit(120);
+        $this->productividadJson(fn () => ProductividadOPDao::GetCatalogos($_GET));
+    }
+
+    public function GetProductividadIncidenciasUsuario()
+    {
+        $datos = array_merge($_GET, $_POST);
+        $this->productividadJson(fn () => IndicadoresDao::GetIncidenciasUsuario($datos));
+    }
+
+    public function GetExcelProductividadIncidenciasUsuario()
+    {
+        $estilos = \PHPSpreadsheet::GetEstilosExcel();
+        $columnas = [
+            \PHPSpreadsheet::ColumnaExcel('FECHA', 'Fecha', ['estilo' => $estilos['fecha_hora']]),
+            \PHPSpreadsheet::ColumnaExcel('CDGNS', 'Crédito', ['estilo' => $estilos['centrado']]),
+            \PHPSpreadsheet::ColumnaExcel('CICLO', 'Ciclo', ['estilo' => $estilos['centrado']]),
+            \PHPSpreadsheet::ColumnaExcel('MONTO', 'Monto', ['estilo' => $estilos['moneda']]),
+            \PHPSpreadsheet::ColumnaExcel('DESCRIPCION', 'Descripción'),
+            \PHPSpreadsheet::ColumnaExcel('TIPO', 'Tipo'),
+            \PHPSpreadsheet::ColumnaExcel('REGION', 'Región'),
+            \PHPSpreadsheet::ColumnaExcel('SUCURSAL', 'Sucursal'),
+        ];
+        $filas = IndicadoresDao::GetIncidenciasUsuario($_GET);
+        $filas = $filas['success'] ? $filas['datos'] : [];
+        $filas = array_map(function ($fila) {
+            $fila['FECHA'] = ProductividadOPDao::fechaConsultaParaExcel($fila['FECHA'] ?? '');
+            return $fila;
+        }, $filas);
+        $usuario = $_GET['usuario'] ?? '';
+        \PHPSpreadsheet::DescargaExcel("Incidencias de {$usuario}", 'Incidencias', 'Reporte de Incidencias', $columnas, $filas);
+    }
+
+    public function GetExcelProductividadConsulta()
+    {
+        set_time_limit(180);
+        $estilos = \PHPSpreadsheet::GetEstilosExcel();
+        $columnas = [
+            \PHPSpreadsheet::ColumnaExcel('FECHA', 'Fecha', ['estilo' => $estilos['fecha_hora']]),
+            \PHPSpreadsheet::ColumnaExcel('CDGPE', 'Usuario', ['estilo' => $estilos['centrado']]),
+            \PHPSpreadsheet::ColumnaExcel('NOMBRE', 'Nombre'),
+            \PHPSpreadsheet::ColumnaExcel('CDGNS', 'Crédito', ['estilo' => $estilos['centrado']]),
+            \PHPSpreadsheet::ColumnaExcel('CICLO', 'Ciclo', ['estilo' => $estilos['centrado']]),
+            \PHPSpreadsheet::ColumnaExcel('TIPO', 'Tipo'),
+            \PHPSpreadsheet::ColumnaExcel('DESCRIPCION', 'Descripción'),
+            \PHPSpreadsheet::ColumnaExcel('MODULO', 'Módulo'),
+            \PHPSpreadsheet::ColumnaExcel('REGION', 'Región'),
+            \PHPSpreadsheet::ColumnaExcel('SUCURSAL', 'Sucursal'),
+            \PHPSpreadsheet::ColumnaExcel('MONTO', 'Monto', ['estilo' => $estilos['moneda']]),
+        ];
+        $res = ProductividadOPDao::GetConsulta($_GET);
+        $filas = $res['success'] ? ($res['datos']['filas'] ?? []) : [];
+        $filas = array_map(function ($fila) {
+            $fila['FECHA'] = ProductividadOPDao::fechaConsultaParaExcel($fila['FECHA'] ?? '');
+            $fila['MODULO'] = ProductividadOPDao::labelModuloTabla($fila['MODULO'] ?? '');
+            return $fila;
+        }, $filas);
+        $fechaI = $_GET['fechaI'] ?? '';
+        $fechaF = $_GET['fechaF'] ?? '';
+        $titulo = trim("Consulta detallada {$fechaI} – {$fechaF}", ' –');
+        \PHPSpreadsheet::DescargaExcel('Productividad OP', 'Consulta', $titulo, $columnas, $filas);
     }
 
     /**
