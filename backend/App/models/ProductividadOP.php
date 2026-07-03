@@ -171,6 +171,14 @@ class ProductividadOP extends Model
         return array_column($rows, 'REGION');
     }
 
+    /** Sucursales con región en el periodo (para filtro dependiente). */
+    private static function catalogoSucursalesPorRegion(Database $db, array $prm, string $extra = ''): array
+    {
+        $base = self::baseFrom($extra);
+        return self::queryAll($db, "SELECT DISTINCT Q1.REGION, Q1.SUCURSAL {$base}
+            ORDER BY Q1.REGION, Q1.SUCURSAL", $prm, 'catálogo sucursales por región');
+    }
+
     private static function filtrosConsulta(array $datos, array &$prm): string
     {
         $parts = [self::filtroRegion($datos, $prm)];
@@ -526,13 +534,15 @@ class ProductividadOP extends Model
             $db = new Database();
             $usuarios = self::catalogoUsuarios($db, $datos);
             $regiones = self::catalogoRegiones($db);
-            $sucursales = self::queryAll($db, "SELECT DISTINCT Q1.SUCURSAL {$baseFiltrado} ORDER BY Q1.SUCURSAL", $prmFiltrado, 'catálogo sucursales');
+            $sucursalesRegion = self::catalogoSucursalesPorRegion($db, $prm, $extra);
+            $sucursales = array_values(array_unique(array_column($sucursalesRegion, 'SUCURSAL')));
             $tipos = self::queryAll($db, "SELECT Q1.TIPO, SUM(" . self::exprCnt() . ") AS TOTAL {$baseFiltrado} GROUP BY Q1.TIPO ORDER BY SUM(" . self::exprCnt() . ") DESC FETCH FIRST 30 ROWS ONLY", $prmFiltrado, 'catálogo tipos');
 
             return self::Responde(true, 'Catálogos obtenidos', [
                 'usuarios' => $usuarios,
                 'regiones' => $regiones,
-                'sucursales' => array_column($sucursales, 'SUCURSAL'),
+                'sucursales' => $sucursales,
+                'sucursales_region' => $sucursalesRegion,
                 'tipos' => array_column($tipos, 'TIPO'),
             ]);
         } catch (\Exception $e) {

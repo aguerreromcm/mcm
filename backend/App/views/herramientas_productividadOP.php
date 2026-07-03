@@ -14,8 +14,8 @@
                 <div>
                     <label>Periodo rápido</label>
                     <div class="period-pills" id="periodPills">
-                        <button type="button" data-period="current" class="active">Este mes</button>
-                        <button type="button" data-period="prev">Mes anterior</button>
+                        <button type="button" data-period="current">Este mes</button>
+                        <button type="button" data-period="prev" class="active">Mes anterior</button>
                         <button type="button" data-period="3m">3 meses</button>
                         <button type="button" data-period="12m">12 meses</button>
                     </div>
@@ -53,7 +53,7 @@
                 <div class="panel-card" style="margin-bottom:16px">
                     <div class="head">
                         <h4><i class="fa fa-star" style="color:#b8860b"></i> Lo más destacado del periodo</h4>
-                        <small>Clic en usuario o sucursal/tipo para ver más detalle</small>
+                        <small>Clic en usuario, sucursal o tipo para ver gráfico de detalle</small>
                     </div>
                     <div class="body"><div class="spotlight-row" id="spotlightRow"></div></div>
                 </div>
@@ -152,10 +152,6 @@
                         <div class="df-head"><span><i class="fa fa-filter"></i> Filtros</span><a href="#" id="btnLimpiar">Limpiar</a></div>
                         <div class="df-body">
                             <div class="fg">
-                                <label>Usuario</label>
-                                <select class="form-control" id="fUsuario"><option value="">Todos los usuarios</option></select>
-                            </div>
-                            <div class="fg">
                                 <label>Región</label>
                                 <select class="form-control" id="fRegion"><option value="">Todas</option></select>
                             </div>
@@ -164,8 +160,12 @@
                                 <select class="form-control" id="fSucursal"><option value="">Todas</option></select>
                             </div>
                             <div class="fg">
-                                <label>Tipo de movimiento</label>
-                                <select class="form-control" id="fTipo"><option value="">Todos</option></select>
+                                <label>Usuario</label>
+                                <select class="form-control" id="fUsuario"><option value="">Todos los usuarios</option></select>
+                            </div>
+                            <div class="fg">
+                                <label>Operación</label>
+                                <select class="form-control" id="fTipo"><option value="">Todas</option></select>
                             </div>
                             <div class="df-actions">
                                 <button type="button" class="btn btn-primary btn-sm btn-block" id="btnAplicar"><i class="fa fa-search"></i> Buscar</button>

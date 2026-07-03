@@ -14,7 +14,10 @@
         fechaI: '', fechaF: '', region: '',
         detalle: { usuario: '', region: '', sucursal: '', tipo: '', modulo: 'all', ejecutada: false },
         lastResumen: null,
-        lastModalDatos: null
+        lastModalDatos: null,
+        modalSpot: { kind: '', valor: '' },
+        sucursalMap: {},
+        allSucursales: []
     };
 
     let charts = {};
@@ -331,8 +334,10 @@
         state.fechaF = document.getElementById('fechaHasta').value;
         state.region = document.getElementById('filtroRegionToolbar').value;
         state.detalle.region = state.region;
+        state.detalle.sucursal = '';
         state.detalle.ejecutada = false;
         document.getElementById('fRegion').value = state.region;
+        document.getElementById('fSucursal').value = '';
         loadResumen();
         if (document.getElementById('tab-detalle').classList.contains('active')) showDetalleIdle();
     }
@@ -395,13 +400,49 @@
         });
     }
 
+    function buildSucursalMap(rows) {
+        const map = {};
+        (rows || []).forEach(r => {
+            const reg = r.REGION || '';
+            if (!map[reg]) map[reg] = [];
+            if (r.SUCURSAL && !map[reg].includes(r.SUCURSAL)) map[reg].push(r.SUCURSAL);
+        });
+        return map;
+    }
+
+    function refreshSucursalSelect(preserveValue) {
+        const region = document.getElementById('fRegion').value;
+        const el = document.getElementById('fSucursal');
+        let selected = preserveValue ? (el.value || state.detalle.sucursal) : '';
+        let items = [];
+        if (region && state.sucursalMap[region]) {
+            items = state.sucursalMap[region];
+        } else if (!region) {
+            items = state.allSucursales;
+        }
+        fillSelect('fSucursal', items, selected, 'Todas');
+        if (selected && !items.includes(selected)) {
+            el.value = '';
+            state.detalle.sucursal = '';
+        }
+    }
+
+    function onRegionFilterChange() {
+        state.detalle.region = document.getElementById('fRegion').value;
+        document.getElementById('fSucursal').value = '';
+        state.detalle.sucursal = '';
+        refreshSucursalSelect(false);
+    }
+
     function loadCatalogos() {
         consultaServidor(API + 'GetProductividadCatalogos/?' + getParams(), {}, (r) => {
             if (!r.success) return;
             fillSelect('filtroRegionToolbar', r.datos.regiones, state.region, 'Todas');
             fillSelect('fRegion', r.datos.regiones, state.detalle.region, 'Todas');
-            fillSelect('fSucursal', r.datos.sucursales, state.detalle.sucursal, 'Todas');
-            fillSelect('fTipo', r.datos.tipos, state.detalle.tipo, 'Todos');
+            state.sucursalMap = buildSucursalMap(r.datos.sucursales_region);
+            state.allSucursales = r.datos.sucursales || [];
+            refreshSucursalSelect(true);
+            fillSelect('fTipo', r.datos.tipos, state.detalle.tipo, 'Todas');
             const fu = document.getElementById('fUsuario');
             const cur = fu.value;
             fu.innerHTML = '<option value="">Todos los usuarios</option>' +
@@ -470,9 +511,9 @@
                 if (action === 'usuario') {
                     verDetalleUsuario(el.dataset.codigo, el.dataset.nombre);
                 } else if (action === 'sucursal') {
-                    irConsulta({ sucursal: el.dataset.valor });
+                    verDetalleSucursal(el.dataset.valor, el.dataset.region);
                 } else if (action === 'tipo') {
-                    irConsulta({ tipo: el.dataset.valor });
+                    verDetalleTipo(el.dataset.valor);
                 }
             });
         });
@@ -497,7 +538,7 @@
                 <div class="cat">Usuario #1</div><div class="winner"><div class="medal medal-gold"><i class="fa fa-user"></i></div>
                 <div class="winner-text"><div class="code">${escHtml(u.CDGPE)}</div><div class="name">${escHtml(u.NOMBRE)}</div></div></div>
                 <div class="stat"><span class="val">${u.TOTAL}</span><span class="pct">${pctU}% del total</span></div></div>` : ''}
-            ${s ? `<div class="spot" data-spot-action="sucursal" data-valor="${escHtml(s.SUCURSAL)}"><span class="go"><i class="fa fa-angle-right"></i></span>
+            ${s ? `<div class="spot" data-spot-action="sucursal" data-valor="${escHtml(s.SUCURSAL)}" data-region="${escHtml(s.REGION)}"><span class="go"><i class="fa fa-angle-right"></i></span>
                 <div class="cat">Sucursal #1</div><div class="winner"><div class="medal medal-blue"><i class="fa fa-building"></i></div>
                 <div class="winner-text"><div class="code">Región ${escHtml(s.REGION)}</div><div class="name">${escHtml(s.SUCURSAL)}</div></div></div>
                 <div class="stat"><span class="val">${s.TOTAL}</span><span class="pct">${pctS}% del total</span></div></div>` : ''}
@@ -795,7 +836,7 @@
         el.innerHTML = items.map((it, i) => {
             const pct = total ? +((it.TOTAL / total) * 100).toFixed(1) : 0;
             const pctLabel = pct.toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-            return `<div class="rank-item" onclick="ProdOP.irConsulta({sucursal:'${esc(it.SUCURSAL)}'})">
+            return `<div class="rank-item" onclick="ProdOP.irConsulta({region:'${esc(it.REGION)}',sucursal:'${esc(it.SUCURSAL)}'})">
                 <span class="rank-pos ${i === 0 ? 'top' : ''}">${i + 1}</span>
                 <div><div class="rank-name">${it.SUCURSAL}</div><div class="rank-sub">${it.REGION}</div></div>
                 <span class="rank-val">${it.TOTAL}<span class="rank-pct">${pctLabel}%</span></span>
@@ -923,7 +964,7 @@
         if (d.usuario) items.push({ k: 'usuario', l: `Usuario: ${d.usuario}` });
         if (d.region) items.push({ k: 'region', l: `Región: ${d.region}` });
         if (d.sucursal) items.push({ k: 'sucursal', l: `Sucursal: ${d.sucursal}` });
-        if (d.tipo) items.push({ k: 'tipo', l: `Tipo: ${d.tipo}` });
+        if (d.tipo) items.push({ k: 'tipo', l: `Operación: ${d.tipo}` });
         if (d.modulo !== 'all') items.push({ k: 'modulo', l: `Módulo: ${MOD_LABELS[d.modulo]}` });
         chips.innerHTML = items.map(it => `<span class="chip">${it.l} <span class="x" data-k="${it.k}">×</span></span>`).join('');
         chips.querySelectorAll('.x').forEach(x => {
@@ -931,7 +972,10 @@
                 const k = x.dataset.k;
                 state.detalle[k] = k === 'modulo' ? 'all' : '';
                 if (k === 'usuario') document.getElementById('fUsuario').value = '';
-                if (k === 'region') document.getElementById('fRegion').value = '';
+                if (k === 'region') {
+                    document.getElementById('fRegion').value = '';
+                    refreshSucursalSelect(false);
+                }
                 if (k === 'sucursal') document.getElementById('fSucursal').value = '';
                 if (k === 'tipo') document.getElementById('fTipo').value = '';
                 if (k === 'modulo') document.querySelectorAll('.mod-btn').forEach(b => b.classList.toggle('active', b.dataset.mod === 'all'));
@@ -941,20 +985,63 @@
         });
     }
 
-    function verDetalleUsuario(codigo, nombre) {
-        document.getElementById('ttlNombre').innerHTML = `<b>Total de incidencias atendidas por ${nombre} en ${formatPeriodoLabel()}</b>`;
-        document.getElementById('xsl_usuario').value = codigo;
+    function abrirModalDetalle(opts) {
+        const { kind, valor, label, sublabel } = opts;
+        const periodo = formatPeriodoLabel();
+        let titulo = '';
+        if (kind === 'usuario') {
+            titulo = `Total de incidencias atendidas por ${label} en ${periodo}`;
+        } else if (kind === 'sucursal') {
+            titulo = `Incidencias en sucursal ${label}${sublabel ? ` · Región ${sublabel}` : ''} en ${periodo}`;
+        } else {
+            titulo = `Incidencias de tipo «${label}» en ${periodo}`;
+        }
+        document.getElementById('ttlNombre').innerHTML = `<b>${titulo}</b>`;
+        state.modalSpot = { kind, valor };
         document.getElementById('xsl_fechaI').value = state.fechaI;
         document.getElementById('xsl_fechaF').value = state.fechaF;
+        if (kind === 'usuario') {
+            document.getElementById('xsl_usuario').value = valor;
+        }
         $('#detalleUsuario').modal('show');
-        consultaServidor(API + 'GetProductividadIncidenciasUsuario/', {
-            usuario: codigo, fechaI: state.fechaI, fechaF: state.fechaF
-        }, (r) => {
+        cargarModalDetalle(kind, valor);
+    }
+
+    function onModalDatos(datos) {
+        state.lastModalDatos = datos;
+        actualizaModalCharts(datos);
+        actualizaModalTabla(datos);
+    }
+
+    function cargarModalDetalle(kind, valor) {
+        if (kind === 'usuario') {
+            consultaServidor(API + 'GetProductividadIncidenciasUsuario/', {
+                usuario: valor, fechaI: state.fechaI, fechaF: state.fechaF
+            }, (r) => {
+                if (!r.success) return showApiError(r);
+                onModalDatos(r.datos);
+            });
+            return;
+        }
+        const p = Object.assign({}, paramsBase());
+        if (kind === 'sucursal') p.sucursal = valor;
+        else p.tipo = valor;
+        consultaServidor(API + 'GetProductividadConsulta/?' + new URLSearchParams(p).toString(), {}, (r) => {
             if (!r.success) return showApiError(r);
-            state.lastModalDatos = r.datos;
-            actualizaModalCharts(r.datos);
-            actualizaModalTabla(r.datos);
+            onModalDatos(r.datos?.filas || []);
         });
+    }
+
+    function verDetalleUsuario(codigo, nombre) {
+        abrirModalDetalle({ kind: 'usuario', valor: codigo, label: nombre });
+    }
+
+    function verDetalleSucursal(sucursal, region) {
+        abrirModalDetalle({ kind: 'sucursal', valor: sucursal, label: sucursal, sublabel: region });
+    }
+
+    function verDetalleTipo(tipo) {
+        abrirModalDetalle({ kind: 'tipo', valor: tipo, label: tipo });
     }
 
     function actualizaModalCharts(datos) {
@@ -1048,6 +1135,7 @@
         if (filtros.tipo) state.detalle.tipo = filtros.tipo;
         document.getElementById('fUsuario').value = '';
         document.getElementById('fRegion').value = state.detalle.region;
+        refreshSucursalSelect(true);
         document.getElementById('fSucursal').value = state.detalle.sucursal;
         document.getElementById('fTipo').value = state.detalle.tipo;
         document.querySelectorAll('.mod-btn').forEach(b => b.classList.toggle('active', b.dataset.mod === 'all'));
@@ -1078,6 +1166,7 @@
             document.querySelectorAll('#periodPills button').forEach(b => b.classList.remove('active'));
         };
         document.getElementById('btnAplicar').onclick = () => loadConsulta();
+        document.getElementById('fRegion').onchange = onRegionFilterChange;
         document.getElementById('btnExcelConsulta').onclick = () => {
             descargaArchivo(API + 'GetExcelProductividadConsulta/?' + new URLSearchParams(buildConsultaParams()).toString());
         };
@@ -1085,6 +1174,7 @@
             e.preventDefault();
             state.detalle = { usuario: '', region: '', sucursal: '', tipo: '', modulo: 'all', ejecutada: false };
             ['fUsuario', 'fRegion', 'fSucursal', 'fTipo'].forEach(id => document.getElementById(id).value = '');
+            refreshSucursalSelect(false);
             document.querySelectorAll('.mod-btn').forEach(b => b.classList.toggle('active', b.dataset.mod === 'all'));
             showDetalleIdle();
         };
@@ -1097,15 +1187,24 @@
             };
         });
         document.getElementById('btnDescargaExcel').onclick = () => {
-            const q = new URLSearchParams({
-                usuario: document.getElementById('xsl_usuario').value,
-                fechaI: document.getElementById('xsl_fechaI').value,
-                fechaF: document.getElementById('xsl_fechaF').value
-            }).toString();
-            descargaArchivo(API + 'GetExcelProductividadIncidenciasUsuario/?' + q);
+            const spot = state.modalSpot;
+            if (spot.kind === 'usuario') {
+                const q = new URLSearchParams({
+                    usuario: document.getElementById('xsl_usuario').value,
+                    fechaI: document.getElementById('xsl_fechaI').value,
+                    fechaF: document.getElementById('xsl_fechaF').value
+                }).toString();
+                descargaArchivo(API + 'GetExcelProductividadIncidenciasUsuario/?' + q);
+                return;
+            }
+            const p = Object.assign({}, paramsBase());
+            if (spot.kind === 'sucursal') p.sucursal = spot.valor;
+            else if (spot.kind === 'tipo') p.tipo = spot.valor;
+            descargaArchivo(API + 'GetExcelProductividadConsulta/?' + new URLSearchParams(p).toString());
         };
         $('#detalleUsuario').on('hidden.bs.modal', () => {
             state.lastModalDatos = null;
+            state.modalSpot = { kind: '', valor: '' };
             actualizaModalCharts([]);
             destroyModalTabla();
         });
@@ -1115,7 +1214,7 @@
 
     $(document).ready(() => {
         registerChartPlugins();
-        setPeriodo('current');
+        setPeriodo('prev');
         bindUi();
         aplicarBusquedaToolbar();
         if (window.matchMedia) {
