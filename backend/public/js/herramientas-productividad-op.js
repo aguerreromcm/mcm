@@ -317,11 +317,11 @@
             ini = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
             fin = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
         } else if (preset === '3m') {
-            fin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
-            ini = new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1);
+            fin = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+            ini = new Date(fin.getFullYear(), fin.getMonth() - 2, 1);
         } else {
-            fin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
-            ini = new Date(hoy.getFullYear(), hoy.getMonth() - 11, 1);
+            fin = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+            ini = new Date(fin.getFullYear(), fin.getMonth() - 11, 1);
         }
         state.fechaI = fmtYMD(ini);
         state.fechaF = fmtYMD(fin);
@@ -463,18 +463,19 @@
     function renderResumen(d) {
         state.lastResumen = d;
         const k = d.kpis;
-        const mesLabel = formatPeriodoLabel();
+        const mesLabel = (k.periodo_actual && k.periodo_actual.label) || formatPeriodoLabel();
+        const antLabel = (k.periodo_anterior && k.periodo_anterior.label) || 'periodo anterior';
         document.getElementById('insightText').innerHTML =
             `En <strong>${mesLabel}</strong> se atendieron <strong>${k.total.toLocaleString('es-MX')} incidencias</strong> ` +
-            `(${k.pct_total >= 0 ? '+' : ''}${k.pct_total}% vs periodo anterior). ` +
+            `(${k.pct_total >= 0 ? '+' : ''}${k.pct_total}% vs <strong>${escHtml(antLabel)}</strong>). ` +
             `El <strong>${k.pct_modulo || d.insight.pct_modulo}%</strong> provino de <strong>${d.insight.modulo_label}</strong>` +
             (d.insight.region_top ? ` y la región <strong>${d.insight.region_top}</strong> concentró actividad relevante.` : '.');
 
         document.getElementById('kpiRow').innerHTML = `
             <div class="kpi"><div class="lbl">Total incidencias</div><div class="num">${k.total.toLocaleString('es-MX')}</div>
-                <div class="delta ${k.pct_total >= 0 ? 'up' : 'down'}"><i class="fa fa-arrow-${k.pct_total >= 0 ? 'up' : 'down'}"></i> ${k.pct_total >= 0 ? '+' : ''}${k.pct_total}% vs anterior</div></div>
+                <div class="delta ${k.pct_total >= 0 ? 'up' : 'down'}"><i class="fa fa-arrow-${k.pct_total >= 0 ? 'up' : 'down'}"></i> ${k.pct_total >= 0 ? '+' : ''}${k.pct_total}% vs ${escHtml(antLabel)}</div></div>
             <div class="kpi"><div class="lbl">Monto involucrado</div><div class="num">${fmtMonto(k.monto)}</div>
-                <div class="delta ${k.pct_monto >= 0 ? 'up' : 'down'}">${k.pct_monto >= 0 ? '+' : ''}${k.pct_monto}%</div></div>
+                <div class="delta ${k.pct_monto >= 0 ? 'up' : 'down'}">${k.pct_monto >= 0 ? '+' : ''}${k.pct_monto}% vs ${escHtml(antLabel)}</div></div>
             <div class="kpi"><div class="lbl">Promedio diario</div><div class="num">${k.promedio_diario}</div>
                 <div class="delta neutral">${k.dias} días en el periodo</div></div>
             <div class="kpi"><div class="lbl">Usuarios activos</div><div class="num">${k.usuarios_activos} <span style="font-size:14px;font-weight:400;color:var(--muted)">/ ${k.total_usuarios}</span></div>
@@ -492,12 +493,50 @@
         renderTablaUsuarios(d.tabla_usuarios, k.total);
     }
 
+    const MES_NOMBRES = [
+        'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+        'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+    ];
+
+    function esPeriodoMesesCerrado(fechaI, fechaF) {
+        const a = new Date(fechaI + 'T00:00:00');
+        const b = new Date(fechaF + 'T00:00:00');
+        if (a > b) return false;
+        const ultimoDia = new Date(b.getFullYear(), b.getMonth() + 1, 0).getDate();
+        return a.getDate() === 1 && b.getDate() === ultimoDia;
+    }
+
+    function formatPeriodoRango(fechaI, fechaF) {
+        const a = new Date(fechaI + 'T00:00:00');
+        const b = new Date(fechaF + 'T00:00:00');
+        const mIni = MES_NOMBRES[a.getMonth()];
+        const mFin = MES_NOMBRES[b.getMonth()];
+        const d1 = a.getDate();
+        const d2 = b.getDate();
+        const y1 = a.getFullYear();
+        const y2 = b.getFullYear();
+
+        if (a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear() && esPeriodoMesesCerrado(fechaI, fechaF)) {
+            return `${mIni} de ${y1}`;
+        }
+        if (esPeriodoMesesCerrado(fechaI, fechaF)) {
+            if (y1 === y2) {
+                return `${mIni} – ${mFin} de ${y1}`;
+            }
+            return `${mIni} de ${y1} – ${mFin} de ${y2}`;
+        }
+        if (a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) {
+            if (d1 === d2) return `${d1} ${mIni} de ${y1}`;
+            return `${d1} – ${d2} ${mIni} de ${y1}`;
+        }
+        if (y1 === y2) {
+            return `${d1} ${mIni} – ${d2} ${mFin} de ${y1}`;
+        }
+        return `${d1} ${mIni} de ${y1} – ${d2} ${mFin} de ${y2}`;
+    }
+
     function formatPeriodoLabel() {
-        const a = new Date(state.fechaI + 'T00:00:00');
-        const b = new Date(state.fechaF + 'T00:00:00');
-        const ma = a.toLocaleString('es-MX', { month: 'long', year: 'numeric' });
-        if (a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) return ma;
-        return `${a.toLocaleDateString('es-MX')} – ${b.toLocaleDateString('es-MX')}`;
+        return formatPeriodoRango(state.fechaI, state.fechaF);
     }
 
     function escHtml(s) {
@@ -579,8 +618,14 @@
         const avg = data.length ? total / data.length : 0;
         let peakIdx = 0;
         data.forEach((v, i) => { if (v > data[peakIdx]) peakIdx = i; });
-        const last = data.length ? data[data.length - 1] : 0;
-        const prev = data.length > 1 ? data[data.length - 2] : 0;
+        const lastIdx = data.length - 1;
+        const prevIdx = data.length - 2;
+        const lastRow = lastIdx >= 0 ? rows[lastIdx] : null;
+        const prevRow = prevIdx >= 0 ? rows[prevIdx] : null;
+        const mesActualLbl = lastRow ? formatMesTendenciaCompleto(lastRow) : 'Mes actual';
+        const mesAntLbl = prevRow ? formatMesTendenciaCompleto(prevRow) : '';
+        const last = data.length ? data[lastIdx] : 0;
+        const prev = data.length > 1 ? data[prevIdx] : 0;
         const momPct = prev ? Math.round(((last - prev) / prev) * 100) : 0;
         const momSign = momPct > 0 ? '+' : '';
         const momClass = momPct > 0 ? 'chart-trend-stat__hint--up' : momPct < 0 ? 'chart-trend-stat__hint--down' : 'chart-trend-stat__hint--neutral';
@@ -613,9 +658,9 @@
                     <div class="chart-trend-stat__hint">media del periodo</div>
                 </div>
                 <div class="chart-trend-stat">
-                    <div class="chart-trend-stat__lbl">Mes actual</div>
+                    <div class="chart-trend-stat__lbl">${escHtml(mesActualLbl)}</div>
                     <div class="chart-trend-stat__val">${last.toLocaleString('es-MX')}</div>
-                    <div class="chart-trend-stat__hint ${momClass}">${prev ? `${momSign}${momPct}% vs mes anterior` : 'primer mes del periodo'}</div>
+                    <div class="chart-trend-stat__hint ${momClass}">${prev ? `${momSign}${momPct}% vs ${escHtml(mesAntLbl)}` : 'primer mes en la gráfica'}</div>
                 </div>` : '';
         }
         setChartLegend('chartTendenciaLegend', [
@@ -624,7 +669,6 @@
         ]);
 
         const surface = cardSurfaceColor();
-        const lastIdx = data.length - 1;
         upsertChart('chartTendencia', 'line', labels, [
             {
                 type: 'line',

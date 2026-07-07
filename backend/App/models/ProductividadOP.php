@@ -215,7 +215,19 @@ class ProductividadOP extends Model
         return implode('', $parts);
     }
 
-    private static function fechasPeriodoAnterior(string $fechaI, string $fechaF): array
+    /** Periodo alineado a meses calendario completos (día 1 → último día del mes). */
+    private static function esPeriodoMesesCerrado(string $fechaI, string $fechaF): bool
+    {
+        $ini = new \DateTime($fechaI);
+        $fin = new \DateTime($fechaF);
+        if ($ini > $fin) {
+            return false;
+        }
+        $ultimoDiaFin = (int) $fin->format('t');
+        return (int) $ini->format('j') === 1 && (int) $fin->format('j') === $ultimoDiaFin;
+    }
+
+    private static function fechasPeriodoAnteriorPorDias(string $fechaI, string $fechaF): array
     {
         $ini = new \DateTime($fechaI);
         $fin = new \DateTime($fechaF);
@@ -223,6 +235,82 @@ class ProductividadOP extends Model
         $finAnt = (clone $ini)->modify('-1 day');
         $iniAnt = (clone $finAnt)->modify('-' . ($dias - 1) . ' days');
         return [$iniAnt->format('Y-m-d'), $finAnt->format('Y-m-d')];
+    }
+
+    /** Mismo número de meses calendario cerrados inmediatamente anteriores. */
+    private static function fechasPeriodoAnteriorPorMeses(string $fechaI, string $fechaF): array
+    {
+        $ini = new \DateTime($fechaI);
+        $fin = new \DateTime($fechaF);
+        $meses = ((int) $fin->format('Y') - (int) $ini->format('Y')) * 12
+            + (int) $fin->format('n') - (int) $ini->format('n') + 1;
+        $iniAnt = (clone $ini)->modify('-' . $meses . ' months');
+        $finAnt = (clone $ini)->modify('-1 day');
+        return [$iniAnt->format('Y-m-d'), $finAnt->format('Y-m-d')];
+    }
+
+    private static function fechasPeriodoAnterior(string $fechaI, string $fechaF): array
+    {
+        if (self::esPeriodoMesesCerrado($fechaI, $fechaF)) {
+            return self::fechasPeriodoAnteriorPorMeses($fechaI, $fechaF);
+        }
+        return self::fechasPeriodoAnteriorPorDias($fechaI, $fechaF);
+    }
+
+    /** Etiqueta legible del rango (mismo criterio que el insight en pantalla). */
+    private static function nombresMeses(): array
+    {
+        return [
+            1 => 'enero', 2 => 'febrero', 3 => 'marzo', 4 => 'abril',
+            5 => 'mayo', 6 => 'junio', 7 => 'julio', 8 => 'agosto',
+            9 => 'septiembre', 10 => 'octubre', 11 => 'noviembre', 12 => 'diciembre',
+        ];
+    }
+
+    private static function labelPeriodoParcial(string $fechaI, string $fechaF): string
+    {
+        $ini = new \DateTime($fechaI);
+        $fin = new \DateTime($fechaF);
+        $meses = self::nombresMeses();
+        $mIni = $meses[(int) $ini->format('n')];
+        $mFin = $meses[(int) $fin->format('n')];
+        $d1 = (int) $ini->format('j');
+        $d2 = (int) $fin->format('j');
+        $y1 = $ini->format('Y');
+        $y2 = $fin->format('Y');
+
+        if ($ini->format('Y-m') === $fin->format('Y-m')) {
+            if ($d1 === $d2) {
+                return "{$d1} {$mIni} de {$y1}";
+            }
+            return "{$d1} – {$d2} {$mIni} de {$y1}";
+        }
+        if ($y1 === $y2) {
+            return "{$d1} {$mIni} – {$d2} {$mFin} de {$y1}";
+        }
+        return "{$d1} {$mIni} de {$y1} – {$d2} {$mFin} de {$y2}";
+    }
+
+    private static function labelPeriodo(string $fechaI, string $fechaF): string
+    {
+        $ini = new \DateTime($fechaI);
+        $fin = new \DateTime($fechaF);
+        $meses = self::nombresMeses();
+
+        if ($ini->format('Y-m') === $fin->format('Y-m') && self::esPeriodoMesesCerrado($fechaI, $fechaF)) {
+            return $meses[(int) $ini->format('n')] . ' de ' . $ini->format('Y');
+        }
+
+        if (self::esPeriodoMesesCerrado($fechaI, $fechaF)) {
+            $mIni = $meses[(int) $ini->format('n')];
+            $mFin = $meses[(int) $fin->format('n')];
+            if ($ini->format('Y') === $fin->format('Y')) {
+                return "{$mIni} – {$mFin} de {$ini->format('Y')}";
+            }
+            return "{$mIni} de {$ini->format('Y')} – {$mFin} de {$fin->format('Y')}";
+        }
+
+        return self::labelPeriodoParcial($fechaI, $fechaF);
     }
 
     public static function GetResumen(array $datos)
@@ -407,6 +495,16 @@ class ProductividadOP extends Model
                     'pct_total' => $pctCambio,
                     'pct_monto' => $pctMonto,
                     'dias' => $dias,
+                    'periodo_actual' => [
+                        'fechaI' => $datos['fechaI'],
+                        'fechaF' => $datos['fechaF'],
+                        'label' => self::labelPeriodo($datos['fechaI'], $datos['fechaF']),
+                    ],
+                    'periodo_anterior' => [
+                        'fechaI' => $fechaIAnt,
+                        'fechaF' => $fechaFAnt,
+                        'label' => self::labelPeriodo($fechaIAnt, $fechaFAnt),
+                    ],
                 ],
                 'insight' => [
                     'region_top' => $regionTop['REGION'] ?? '',

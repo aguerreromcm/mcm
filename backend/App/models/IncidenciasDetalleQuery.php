@@ -96,7 +96,7 @@ SELECT
                         LEFT JOIN CO ON PRN.CDGCO = CO.CODIGO
                         LEFT JOIN RG ON CO.CDGRG = RG.CODIGO
                     WHERE
-                        PD.FREGISTRO BETWEEN TRUNC(ADD_MONTHS(SYSDATE, -12), 'MM') AND LAST_DAY(SYSDATE)
+                        PD.FREGISTRO BETWEEN TO_DATE(:fechaI, 'YYYY-MM-DD') AND TO_DATE(:fechaF, 'YYYY-MM-DD')
                     GROUP BY
                         PD.CDGNS,
                         PD.CICLO,
@@ -168,7 +168,7 @@ SELECT
                         LEFT JOIN CO ON PRN.CDGCO = CO.CODIGO
                         LEFT JOIN RG ON CO.CDGRG = RG.CODIGO
                     WHERE
-                        m.FDEPOSITO BETWEEN TRUNC(ADD_MONTHS(SYSDATE, -12), 'MM') AND LAST_DAY(SYSDATE)
+                        m.FDEPOSITO BETWEEN TO_DATE(:fechaI, 'YYYY-MM-DD') AND TO_DATE(:fechaF, 'YYYY-MM-DD')
                         AND m.ACTUALIZARPE IS NOT NULL
                         AND m.TIPO != 'PD'
                     GROUP BY
@@ -223,7 +223,7 @@ SELECT
                         JOIN CO ON PRN.CDGCO = CO.CODIGO
                         JOIN RG ON CO.CDGRG = RG.CODIGO
                     WHERE
-                        pgs.FREGISTRO BETWEEN TRUNC(ADD_MONTHS(SYSDATE, -12), 'MM') AND LAST_DAY(SYSDATE)
+                        pgs.FREGISTRO BETWEEN TO_DATE(:fechaI, 'YYYY-MM-DD') AND TO_DATE(:fechaF, 'YYYY-MM-DD')
                         AND pgs.ESTATUS = 'CP'
                     GROUP BY
                         pgs.CDGCLNS, 
@@ -261,7 +261,7 @@ SELECT
                         JOIN CO ON CO.CODIGO = scc.CDGCO 
                         JOIN RG ON RG.CODIGO  = CO.CDGRG  
                     WHERE
-                        scc.FECHA_TRA_CL BETWEEN TRUNC(ADD_MONTHS(SYSDATE, -12), 'MM') AND LAST_DAY(SYSDATE)
+                        scc.FECHA_TRA_CL BETWEEN TO_DATE(:fechaI, 'YYYY-MM-DD') AND TO_DATE(:fechaF, 'YYYY-MM-DD')
                     GROUP BY
                         scc.CDGPE,
                         TO_CHAR(scc.FECHA_TRA_CL, 'YYYY'),
