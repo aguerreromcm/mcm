@@ -7,14 +7,15 @@
     const TIPOS_BAR_COLORS = ['#2a78d6', '#eda100', '#e34948', '#1baf7a', '#4a3aa7'];
     const CHART_BLUE = '#2a78d6';
     const CHART_BAR_DIM = '#c8c6bc';
-    const DIAS_KEYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-    const DIAS_LABELS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const DIAS_KEYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie'];
+    const DIAS_LABELS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
 
     let state = {
         fechaI: '', fechaF: '', region: '',
         detalle: { usuario: '', region: '', sucursal: '', tipo: '', modulo: 'all', ejecutada: false },
         lastResumen: null,
         lastModalDatos: null,
+        usuariosTiposMap: {},
         modalSpot: { kind: '', valor: '' },
         sucursalMap: {},
         allSucursales: []
@@ -169,7 +170,7 @@
                 },
                 label(ctx) {
                     const v = +ctx.parsed.y || 0;
-                    const lines = [`Incidencias: ${v.toLocaleString('es-MX')}`];
+                    const lines = [`Transacciones: ${v.toLocaleString('es-MX')}`];
                     if (avg) {
                         const diff = Math.round(((v - avg) / avg) * 100);
                         const pct = Math.abs(diff);
@@ -466,13 +467,13 @@
         const mesLabel = (k.periodo_actual && k.periodo_actual.label) || formatPeriodoLabel();
         const antLabel = (k.periodo_anterior && k.periodo_anterior.label) || 'periodo anterior';
         document.getElementById('insightText').innerHTML =
-            `En <strong>${mesLabel}</strong> se atendieron <strong>${k.total.toLocaleString('es-MX')} incidencias</strong> ` +
+            `En <strong>${mesLabel}</strong> se atendieron <strong>${k.total.toLocaleString('es-MX')} transacciones</strong> ` +
             `(${k.pct_total >= 0 ? '+' : ''}${k.pct_total}% vs <strong>${escHtml(antLabel)}</strong>). ` +
             `El <strong>${k.pct_modulo || d.insight.pct_modulo}%</strong> provino de <strong>${d.insight.modulo_label}</strong>` +
             (d.insight.region_top ? ` y la región <strong>${d.insight.region_top}</strong> concentró actividad relevante.` : '.');
 
         document.getElementById('kpiRow').innerHTML = `
-            <div class="kpi"><div class="lbl">Total incidencias</div><div class="num">${k.total.toLocaleString('es-MX')}</div>
+            <div class="kpi"><div class="lbl">Total transacciones</div><div class="num">${k.total.toLocaleString('es-MX')}</div>
                 <div class="delta ${k.pct_total >= 0 ? 'up' : 'down'}"><i class="fa fa-arrow-${k.pct_total >= 0 ? 'up' : 'down'}"></i> ${k.pct_total >= 0 ? '+' : ''}${k.pct_total}% vs ${escHtml(antLabel)}</div></div>
             <div class="kpi"><div class="lbl">Monto involucrado</div><div class="num">${fmtMonto(k.monto)}</div>
                 <div class="delta ${k.pct_monto >= 0 ? 'up' : 'down'}">${k.pct_monto >= 0 ? '+' : ''}${k.pct_monto}% vs ${escHtml(antLabel)}</div></div>
@@ -566,7 +567,7 @@
         const pctU = u && total ? ((u.TOTAL / total) * 100).toFixed(1) : 0;
         const pctS = s && total ? ((s.TOTAL / total) * 100).toFixed(1) : 0;
         const pctT = t && total ? ((t.TOTAL / total) * 100).toFixed(1) : 0;
-        const modTipo = t ? (t.TIPO.includes('PAGO') ? 'Caja Pagos Día' : 'Movimiento') : '';
+        const modTipo = t ? (t.TIPO.includes('PAGO') ? 'Caja Pagos Día' : 'Transacción') : '';
         let fechaM = '';
         if (m && m.FECHA) {
             const parts = String(m.FECHA).split(' ')[0].split('/');
@@ -582,7 +583,7 @@
                 <div class="winner-text"><div class="code">Región ${escHtml(s.REGION)}</div><div class="name">${escHtml(s.SUCURSAL)}</div></div></div>
                 <div class="stat"><span class="val">${s.TOTAL}</span><span class="pct">${pctS}% del total</span></div></div>` : ''}
             ${t ? `<div class="spot" data-spot-action="tipo" data-valor="${escHtml(t.TIPO)}"><span class="go"><i class="fa fa-angle-right"></i></span>
-                <div class="cat">Tipo de movimiento #1</div><div class="winner"><div class="medal medal-green"><i class="fa fa-exchange"></i></div>
+                <div class="cat">Tipo de transacción #1</div><div class="winner"><div class="medal medal-green"><i class="fa fa-exchange"></i></div>
                 <div class="winner-text"><div class="code">${escHtml(modTipo)}</div><div class="name">${escHtml(t.TIPO)}</div></div></div>
                 <div class="stat"><span class="val">${t.TOTAL}</span><span class="pct">${pctT}% del total</span></div></div>` : ''}
             ${m ? `<div class="spot spot-static"><div class="cat">Mayor monto atendido</div><div class="winner"><div class="medal medal-orange"><i class="fa fa-money"></i></div>
@@ -644,8 +645,8 @@
         if (statsEl) {
             const mesesGrafica = data.length;
             const acumuladoHint = mesesGrafica === 1
-                ? 'incidencias en el mes mostrado'
-                : `incidencias en ${mesesGrafica} meses de la gráfica`;
+                ? 'transacciones en el mes mostrado'
+                : `transacciones en ${mesesGrafica} meses de la gráfica`;
             statsEl.innerHTML = data.length ? `
                 <div class="chart-trend-stat">
                     <div class="chart-trend-stat__lbl">Total acumulado</div>
@@ -724,7 +725,7 @@
         const badgeEl = document.getElementById('chartSemanaBadge');
         const subEl = document.getElementById('chartSemanaSub');
         if (badgeEl) badgeEl.textContent = formatPeriodoLabel();
-        if (subEl) subEl.textContent = 'Distribución de incidencias por día';
+        if (subEl) subEl.textContent = 'Distribución de transacciones por día';
         if (peakEl) {
             peakEl.innerHTML = total && pico >= 0
                 ? `<i class="ti ti-flame"></i> ${DIAS_LABELS[pico]} pico (${Math.round((data[pico] / total) * 100)}%)`
@@ -889,12 +890,66 @@
         }).join('');
     }
 
+    function fmtPct1(n) {
+        return (+n).toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    }
+
+    function renderTiposModalList(tipos) {
+        return (tipos || []).map((t, i) => {
+            const pct = +t.PCT || 0;
+            const color = TIPOS_BAR_COLORS[i % TIPOS_BAR_COLORS.length];
+            const nombre = t.TIPO || '—';
+            return `<div class="tipos-modal-item">
+                <div class="tipos-modal-item__head">
+                    <span class="tipos-modal-item__rank" style="background:${color}">${i + 1}</span>
+                    <span class="tipos-modal-item__name" title="${escHtml(nombre)}">${escHtml(nombre)}</span>
+                    <span class="tipos-modal-item__stats">
+                        <strong>${(+t.CNT || 0).toLocaleString('es-MX')}</strong>
+                        <span>${fmtPct1(pct)}%</span>
+                    </span>
+                </div>
+                <div class="tipos-modal-item__bar-wrap">
+                    <div class="tipos-modal-item__bar" style="width:${pct}%;background:${color}"></div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function verTiposUsuario(cdgpe) {
+        const u = state.usuariosTiposMap[cdgpe];
+        if (!u) return;
+        const tipos = u.TIPOS || [];
+        document.getElementById('tiposModalSub').innerHTML =
+            `<strong>${escHtml(u.CDGPE)}</strong> · ${escHtml(u.NOMBRE || '')}`;
+        document.getElementById('tiposModalTotal').textContent = (+u.TOTAL || 0).toLocaleString('es-MX');
+        document.getElementById('tiposModalCount').textContent = tipos.length.toLocaleString('es-MX');
+        document.getElementById('tiposModalPeriodo').textContent = formatPeriodoLabel();
+        document.getElementById('tiposModalList').innerHTML = tipos.length
+            ? renderTiposModalList(tipos)
+            : '<p class="text-muted" style="margin:0;text-align:center">Sin tipos registrados</p>';
+        $('#modalTiposUsuario').modal('show');
+    }
+
     function renderTablaUsuarios(rows, total) {
+        state.usuariosTiposMap = {};
         document.getElementById('tblResumenUsuarios').innerHTML = (rows || []).map((u, i) => {
+            state.usuariosTiposMap[u.CDGPE] = u;
             const pct = total ? +((u.TOTAL / total) * 100).toFixed(1) : 0;
-            const mod = u.MODULO || 'otro';
-            const modPct = u.MODULO_PCT != null ? +u.MODULO_PCT : 0;
-            const modPctLabel = modPct.toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+            const tipos = u.TIPOS || [];
+            const tipoPrincipal = u.TIPO || '—';
+            const tipoPct = u.TIPO_PCT != null ? +u.TIPO_PCT : 0;
+            const tipoPctLabel = fmtPct1(tipoPct);
+            const nTipos = tipos.length;
+            const tipoCellClass = nTipos > 1 ? 'tipo-cell tipo-cell--clickable' : 'tipo-cell';
+            const tipoSub = nTipos > 1
+                ? `${tipoPctLabel}% · <span class="tipo-cell__hint">${nTipos} tipos · ver desglose</span>`
+                : `${tipoPctLabel}% de sus transacciones`;
+            const tipoClick = nTipos > 1
+                ? ` onclick="ProdOP.verTiposUsuario('${esc(u.CDGPE)}')"`
+                : '';
+            const tipoTitle = nTipos > 1
+                ? `Ver desglose de ${nTipos} tipos de transacción`
+                : escHtml(tipoPrincipal);
             return `<tr>
                 <td>${i + 1}</td>
                 <td><strong>${u.CDGPE}</strong> <span class="text-muted">${u.NOMBRE}</span></td>
@@ -902,15 +957,19 @@
                 <td>
                     <div class="particip-cell">
                         <div class="particip-bar-wrap"><div class="particip-bar" style="width:${pct}%"></div></div>
-                        <span class="particip-pct">${pct.toLocaleString('es-MX', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</span>
+                        <span class="particip-pct">${fmtPct1(pct)}%</span>
                     </div>
                 </td>
                 <td>${fmtMonto(u.MONTO)}</td>
-                <td>
-                    <span class="badge-mod ${MOD_BADGE[mod] || 'bm-ajuste'}">${MOD_LABELS[mod] || mod}</span>
-                    <div class="cell-sub">${modPctLabel}% de sus incidencias</div>
+                <td class="${tipoCellClass}"${tipoClick} title="${tipoTitle}">
+                    <div class="tipo-cell__main">
+                        <span class="tipo-pred">${escHtml(tipoPrincipal)}</span>
+                    </div>
+                    <div class="cell-sub">${tipoSub}</div>
                 </td>
-                <td><button class="btn btn-primary btn-xs" onclick="ProdOP.verDetalleUsuario('${esc(u.CDGPE)}','${esc(u.NOMBRE)}')"><i class="fa fa-eye"></i></button></td>
+                <td class="td-actions-usuario">
+                    <button class="btn btn-primary btn-xs" title="Ver detalle completo" onclick="ProdOP.verDetalleUsuario('${esc(u.CDGPE)}','${esc(u.NOMBRE)}')"><i class="fa fa-eye"></i></button>
+                </td>
             </tr>`;
         }).join('');
     }
@@ -1034,11 +1093,11 @@
         const periodo = formatPeriodoLabel();
         let titulo = '';
         if (kind === 'usuario') {
-            titulo = `Total de incidencias atendidas por ${label} en ${periodo}`;
+            titulo = `Total de transacciones atendidas por ${label} en ${periodo}`;
         } else if (kind === 'sucursal') {
-            titulo = `Incidencias en sucursal ${label}${sublabel ? ` · Región ${sublabel}` : ''} en ${periodo}`;
+            titulo = `Transacciones en sucursal ${label}${sublabel ? ` · Región ${sublabel}` : ''} en ${periodo}`;
         } else {
-            titulo = `Incidencias de tipo «${label}» en ${periodo}`;
+            titulo = `Transacciones de tipo «${label}» en ${periodo}`;
         }
         document.getElementById('ttlNombre').innerHTML = `<b>${titulo}</b>`;
         state.modalSpot = { kind, valor };
@@ -1254,7 +1313,7 @@
         });
     }
 
-    window.ProdOP = { verDetalleUsuario, irConsulta };
+    window.ProdOP = { verDetalleUsuario, verTiposUsuario, irConsulta };
 
     $(document).ready(() => {
         registerChartPlugins();

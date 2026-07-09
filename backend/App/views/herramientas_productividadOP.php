@@ -6,7 +6,7 @@
             <div class="page-header">
                 <div>
                     <h1>Productividad Operaciones</h1>
-                    <p>Desempeño de incidencias en operaciones</p>
+                    <p>Desempeño de transacciones en operaciones</p>
                 </div>
             </div>
 
@@ -64,7 +64,7 @@
                             <div class="chart-card__stripe"></div>
                             <div class="chart-card__body">
                                 <div class="chart-card__head">
-                                    <div class="chart-card__title"><i class="ti ti-chart-line"></i><span>Tendencia de incidencias</span></div>
+                                    <div class="chart-card__title"><i class="ti ti-chart-line"></i><span>Tendencia de transacciones</span></div>
                                     <div class="chart-card__head-right">
                                         <span class="chart-card__peak-badge" id="chartTendenciaPeak"></span>
                                         <span class="chart-card__badge" id="chartTendenciaBadge">Últimos 12 meses</span>
@@ -86,7 +86,7 @@
                                             <span class="chart-card__badge" id="chartSemanaBadge"></span>
                                         </div>
                                     </div>
-                                    <p class="chart-card__subtitle" id="chartSemanaSub">Distribución de incidencias por día</p>
+                                    <p class="chart-card__subtitle" id="chartSemanaSub">Distribución de transacciones por día</p>
                                     <div class="chart-card__canvas chart-card__canvas--week"><canvas id="chartSemana"></canvas></div>
                                     <div class="chart-card__legend" id="chartSemanaLegend"></div>
                                 </div>
@@ -95,10 +95,10 @@
                                 <div class="chart-card__stripe"></div>
                                 <div class="chart-card__body">
                                     <div class="chart-card__head">
-                                        <div class="chart-card__title"><i class="ti ti-tag"></i><span>Top tipos de movimiento</span></div>
+                                        <div class="chart-card__title"><i class="ti ti-tag"></i><span>Top tipos de transacción</span></div>
                                         <span class="chart-card__badge" id="chartTiposBadge"></span>
                                     </div>
-                                    <p class="chart-card__subtitle" id="chartTiposSub">Cinco movimientos con mayor frecuencia</p>
+                                    <p class="chart-card__subtitle" id="chartTiposSub">Cinco tipos de transacción con mayor frecuencia</p>
                                     <div class="chart-card__canvas chart-card__canvas--tipos"><canvas id="chartTipos"></canvas></div>
                                     <div class="chart-card__legend chart-card__legend--tipos" id="chartTiposLegend"></div>
                                 </div>
@@ -108,16 +108,16 @@
                             <div class="head"><h4>Desempeño por usuario</h4><small id="tablaResumenPeriodo"></small></div>
                             <div class="body" style="padding:0">
                                 <div class="table-wrap" style="border:none;box-shadow:none;border-radius:0">
-                                    <table class="table table-hover" style="margin:0">
+                                    <table class="table table-hover table-usuarios-resumen" style="margin:0">
                                         <thead>
                                             <tr>
                                                 <th style="width:40px">#</th>
                                                 <th>Usuario</th>
-                                                <th>Incidencias</th>
+                                                <th>Transacciones</th>
                                                 <th style="width:160px">Participación</th>
                                                 <th>Monto</th>
-                                                <th title="Módulo donde el usuario concentró más incidencias en el periodo">Módulo predominante</th>
-                                                <th style="width:40px"></th>
+                                                <th title="Tipo de transacción con mayor frecuencia; clic para ver el desglose completo">Tipo predominante</th>
+                                                <th style="width:44px"></th>
                                             </tr>
                                         </thead>
                                         <tbody id="tblResumenUsuarios"></tbody>
@@ -212,6 +212,40 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalTiposUsuario" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-tipos" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-tipos__head">
+                    <div class="modal-tipos__icon"><i class="ti ti-chart-donut"></i></div>
+                    <div>
+                        <div class="modal-title" id="tiposModalTitulo">Tipos de transacción</div>
+                        <div class="modal-tipos__sub" id="tiposModalSub"></div>
+                    </div>
+                </div>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="tipos-modal-summary">
+                    <div class="tipos-modal-summary__item">
+                        <span class="tipos-modal-summary__val" id="tiposModalTotal">0</span>
+                        <span class="tipos-modal-summary__lbl">Transacciones</span>
+                    </div>
+                    <div class="tipos-modal-summary__item">
+                        <span class="tipos-modal-summary__val" id="tiposModalCount">0</span>
+                        <span class="tipos-modal-summary__lbl">Tipos distintos</span>
+                    </div>
+                    <div class="tipos-modal-summary__item tipos-modal-summary__item--wide">
+                        <span class="tipos-modal-summary__lbl">Periodo</span>
+                        <span class="tipos-modal-summary__period" id="tiposModalPeriodo"></span>
+                    </div>
+                </div>
+                <div class="tipos-modal-list" id="tiposModalList"></div>
             </div>
         </div>
     </div>

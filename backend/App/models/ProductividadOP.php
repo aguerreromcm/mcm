@@ -425,26 +425,34 @@ class ProductividadOP extends Model
                     ) WHERE RN <= 50", $prm, 'tabla usuarios');
             }
 
-            $modulosPorUsuario = self::queryAll($db, "SELECT CDGPE, MODULO, CNT FROM (
-                    SELECT Q1.CDGPE, {$modSql} AS MODULO, SUM({$cnt}) AS CNT,
-                        ROW_NUMBER() OVER (PARTITION BY Q1.CDGPE ORDER BY SUM({$cnt}) DESC) AS RN
+            $tiposPorUsuario = self::queryAll($db, "SELECT Q1.CDGPE, Q1.TIPO, SUM({$cnt}) AS CNT
                     {$base}
-                    GROUP BY Q1.CDGPE, {$modSql}
-                ) WHERE RN = 1", $prm, 'módulo principal por usuario');
-            $modMap = [];
-            foreach ($modulosPorUsuario as $m) {
-                $modMap[$m['CDGPE']] = [
-                    'MODULO' => $m['MODULO'],
-                    'CNT' => (int) ($m['CNT'] ?? 0),
+                    GROUP BY Q1.CDGPE, Q1.TIPO
+                    ORDER BY Q1.CDGPE, SUM({$cnt}) DESC", $prm, 'tipos por usuario');
+            $tiposMap = [];
+            foreach ($tiposPorUsuario as $t) {
+                $tiposMap[$t['CDGPE']][] = [
+                    'TIPO' => $t['TIPO'],
+                    'CNT' => (int) ($t['CNT'] ?? 0),
                 ];
             }
             foreach ($tablaUsuarios as &$u) {
-                $info = $modMap[$u['CDGPE']] ?? ['MODULO' => 'otro', 'CNT' => 0];
                 $totalUsuario = (int) ($u['TOTAL'] ?? 0);
-                $u['MODULO'] = $info['MODULO'];
-                $u['MODULO_PCT'] = $totalUsuario > 0
-                    ? round(($info['CNT'] / $totalUsuario) * 100, 1)
-                    : 0;
+                $lista = $tiposMap[$u['CDGPE']] ?? [];
+                $tiposConPct = [];
+                foreach ($lista as $item) {
+                    $tiposConPct[] = [
+                        'TIPO' => $item['TIPO'],
+                        'CNT' => $item['CNT'],
+                        'PCT' => $totalUsuario > 0
+                            ? round(($item['CNT'] / $totalUsuario) * 100, 1)
+                            : 0,
+                    ];
+                }
+                $top = $tiposConPct[0] ?? ['TIPO' => '', 'CNT' => 0, 'PCT' => 0];
+                $u['TIPO'] = $top['TIPO'];
+                $u['TIPO_PCT'] = $top['PCT'];
+                $u['TIPOS'] = $tiposConPct;
             }
             unset($u);
 

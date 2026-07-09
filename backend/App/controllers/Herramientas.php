@@ -718,7 +718,7 @@ class Herramientas extends Controller
             return $fila;
         }, $filas);
         $usuario = $_GET['usuario'] ?? '';
-        \PHPSpreadsheet::DescargaExcel("Incidencias de {$usuario}", 'Incidencias', 'Reporte de Incidencias', $columnas, $filas);
+        \PHPSpreadsheet::DescargaExcel("Transacciones de {$usuario}", 'Transacciones', 'Reporte de Transacciones', $columnas, $filas);
     }
 
     public function GetExcelProductividadConsulta()
