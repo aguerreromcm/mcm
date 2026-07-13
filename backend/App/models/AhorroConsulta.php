@@ -9,6 +9,86 @@ use Core\Model;
 
 class AhorroConsulta extends Model
 {
+    public static function esAdministrador()
+    {
+        return isset($_SESSION['perfil']) && stripos($_SESSION['perfil'], 'ADMIN') !== false;
+    }
+
+    public static function estaDentroHorarioCaptura($fechaHora = null)
+    {
+        $fechaHora = $fechaHora ?? new \DateTime();
+        if (!($fechaHora instanceof \DateTime)) {
+            $fechaHora = new \DateTime($fechaHora);
+        }
+
+        $minutos = ((int) $fechaHora->format('H')) * 60 + (int) $fechaHora->format('i');
+
+        return $minutos >= 8 * 60 && $minutos <= 14 * 60;
+    }
+
+    public static function getSiguienteDiaHabil(\DateTime $fecha)
+    {
+        $dia = (int) $fecha->format('N');
+
+        if ($dia === 5) {
+            $fecha->modify('+3 days');
+        } elseif ($dia === 6) {
+            $fecha->modify('+2 days');
+        } elseif ($dia === 7) {
+            $fecha->modify('+1 day');
+        } else {
+            $fecha->modify('+1 day');
+        }
+
+        return $fecha;
+    }
+
+    public static function calcularFechaEntrega($fechaHoraCaptura = null)
+    {
+        $captura = $fechaHoraCaptura ?? new \DateTime();
+        if (!($captura instanceof \DateTime)) {
+            $captura = new \DateTime($fechaHoraCaptura);
+        }
+
+        $efectiva = clone $captura;
+        $minutos = ((int) $captura->format('H')) * 60 + (int) $captura->format('i');
+
+        if ($minutos > 14 * 60) {
+            $efectiva = self::getSiguienteDiaHabil($efectiva);
+        }
+
+        $diasEntrega = [
+            1 => 2,
+            2 => 2,
+            3 => 5,
+            4 => 4,
+            5 => 4,
+            6 => 3,
+            7 => 3,
+        ];
+
+        $diaSemana = (int) $efectiva->format('N');
+        $efectiva->modify('+' . ($diasEntrega[$diaSemana] ?? 3) . ' days');
+
+        return $efectiva->format('Y-m-d');
+    }
+
+    public static function getPoliticaRetiro()
+    {
+        $ahora = new \DateTime();
+        $fechaEntrega = self::calcularFechaEntrega($ahora);
+        $esAdmin = self::esAdministrador();
+
+        return self::Responde(true, 'Política de retiro obtenida', [
+            'es_admin' => $esAdmin,
+            'puede_capturar' => $esAdmin || self::estaDentroHorarioCaptura($ahora),
+            'fecha_solicitud' => $ahora->format('Y-m-d'),
+            'fecha_entrega' => $fechaEntrega,
+            'fecha_entrega_max' => (new \DateTime($fechaEntrega))->modify('+7 days')->format('Y-m-d'),
+            'mensaje_horario' => 'Las solicitudes de retiro solo pueden registrarse entre las 8:00 AM y las 2:00 PM.',
+        ]);
+    }
+
     public static function GetRetirosAhorro($datos)
     {
         $qry = <<<SQL
@@ -185,6 +265,35 @@ class AhorroConsulta extends Model
 
     public static function insertRetiro($datos)
     {
+        $esAdmin = self::esAdministrador();
+        $ahora = new \DateTime();
+
+        if (!$esAdmin && !self::estaDentroHorarioCaptura($ahora)) {
+            return self::Responde(false, 'Las solicitudes de retiro solo pueden registrarse entre las 8:00 AM y las 2:00 PM.');
+        }
+
+        $fechaSolicitud = $ahora->format('Y-m-d');
+        $fechaEntregaCalculada = self::calcularFechaEntrega($ahora);
+
+        if ($esAdmin && !empty($datos['fecha_entrega'])) {
+            $fechaEntrega = $datos['fecha_entrega'];
+            $fechaEntregaMax = (new \DateTime($fechaEntregaCalculada))->modify('+7 days')->format('Y-m-d');
+
+            if ($fechaEntrega < $fechaEntregaCalculada || $fechaEntrega > $fechaEntregaMax) {
+                return self::Responde(false, "La fecha de entrega debe estar entre {$fechaEntregaCalculada} y {$fechaEntregaMax}.");
+            }
+        } else {
+            $fechaEntrega = $fechaEntregaCalculada;
+        }
+
+        if (!$esAdmin && !empty($datos['fecha_solicitud']) && $datos['fecha_solicitud'] !== $fechaSolicitud) {
+            return self::Responde(false, 'La fecha de solicitud no es válida.');
+        }
+
+        if (!$esAdmin && !empty($datos['fecha_entrega']) && $datos['fecha_entrega'] !== $fechaEntregaCalculada) {
+            return self::Responde(false, 'La fecha de entrega no es válida.');
+        }
+
         $qry = <<<SQL
             INSERT INTO RETIROS_AHORRO (
                 CDGNS
@@ -216,8 +325,8 @@ class AhorroConsulta extends Model
             'cdgns' => $datos['cdgns'],
             'ciclo' => $datos['ciclo'],
             'cantidad_solicitada' => $datos['cantidad_solicitada'],
-            'fecha_solicitud' => $datos['fecha_solicitud'],
-            'fecha_entrega' => $datos['fecha_entrega'],
+            'fecha_solicitud' => $fechaSolicitud,
+            'fecha_entrega' => $fechaEntrega,
             'observaciones_administradora' => $datos['observaciones_administradora'],
             'cdgpe_administradora' => $datos['cdgpe_administradora'],
             'foto' => $datos['foto'],
