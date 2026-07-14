@@ -720,23 +720,23 @@ class CallCenter extends Controller
                     const r2 = $("#r2").val()
                     const retiro = "{$_GET['retiro']}"
                     const usuario = "{$_SESSION['usuario']}"
-                    const estatus = $("#estatus_solicitud").val()
+                    const etiqueta_estatus = $("#estatus_solicitud").val()
 
-                    if (estatus == "V" && !retiroEncuestaValidaParaVistoBueno(r1, r2)) {
+                    if (etiqueta_estatus.toLowerCase().includes("lista") && !retiroEncuestaValidaParaVistoBueno(r1, r2)) {
                         return showError("No se puede finalizar la solicitud como válida si no se respondió correctamente a todas las preguntas.")
                     }
 
                     const estatus_label = $("#estatus_solicitud option:selected").text()
                     
                     if ($("#estatus").val() == "P") return showError("No se puede finalizar la solicitud hasta que llene la encuesta.");
-                    if (!estatus) return showError("Seleccione el estatus final de la solicitud")
+                    if (!etiqueta_estatus) return showError("Seleccione el estatus final de la solicitud")
 
                     confirmarMovimiento("Finalizar solicitud de retiro", "¿Desea finalizar la solicitud de retiro con estatus " + estatus_label + "?")
                     .then(continuar => {
                         if (!continuar) return
 
-                        consultaServidor("/CallCenter/FinalizaSolicitudRetiro/", { retiro, estatus, usuario }, (respuesta) => {
-                            if (!respuesta.success) return showError(respuesta.mensaje)
+                        consultaServidor("/CallCenter/FinalizaSolicitudRetiro/", { retiro, etiqueta_estatus, usuario }, (respuesta) => {
+                            if (!respuesta.success) return showError(respuesta.error || respuesta.mensaje)
 
                             showSuccess("La solicitud de retiro se finalizó correctamente.")
                             .then(() => {
@@ -1113,7 +1113,12 @@ class CallCenter extends Controller
     public function FinalizaSolicitudRetiro()
     {
         $registro = CallCenterDao::FinalizaSolicitudRetiro($_POST);
-        if ($registro['success'] && $_POST['estatus'] !== 'P') {
+        $estatus = CallCenterDao::mapEtiquetaRetiroToEstatus($_POST['etiqueta_estatus'] ?? '');
+        if (!$estatus && isset($_POST['estatus']) && in_array($_POST['estatus'], ['P', 'R', 'C', 'V'], true)) {
+            $estatus = $_POST['estatus'];
+        }
+
+        if ($registro['success'] && $estatus !== 'P') {
             $destinatarios = $this->GetDestinatarios(CallCenterDao::GetDestinatarios_Sucursal($_SESSION['cdgco']));
             $destinatariosTmp = $this->GetDestinatarios(CallCenterDao::GetDestinatarios_Aplicacion(3));
             $destinatarios = array_unique(array_merge($destinatarios, $destinatariosTmp));
@@ -1122,7 +1127,7 @@ class CallCenter extends Controller
                 $datos = \App\models\AhorroConsulta::getInfoCorreoCC($_POST);
                 if ($datos['success']) {
                     $plantilla = self::Plantilla_Retiro_Finalizado($datos['datos']);
-                    $tipo = $_POST['estatus'] == 'V' ? 'Validación' : ($_POST['estatus'] == 'C' ? 'Cancelación' : 'Rechazo');
+                    $tipo = $estatus == 'V' ? 'Validación' : ($estatus == 'C' ? 'Cancelación' : 'Rechazo');
                     Mensajero::EnviarCorreo(
                         $destinatarios,
                         $tipo . ' de solicitud de crédito por Call Center',

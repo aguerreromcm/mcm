@@ -7,6 +7,8 @@ defined("APPPATH") or die("Access denied");
 use Core\View;
 use Core\Controller;
 use App\models\Herramientas as HerramientasDao;
+use App\models\ProductividadOP as ProductividadOPDao;
+use App\models\Indicadores as IndicadoresDao;
 use App\services\AuditoriaDevengoService;
 
 require_once dirname(__DIR__) . '/../libs/mpdf/mpdf.php';
@@ -23,6 +25,41 @@ class Herramientas extends Controller
         $this->_contenedor = new Contenedor;
         View::set('header', $this->_contenedor->header());
         View::set('footer', $this->_contenedor->footer());
+    }
+
+    /** Respuesta JSON limpia (sin salida previa de errores Oracle en HTML/texto). */
+    private function respondeJson(array $payload): void
+    {
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/json; charset=UTF-8');
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($json === false) {
+            $json = json_encode([
+                'success' => false,
+                'mensaje' => 'Error al generar la respuesta JSON',
+                'error' => json_last_error_msg(),
+            ]);
+        }
+        echo $json;
+        exit;
+    }
+
+    /** Ejecuta callback capturando ecos de error de Database antes del JSON. */
+    private function productividadJson(callable $fn): void
+    {
+        set_time_limit(180);
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        ob_start();
+        try {
+            $payload = $fn();
+        } catch (\Throwable $e) {
+            $payload = \Core\Model::Responde(false, 'Error en productividad', null, $e->getMessage());
+        }
+        $this->respondeJson($payload);
     }
 
     /**
@@ -615,6 +652,105 @@ class Herramientas extends Controller
         }
     }
 
+    private $graficasProductividad = '<script src="/js/chart.min.js"></script>';
+
+    /**
+     * Vista propuesta: Productividad Operaciones (datos en vivo, previo a Indicadores).
+     */
+    public function ProductividadOP()
+    {
+        $extraCss = '<link href="/css/herramientas-productividad-op.css" rel="stylesheet">';
+        $extraFooter = <<<HTML
+            <script src="/js/herramientas-productividad-op.js"></script>
+            <script>
+                {$this->mensajes}
+                {$this->configuraTabla}
+                {$this->consultaServidor}
+                {$this->formatoMoneda}
+            </script>
+        HTML;
+
+        View::set('header', $this->_contenedor->header($this->GetExtraHeader('Productividad Operaciones (Propuesta)', [$this->graficasProductividad, $extraCss])));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::render('herramientas_productividadOP');
+    }
+
+    public function GetProductividadResumen()
+    {
+        $this->productividadJson(fn () => ProductividadOPDao::GetResumen($_GET));
+    }
+
+    public function GetProductividadConsulta()
+    {
+        set_time_limit(180);
+        $this->productividadJson(fn () => ProductividadOPDao::GetConsulta($_GET));
+    }
+
+    public function GetProductividadCatalogos()
+    {
+        set_time_limit(120);
+        $this->productividadJson(fn () => ProductividadOPDao::GetCatalogos($_GET));
+    }
+
+    public function GetProductividadIncidenciasUsuario()
+    {
+        $datos = array_merge($_GET, $_POST);
+        $this->productividadJson(fn () => IndicadoresDao::GetIncidenciasUsuario($datos));
+    }
+
+    public function GetExcelProductividadIncidenciasUsuario()
+    {
+        $estilos = \PHPSpreadsheet::GetEstilosExcel();
+        $columnas = [
+            \PHPSpreadsheet::ColumnaExcel('FECHA', 'Fecha', ['estilo' => $estilos['fecha_hora']]),
+            \PHPSpreadsheet::ColumnaExcel('CDGNS', 'Crédito', ['estilo' => $estilos['centrado']]),
+            \PHPSpreadsheet::ColumnaExcel('CICLO', 'Ciclo', ['estilo' => $estilos['centrado']]),
+            \PHPSpreadsheet::ColumnaExcel('MONTO', 'Monto', ['estilo' => $estilos['moneda']]),
+            \PHPSpreadsheet::ColumnaExcel('DESCRIPCION', 'Descripción'),
+            \PHPSpreadsheet::ColumnaExcel('TIPO', 'Tipo'),
+            \PHPSpreadsheet::ColumnaExcel('REGION', 'Región'),
+            \PHPSpreadsheet::ColumnaExcel('SUCURSAL', 'Sucursal'),
+        ];
+        $filas = IndicadoresDao::GetIncidenciasUsuario($_GET);
+        $filas = $filas['success'] ? $filas['datos'] : [];
+        $filas = array_map(function ($fila) {
+            $fila['FECHA'] = ProductividadOPDao::fechaConsultaParaExcel($fila['FECHA'] ?? '');
+            return $fila;
+        }, $filas);
+        $usuario = $_GET['usuario'] ?? '';
+        \PHPSpreadsheet::DescargaExcel("Transacciones de {$usuario}", 'Transacciones', 'Reporte de Transacciones', $columnas, $filas);
+    }
+
+    public function GetExcelProductividadConsulta()
+    {
+        set_time_limit(180);
+        $estilos = \PHPSpreadsheet::GetEstilosExcel();
+        $columnas = [
+            \PHPSpreadsheet::ColumnaExcel('FECHA', 'Fecha', ['estilo' => $estilos['fecha_hora']]),
+            \PHPSpreadsheet::ColumnaExcel('CDGPE', 'Usuario', ['estilo' => $estilos['centrado']]),
+            \PHPSpreadsheet::ColumnaExcel('NOMBRE', 'Nombre'),
+            \PHPSpreadsheet::ColumnaExcel('CDGNS', 'Crédito', ['estilo' => $estilos['centrado']]),
+            \PHPSpreadsheet::ColumnaExcel('CICLO', 'Ciclo', ['estilo' => $estilos['centrado']]),
+            \PHPSpreadsheet::ColumnaExcel('TIPO', 'Tipo'),
+            \PHPSpreadsheet::ColumnaExcel('DESCRIPCION', 'Descripción'),
+            \PHPSpreadsheet::ColumnaExcel('MODULO', 'Módulo'),
+            \PHPSpreadsheet::ColumnaExcel('REGION', 'Región'),
+            \PHPSpreadsheet::ColumnaExcel('SUCURSAL', 'Sucursal'),
+            \PHPSpreadsheet::ColumnaExcel('MONTO', 'Monto', ['estilo' => $estilos['moneda']]),
+        ];
+        $res = ProductividadOPDao::GetConsulta($_GET);
+        $filas = $res['success'] ? ($res['datos']['filas'] ?? []) : [];
+        $filas = array_map(function ($fila) {
+            $fila['FECHA'] = ProductividadOPDao::fechaConsultaParaExcel($fila['FECHA'] ?? '');
+            $fila['MODULO'] = ProductividadOPDao::labelModuloTabla($fila['MODULO'] ?? '');
+            return $fila;
+        }, $filas);
+        $fechaI = $_GET['fechaI'] ?? '';
+        $fechaF = $_GET['fechaF'] ?? '';
+        $titulo = trim("Consulta detallada {$fechaI} – {$fechaF}", ' –');
+        \PHPSpreadsheet::DescargaExcel('Productividad OP', 'Consulta', $titulo, $columnas, $filas);
+    }
+
     /**
      * JSON: procesamiento masivo.
      */
@@ -651,6 +787,9 @@ class Herramientas extends Controller
         View::set('sucursal', $this->__cdgco ?? '');
         View::set('folio', $folio);
         View::set('fecha', $fecha);
+        View::set('catalogo_puestos', $this->getCatalogoPuestosSolicitudSoftware());
+        View::set('catalogo_areas', $this->getCatalogoAreasSolicitudSoftware());
+        View::set('catalogo_sucursales', HerramientasDao::getSucursalesSolicitudSoftware());
 
         $extraCss = '<link href="/css/solicitud-software.css" rel="stylesheet">';
         $extraFooter = $this->getSolicitudSoftwareScripts();
@@ -658,6 +797,48 @@ class Herramientas extends Controller
         View::set('header', $this->_contenedor->header($this->GetExtraHeader('Solicitud de Software', [$extraCss])));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::render('herramientas_solicitud_software');
+    }
+
+    /**
+     * Catálogo de puestos para el formulario de solicitud de software.
+     */
+    private function getCatalogoPuestosSolicitudSoftware(): array
+    {
+        return [
+            'Gerente de sucursal',
+            'Subgerente',
+            'Cajero(a)',
+            'Analista',
+            'Supervisor(a)',
+            'Coordinador(a)',
+            'Asistente administrativo(a)',
+            'Director(a)',
+            'Auxiliar',
+            'Agente de call center',
+            'Otro',
+        ];
+    }
+
+    /**
+     * Catálogo de áreas para el formulario de solicitud de software.
+     */
+    private function getCatalogoAreasSolicitudSoftware(): array
+    {
+        return [
+            'Operaciones',
+            'Finanzas',
+            'Crédito',
+            'Cobranza',
+            'Call Center',
+            'Sistemas',
+            'Recursos Humanos',
+            'Contabilidad',
+            'Auditoría',
+            'Comercial',
+            'Legal',
+            'Administración',
+            'Otro',
+        ];
     }
 
     /**
@@ -672,6 +853,7 @@ class Herramientas extends Controller
 
             $raw = file_get_contents('php://input');
             $datos = json_decode($raw, true) ?: [];
+            $datos = $this->normalizarCatalogosSolicitudSoftware($datos);
 
             $errores = $this->validarDatosSolicitudSoftware($datos);
             if (!empty($errores)) {
@@ -864,12 +1046,37 @@ class Herramientas extends Controller
                 const fd = new FormData(f);
                 const data = {};
                 fd.forEach(function (v, k) { data[k] = v; });
+                data.puesto = resolverValorCatalogo(data.puesto, data.puesto_otro);
+                data.area = resolverValorCatalogo(data.area, data.area_otro);
+                delete data.puesto_otro;
+                delete data.area_otro;
                 data.folio = \$("#ss-folio").text().trim();
                 data.fecha = \$("#ss-fecha").text().trim();
                 const editor = getEditorProceso();
                 data.proceso_actual_html = editor ? editor.innerHTML : "";
                 data.proceso_actual = editor ? editor.innerText.trim() : "";
                 return data;
+            }
+
+            function resolverValorCatalogo(valorSelect, valorOtro) {
+                const seleccion = (valorSelect || "").trim();
+                if (seleccion === "Otro") {
+                    return (valorOtro || "").trim();
+                }
+                return seleccion;
+            }
+
+            function actualizarCampoOtro(\$select) {
+                const \$field = \$select.closest(".ss-field-catalogo");
+                const \$otro = \$field.find(".ss-otro-input");
+                if (!\$otro.length) return;
+                const esOtro = \$select.val() === "Otro";
+                \$otro.toggle(esOtro);
+                if (!esOtro) \$otro.val("");
+            }
+
+            function ocultarCamposOtro() {
+                \$(".ss-otro-input").hide().val("");
             }
 
             function validar() {
@@ -880,9 +1087,7 @@ class Herramientas extends Controller
 
                 \$("#form-solicitud-software .ss-field[data-required='true']").each(function () {
                     const \$f = \$(this);
-                    const input = \$f.find("input, textarea, select").first();
-                    const val = (input.val() || "").trim();
-                    if (!val || (input.is("textarea") && val.length < 20)) {
+                    if (!isRequiredFieldComplete(\$f)) {
                         \$f.addClass("ss-error");
                         ok = false;
                     }
@@ -927,6 +1132,38 @@ class Herramientas extends Controller
                 }, 200);
             }
 
+            function generarNuevoFolio() {
+                const d = new Date();
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, "0");
+                const day = String(d.getDate()).padStart(2, "0");
+                const sufijo = Math.random().toString(36).slice(2, 7).toUpperCase();
+                return "SS-" + y + m + day + "-" + sufijo;
+            }
+
+            function fechaCapturaHoy() {
+                const d = new Date();
+                return String(d.getDate()).padStart(2, "0") + "/"
+                    + String(d.getMonth() + 1).padStart(2, "0") + "/"
+                    + d.getFullYear();
+            }
+
+            function actualizarFolioYFecha() {
+                \$("#ss-folio").text(generarNuevoFolio());
+                \$("#ss-fecha").text(fechaCapturaHoy());
+            }
+
+            function resetFormularioSolicitud() {
+                document.getElementById("form-solicitud-software").reset();
+                const editor = getEditorProceso();
+                if (editor) editor.innerHTML = "";
+                deseleccionarImagen();
+                \$(".ss-option-card, .ss-priority-btn").removeClass("ss-selected");
+                \$(".ss-field.ss-error").removeClass("ss-error");
+                \$("#ss-alert-error").hide();
+                ocultarCamposOtro();
+                updateSectionStatus();
+            }
             function procesarRespuestaPdf(blob, folio) {
                 if (!(blob instanceof Blob)) {
                     showError("Error al generar PDF");
@@ -948,6 +1185,8 @@ class Herramientas extends Controller
                 }
                 descargarBlob(blob, "Solicitud_Software_" + folio + ".pdf");
                 showSuccess("PDF generado correctamente.");
+                actualizarFolioYFecha();
+                resetFormularioSolicitud();
             }
 
             function generarPdf() {
@@ -1000,14 +1239,7 @@ class Herramientas extends Controller
                 swal({ title: "¿Limpiar el formulario?", text: "Se borrarán todos los datos capturados.", icon: "warning", buttons: ["Cancelar", "Sí, limpiar"], dangerMode: true })
                     .then(function (ok) {
                         if (!ok) return;
-                        document.getElementById("form-solicitud-software").reset();
-                        const editor = getEditorProceso();
-                        if (editor) editor.innerHTML = "";
-                        deseleccionarImagen();
-                        \$(".ss-option-card, .ss-priority-btn").removeClass("ss-selected");
-                        \$(".ss-field.ss-error").removeClass("ss-error");
-                        \$("#ss-alert-error").hide();
-                        updateSectionStatus();
+                        resetFormularioSolicitud();
                     });
             }
 
@@ -1015,6 +1247,14 @@ class Herramientas extends Controller
                 const radios = \$field.find("input[type='radio']");
                 if (radios.length) {
                     return radios.is(":checked");
+                }
+                const \$select = \$field.find("select").first();
+                if (\$select.length && \$field.hasClass("ss-field-catalogo")) {
+                    const val = (\$select.val() || "").trim();
+                    if (val === "Otro") {
+                        return (\$field.find(".ss-otro-input").val() || "").trim() !== "";
+                    }
+                    return val !== "";
                 }
                 const input = \$field.find("input, textarea, select").first();
                 if (!input.length) return false;
@@ -1071,6 +1311,10 @@ class Herramientas extends Controller
                     \$(this).closest(".ss-priority-btn").addClass("ss-selected");
                     updateSectionStatus();
                 });
+                \$("#ss-puesto, #ss-area").on("change", function () {
+                    actualizarCampoOtro(\$(this));
+                    updateSectionStatus();
+                });
                 \$("#form-solicitud-software input, #form-solicitud-software textarea, #form-solicitud-software select").on("input change", updateSectionStatus);
                 \$("#ss-proceso-actual").on("input", updateSectionStatus);
 
@@ -1084,6 +1328,22 @@ class Herramientas extends Controller
         })();
         </script>
         HTML;
+    }
+
+    /**
+     * Si el usuario eligió "Otro", usa el texto capturado en el campo adicional.
+     */
+    private function normalizarCatalogosSolicitudSoftware(array $datos): array
+    {
+        foreach (['puesto', 'area'] as $campo) {
+            $otroKey = $campo . '_otro';
+            if (($datos[$campo] ?? '') === 'Otro') {
+                $datos[$campo] = trim((string) ($datos[$otroKey] ?? ''));
+            }
+            unset($datos[$otroKey]);
+        }
+
+        return $datos;
     }
 
     /**
@@ -1319,29 +1579,11 @@ class Herramientas extends Controller
             'baja' => ['titulo' => 'Puede esperar', 'desc' => 'Mejora deseable a futuro', 'color' => '#1e8449'],
         ];
 
-        $usuariosMap = [
-            '1' => 'Solo yo',
-            '2-5' => 'De 2 a 5 personas',
-            '6-20' => 'De 6 a 20 personas',
-            '21-50' => 'De 21 a 50 personas',
-            '50+' => 'Más de 50 personas',
-            'todos' => 'Toda la empresa',
-        ];
-
         $tipoKey = $d['tipo_solicitud'] ?? '';
         $prioridadKey = $d['prioridad'] ?? '';
 
         $folio = $h($d['folio'] ?? '');
         $fecha = $h($d['fecha'] ?? date('d/m/Y'));
-
-        $fechaLimite = trim((string) ($d['fecha_limite'] ?? ''));
-        if ($fechaLimite !== '') {
-            $dt = \DateTime::createFromFormat('Y-m-d', $fechaLimite);
-            $fechaLimite = $dt ? $dt->format('d/m/Y') : $fechaLimite;
-        }
-
-        $usuariosVal = $d['usuarios_afectados'] ?? '';
-        $usuariosTexto = $usuariosMap[$usuariosVal] ?? ($usuariosVal !== '' ? $usuariosVal : '');
 
         $fila = function ($label, $valor, $ancho = '35%') use ($texto, $h) {
             $lbl = $h($label);
@@ -1390,12 +1632,6 @@ class Herramientas extends Controller
         } elseif ($prioridadKey !== '') {
             $prioridadHtml = $texto($prioridadKey);
         }
-
-        $nombreFirma = trim((string) ($d['nombre'] ?? ''));
-        $nombreFirma = $nombreFirma !== '' ? $h($nombreFirma) : '________________________________';
-
-        $jefeFirma = trim((string) ($d['jefe_area'] ?? ''));
-        $jefeFirma = $jefeFirma !== '' ? $h($jefeFirma) : '________________________________';
 
         $procesoActualRow = $this->buildProcesoActualPdfRow($d, $texto, $h);
 
@@ -1480,26 +1716,6 @@ class Herramientas extends Controller
             .ss-pdf-marca { text-align: center; font-weight: bold; color: #2980b9; font-size: 12pt; }
             .ss-pdf-opc-desc { font-size: 8.5pt; color: #666; }
             .ss-pdf-texto-largo { min-height: 36px; }
-            .ss-pdf-autorizacion {
-                page-break-inside: avoid;
-                break-inside: avoid;
-            }
-            .ss-pdf-firmas-wrap {
-                width: 100%;
-                margin-top: 10px;
-                border-collapse: collapse;
-                page-break-inside: avoid;
-                break-inside: avoid;
-                page-break-before: avoid;
-                break-before: avoid;
-            }
-            .ss-pdf-firmas-wrap > tbody > tr > td { padding: 8px 6px 10px; vertical-align: top; }
-            .ss-pdf-firma-col { width: 33%; text-align: center; }
-            .ss-pdf-firma-col-last { width: 33%; text-align: center; }
-            .ss-pdf-firma-espacio { height: 58px; border-bottom: 1.5px solid #1a1a1a; margin: 0 6px 8px; }
-            .ss-pdf-firma-tit { font-size: 9pt; font-weight: bold; color: #2a3f54; margin: 0 0 4px; }
-            .ss-pdf-firma-nom { font-size: 8pt; color: #555; margin: 0; }
-            .ss-pdf-firma-fecha { font-size: 8pt; color: #555; margin: 4px 0 0; }
         </style>
         HTML;
 
@@ -1536,73 +1752,18 @@ class Herramientas extends Controller
 
         {$secTitulo(3, 'Describa lo que necesita')}
         <table class="ss-pdf-tabla">
-            {$fila('¿Qué sistema o programa usa actualmente para esta actividad?', $d['sistema_actual'] ?? '')}
             {$fila('Describa con sus palabras qué necesita', $d['descripcion'] ?? '')}
             {$fila('¿Qué problema resuelve o qué mejora trae?', $d['beneficio'] ?? '')}
         </table>
         {$procesoActualRow}
 
-        {$secTitulo(4, 'Prioridad y alcance')}
+        {$secTitulo(4, 'Prioridad')}
         <table class="ss-pdf-tabla">
             <tr>
-                <td class="ss-pdf-lbl" width="22%">¿Qué tan urgente es?</td>
-                <td class="ss-pdf-val" width="28%">{$prioridadHtml}</td>
-                <td class="ss-pdf-lbl" width="22%">Fecha límite deseada</td>
-                <td class="ss-pdf-val" width="28%">{$texto($fechaLimite)}</td>
-            </tr>
-            {$filaPar('¿Cuántas personas lo usarían?', $usuariosTexto, '¿En qué sucursales o áreas se usaría?', $d['alcance'] ?? '')}
-        </table>
-
-        <div class="ss-pdf-autorizacion">
-        {$secTitulo(5, 'Autorización')}
-        <table class="ss-pdf-tabla">
-            {$fila('Nombre del jefe de área', $d['jefe_area'] ?? '')}
-        </table>
-
-        <table class="ss-pdf-firmas-wrap">
-            <tr>
-                <td class="ss-pdf-firma-col">
-                    <table width="100%" style="border-collapse:collapse;">
-                        <tr>
-                            <td style="height:48px;border-bottom:1.5px solid #1a1a1a;vertical-align:bottom;font-size:8pt;color:#aaa;">&nbsp;</td>
-                        </tr>
-                        <tr>
-                            <td style="padding-top:8px;text-align:center;">
-                                <p class="ss-pdf-firma-tit">Firma del solicitante</p>
-                                <p class="ss-pdf-firma-nom">{$nombreFirma}</p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-                <td class="ss-pdf-firma-col">
-                    <table width="100%" style="border-collapse:collapse;">
-                        <tr>
-                            <td style="height:48px;border-bottom:1.5px solid #1a1a1a;vertical-align:bottom;font-size:8pt;color:#aaa;">&nbsp;</td>
-                        </tr>
-                        <tr>
-                            <td style="padding-top:8px;text-align:center;">
-                                <p class="ss-pdf-firma-tit">Firma del jefe de área</p>
-                                <p class="ss-pdf-firma-nom">{$jefeFirma}</p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-                <td class="ss-pdf-firma-col-last">
-                    <table width="100%" style="border-collapse:collapse;">
-                        <tr>
-                            <td style="height:48px;border-bottom:1.5px solid #1a1a1a;vertical-align:bottom;font-size:8pt;color:#aaa;">&nbsp;</td>
-                        </tr>
-                        <tr>
-                            <td style="padding-top:8px;text-align:center;">
-                                <p class="ss-pdf-firma-tit">Vo. Bo. Área de Desarrollo</p>
-                                <p class="ss-pdf-firma-fecha">Fecha: ____ / ____ / ________</p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
+                <td class="ss-pdf-lbl" width="35%">¿Qué tan urgente es?</td>
+                <td class="ss-pdf-val">{$prioridadHtml}</td>
             </tr>
         </table>
-        </div>
         HTML;
 
         return ['style' => $style, 'body' => $body];

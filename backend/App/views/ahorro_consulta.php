@@ -31,9 +31,10 @@
                         </div>
                         <div class="col-md-6">
                             <div class="form-group" style="text-align: right;">
-                                <button type="button" class="btn btn-success" id="btnNuevaSolicitud" style="margin-top: 0;">
+                                <button type="button" class="btn btn-success" id="btnNuevaSolicitud" style="margin-top: 0;" title="">
                                     <span class="fa fa-plus">&nbsp;</span>Registrar Nueva Solicitud
                                 </button>
+                                <small id="avisoHorarioCaptura" class="text-muted" style="display: block; margin-top: 5px;"></small>
                             </div>
                         </div>
                     </div>
@@ -112,7 +113,7 @@
                             <div class="col-md-4">
                                 <div class="form-group">
                                     <label>Fecha Solicitud <span class="text-danger">*</span></label>
-                                    <input type="date" class="form-control" id="nueva_fecha_solicitud" required disabled min="<?= date('Y-m-d', strtotime('-3 days')) ?>" max="<?= date('Y-m-d', strtotime('+3 days')) ?>">
+                                    <input type="date" class="form-control" id="nueva_fecha_solicitud" required readonly disabled>
                                 </div>
                             </div>
                             <div class="col-md-4">

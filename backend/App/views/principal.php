@@ -1,8 +1,8 @@
 <?= $header; ?>
 
-<div class="right_col" style="background: #ffffff; height: 100vh;">
-    <div style="display: flex; justify-content: center; align-items: center; height: 80%; width: 100%">
-        <img width="500" src="/img/logo.svg">
+<div class="right_col principal-home">
+    <div class="principal-home__logo-wrap">
+        <img class="principal-home__logo" width="500" src="/img/logo.svg" alt="MCM">
     </div>
 </div>
 

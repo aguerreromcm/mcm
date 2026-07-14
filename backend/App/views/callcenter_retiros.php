@@ -214,10 +214,14 @@ $ret_lbl_val = function ($v) {
                                 <label for="estatus_solicitud"> Estatus Final de la Solicitud *</label>
                                 <select class="form-control" id="estatus_solicitud">
                                     <option selected disabled value="">Seleccione una opción</option>
-                                    <option value="P">PENDIENTE</option>
-                                    <option value="R">RECHAZADA POR EL CLIENTE</option>
-                                    <option value="C">CANCELADA POR CLIENTE</option>
-                                    <option value="V">VALIDADA</option>
+                                    <option value="PENDIENTE">PENDIENTE</option>
+                                    <option value="PENDIENTE, CORRECCION DE DATOS">PENDIENTE, CORRECCIÓN DE DATOS</option>
+                                    <option value="CANCELADA, NO LOCALIZADOS">CANCELADA, NO LOCALIZADOS</option>
+                                    <option value="CANCELADA POR CLIENTE">CANCELADA POR CLIENTE</option>
+                                    <option value="CANCELADA POR POLITICAS">CANCELADA POR POLÍTICAS</option>
+                                    <option value="CANCELADA POR GERENTE">CANCELADA POR GERENTE</option>
+                                    <option value="LISTA CON OBSERVACION">LISTA CON OBSERVACIÓN</option>
+                                    <option value="LISTA SIN INCIDENCIA">LISTA SIN INCIDENCIA</option>
                                 </select>
                             </div>
                         </div>

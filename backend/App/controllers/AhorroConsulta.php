@@ -207,20 +207,102 @@ class AhorroConsulta extends Controller
                     $("#modalComprobante").modal("show");
                 }
 
+                let politicaRetiro = null;
+                let intervaloPoliticaRetiro = null;
+
+                const cargarPoliticaRetiro = (callback) => {
+                    $.ajax({
+                        type: "POST",
+                        url: "/AhorroConsulta/GetPoliticaRetiro",
+                        dataType: "json",
+                        success: (res) => {
+                            if (!res.success) {
+                                if (callback) return showError(res.mensaje);
+                                return;
+                            }
+
+                            politicaRetiro = res.datos;
+                            actualizarEstadoCaptura();
+                            if (callback) callback();
+                        },
+                        error: () => {
+                            if (callback) showError("No se pudo verificar el horario de captura.");
+                        }
+                    });
+                }
+
+                const actualizarEstadoCaptura = () => {
+                    if (!politicaRetiro) return;
+
+                    const puedeCapturar = politicaRetiro.puede_capturar;
+                    const mensaje = politicaRetiro.mensaje_horario || "Las solicitudes de retiro solo pueden registrarse entre las 8:00 AM y las 2:00 PM.";
+
+                    $("#btnNuevaSolicitud")
+                        .prop("disabled", !puedeCapturar)
+                        .toggleClass("disabled", !puedeCapturar)
+                        .attr("title", puedeCapturar ? "" : mensaje);
+
+                    $("#avisoHorarioCaptura")
+                        .text(puedeCapturar ? "" : mensaje)
+                        .toggle(!!(!puedeCapturar && !politicaRetiro.es_admin));
+                }
+
                 const nuevaSolicitud = () => {
-                    resetFomRetiro();
-                    
-                    $("#modalNuevaSolicitud").modal("show");
+                    cargarPoliticaRetiro(() => {
+                        if (!politicaRetiro.puede_capturar) {
+                            return showError(politicaRetiro.mensaje_horario);
+                        }
+
+                        resetFomRetiro();
+                        $("#modalNuevaSolicitud").modal("show");
+
+                        if (intervaloPoliticaRetiro) clearInterval(intervaloPoliticaRetiro);
+                        intervaloPoliticaRetiro = setInterval(() => {
+                            if (!$("#modalNuevaSolicitud").hasClass("in")) return;
+                            cargarPoliticaRetiro(() => {
+                                if (!politicaRetiro.puede_capturar) {
+                                    showError(politicaRetiro.mensaje_horario);
+                                    $("#modalNuevaSolicitud").modal("hide");
+                                } else {
+                                    aplicarPoliticaFechas(true);
+                                }
+                            });
+                        }, 60000);
+                    });
+                }
+
+                const aplicarPoliticaFechas = (preservarEntregaManual = false) => {
+                    if (!politicaRetiro) return;
+
+                    const entregaActual = $("#nueva_fecha_entrega").val();
+
+                    $("#nueva_fecha_solicitud").val(politicaRetiro.fecha_solicitud);
+
+                    if (politicaRetiro.es_admin) {
+                        const entregaValida = entregaActual
+                            && entregaActual >= politicaRetiro.fecha_entrega
+                            && entregaActual <= politicaRetiro.fecha_entrega_max;
+
+                        $("#nueva_fecha_entrega").val(
+                            preservarEntregaManual && entregaValida ? entregaActual : politicaRetiro.fecha_entrega
+                        );
+                        $("#nueva_fecha_entrega")
+                            .prop("readonly", false)
+                            .attr("min", politicaRetiro.fecha_entrega)
+                            .attr("max", politicaRetiro.fecha_entrega_max);
+                    } else {
+                        $("#nueva_fecha_entrega")
+                            .val(politicaRetiro.fecha_entrega)
+                            .prop("readonly", true)
+                            .removeAttr("min max");
+                    }
                 }
 
                 const resetFomRetiro = () => {
-                    const hoy = new Date().toISOString().split("T")[0];
-
                     $("#formNuevaSolicitud")[0].reset();
                     $("#nueva_cdgns").val("");
                     $("#saldo_ahorro_disponible").val("");
-                    $("#nueva_fecha_solicitud").val(hoy);
-                    $("#nueva_fecha_entrega").val(calculaFechaEntrega());
+                    aplicarPoliticaFechas();
 
                     $("#nueva_cantidad_solicitada").prop("disabled", true);
                     $("#nueva_fecha_solicitud").prop("disabled", true);
@@ -229,27 +311,10 @@ class AhorroConsulta extends Controller
                     $("#btnGuardarNuevaSolicitud").prop("disabled", true);
                 }
 
-                const calculaFechaEntrega = () => {
-                    const fecha = new Date()
-                    const diaSemana = fecha.getDay()
-
-                    const dias = {
-                        1: 2,
-                        2: 2,
-                        3: 5,
-                        4: 4,
-                        5: 4
-                    }
-
-                    if (dias[diaSemana]) fecha.setDate(fecha.getDate() + dias[diaSemana])
-                    else fecha.setDate(fecha.getDate() + 3)
-
-                    return fecha.toISOString().split("T")[0]
-                }
-
                 const buscarCredito = () => {
                     const cdgns = $("#cdgns_buscar").val().trim();
-                    resetFomRetiro()
+                    resetFomRetiro();
+                    $("#cdgns_buscar").val(cdgns);
 
                     if (!cdgns || cdgns.length !== 6) return showError("El crédito debe tener 6 dígitos");
 
@@ -274,61 +339,76 @@ class AhorroConsulta extends Controller
                         $("#aniversario_ahorro").val(datos?.ANIVERSARIO);
                         $("#saldo_ahorro_disponible").val(saldo);
                         $("#nueva_cantidad_solicitada").prop("disabled", false);
-                        $("#nueva_fecha_solicitud").prop("disabled", false);
-                        $("#nueva_fecha_entrega").prop("disabled", false);
                         $("#nueva_observaciones_administradora").prop("disabled", false);
                         $("#nueva_foto").prop("disabled", false);
                         $("#btnGuardarNuevaSolicitud").prop("disabled", false);
+                        aplicarPoliticaFechas();
                     });
                 }
 
                 const guardarNuevaSolicitud = () => {
-                    const aniversario = new Date($("#aniversario_ahorro").val());
-                    const cantidadSolicitada = parseaNumero($("#nueva_cantidad_solicitada").val());
-                    const saldo = parseaNumero($("#saldo_ahorro_disponible").val());
-                    if (cantidadSolicitada > saldo) return showError("La cantidad solicitada no puede ser mayor al saldo disponible ($" + formatoMoneda(saldo) + ")");
-                    
-                    const cdgns = $("#nueva_cdgns").val().trim();
-                    const fechaSolicitud = $("#nueva_fecha_solicitud").val();
-                    const fechaEntrega = $("#nueva_fecha_entrega").val();
-                    
-                    if (!cdgns || cdgns.length !== 6) return showError("El crédito debe tener 6 dígitos");
-                    if (!cantidadSolicitada || parseFloat(cantidadSolicitada) <= 0) return showError("Debe ingresar una cantidad solicitada válida mayor a 0");
-                    if (!fechaSolicitud) return showError("Debe seleccionar la fecha de solicitud");
-                    if (!fechaEntrega) return showError("Debe seleccionar la fecha de entrega solicitada");    
-                    
-                    const archivo = $("#nueva_foto")[0].files[0];
-                    if (!archivo) return showError("Debe seleccionar un archivo");
-                    if (archivo && archivo.size > 5242880) return showError("El archivo no debe superar los 5MB");
+                    const fechaEntregaUsuario = $("#nueva_fecha_entrega").val();
 
-                    let mensaje = document.createElement("div");
-                    mensaje.innerHTML = "¿Confirma el registro del retiro de ahorro por la cantidad de <strong>$" + formatoMoneda(cantidadSolicitada) + "</strong> para el crédito <strong>" + cdgns + "</strong>?";
-                    
-                    if (new Date() < aniversario) {
-                        mensaje.innerHTML = "El ahorro aún no ha cumplido su aniversario<br/>se aplicaran las penalizaciones establecidas en las políticas.<br/>" + mensaje.innerHTML;
-                    }
-                    
-                    confirmarMovimiento("Registro de retiro de ahorro", null, mensaje)
-                        .then((continuar) => {
-                        if (continuar) {
-                            const formData = new FormData();
-                            formData.append("cdgns", cdgns);
-                            formData.append("ciclo", $("#nueva_ciclo").val());
-                            formData.append("cantidad_solicitada", cantidadSolicitada);
-                            formData.append("fecha_solicitud", fechaSolicitud);
-                            formData.append("fecha_entrega", fechaEntrega);
-                            formData.append("observaciones_administradora", $("#nueva_observaciones_administradora").val() || "");
-                            formData.append("cdgpe_administradora", "{$_SESSION['usuario']}");
-                            
-                            if (archivo) formData.append("foto", archivo)
-                            
-                            consultaServidor("/AhorroConsulta/InsertRetiro", formData, (res) => {
-                                if (!res.success) return showError(res.mensaje)
-                                showSuccess(res.mensaje)
-                                $("#modalNuevaSolicitud").modal("hide");
-                                consultaSolicitudes()
-                            }, "POST", "JSON", false, false)
+                    cargarPoliticaRetiro(() => {
+                        if (!politicaRetiro?.puede_capturar) {
+                            return showError(politicaRetiro.mensaje_horario);
                         }
+
+                        const aniversario = new Date($("#aniversario_ahorro").val());
+                        const cantidadSolicitada = parseaNumero($("#nueva_cantidad_solicitada").val());
+                        const saldo = parseaNumero($("#saldo_ahorro_disponible").val());
+                        if (cantidadSolicitada > saldo) return showError("La cantidad solicitada no puede ser mayor al saldo disponible ($" + formatoMoneda(saldo) + ")");
+                        
+                        const cdgns = $("#nueva_cdgns").val().trim();
+                        const fechaSolicitud = politicaRetiro.fecha_solicitud;
+                        const fechaEntrega = politicaRetiro.es_admin ? fechaEntregaUsuario : politicaRetiro.fecha_entrega;
+                        
+                        if (!cdgns || cdgns.length !== 6) return showError("El crédito debe tener 6 dígitos");
+                        if (!cantidadSolicitada || parseFloat(cantidadSolicitada) <= 0) return showError("Debe ingresar una cantidad solicitada válida mayor a 0");
+                        if (!fechaSolicitud) return showError("No se pudo determinar la fecha de captura");
+                        if (!fechaEntrega) return showError("Debe seleccionar la fecha de entrega solicitada");
+
+                        if (politicaRetiro.es_admin) {
+                            if (fechaEntrega < politicaRetiro.fecha_entrega || fechaEntrega > politicaRetiro.fecha_entrega_max) {
+                                return showError("La fecha de entrega debe estar entre " + politicaRetiro.fecha_entrega + " y " + politicaRetiro.fecha_entrega_max + ".");
+                            }
+                        } else if (fechaEntrega !== politicaRetiro.fecha_entrega) {
+                            return showError("La fecha de entrega no es válida para el horario actual.");
+                        }
+                        
+                        const archivo = $("#nueva_foto")[0].files[0];
+                        if (!archivo) return showError("Debe seleccionar un archivo");
+                        if (archivo && archivo.size > 5242880) return showError("El archivo no debe superar los 5MB");
+
+                        let mensaje = document.createElement("div");
+                        mensaje.innerHTML = "¿Confirma el registro del retiro de ahorro por la cantidad de <strong>$" + formatoMoneda(cantidadSolicitada) + "</strong> para el crédito <strong>" + cdgns + "</strong>?";
+                        
+                        if (new Date() < aniversario) {
+                            mensaje.innerHTML = "El ahorro aún no ha cumplido su aniversario<br/>se aplicaran las penalizaciones establecidas en las políticas.<br/>" + mensaje.innerHTML;
+                        }
+                        
+                        confirmarMovimiento("Registro de retiro de ahorro", null, mensaje)
+                            .then((continuar) => {
+                            if (continuar) {
+                                const formData = new FormData();
+                                formData.append("cdgns", cdgns);
+                                formData.append("ciclo", $("#nueva_ciclo").val());
+                                formData.append("cantidad_solicitada", cantidadSolicitada);
+                                formData.append("fecha_solicitud", fechaSolicitud);
+                                formData.append("fecha_entrega", fechaEntrega);
+                                formData.append("observaciones_administradora", $("#nueva_observaciones_administradora").val() || "");
+                                formData.append("cdgpe_administradora", "{$_SESSION['usuario']}");
+                                
+                                if (archivo) formData.append("foto", archivo)
+                                
+                                consultaServidor("/AhorroConsulta/InsertRetiro", formData, (res) => {
+                                    if (!res.success) return showError(res.mensaje)
+                                    showSuccess(res.mensaje)
+                                    $("#modalNuevaSolicitud").modal("hide");
+                                    consultaSolicitudes()
+                                }, "POST", "JSON", false, false)
+                            }
+                        });
                     });
                 }
 
@@ -355,8 +435,16 @@ class AhorroConsulta extends Controller
 
                     $("#btnBuscarCredito").click(buscarCredito)
 
+                    $("#modalNuevaSolicitud").on("hidden.bs.modal", function() {
+                        if (intervaloPoliticaRetiro) {
+                            clearInterval(intervaloPoliticaRetiro);
+                            intervaloPoliticaRetiro = null;
+                        }
+                    });
+
                     configuraTabla(idTabla)
                     consultaSolicitudes()
+                    cargarPoliticaRetiro()
                 });
             </script>
         HTML;
@@ -379,6 +467,11 @@ class AhorroConsulta extends Controller
     public function BuscarSaldo()
     {
         echo json_encode(AhorroConsultaDao::BuscarSaldo($_POST));
+    }
+
+    public function GetPoliticaRetiro()
+    {
+        echo json_encode(AhorroConsultaDao::getPoliticaRetiro());
     }
 
     public function InsertRetiro()

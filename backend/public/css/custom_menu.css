@@ -32,3 +32,24 @@ button#export_excel.layout-exportar-excel {
   margin-right: 6px;
 }
 
+/* Página principal: logo centrado (respeta tema claro/oscuro del sistema) */
+.principal-home {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.principal-home__logo-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding: 2rem;
+}
+
+.principal-home__logo {
+  max-width: 100%;
+  height: auto;
+}
+

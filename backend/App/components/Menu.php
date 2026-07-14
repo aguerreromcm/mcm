@@ -181,6 +181,14 @@ class Menu
     }
 
 
+    /** Opciones del submenú Clientes */
+    private function opcionesClientes()
+    {
+        return [
+            $this->enlace('Consulta lista negra', '/Clientes/ConsultaListaNegra/', ['ADMIN', 'CAJA', 'GTOCA', 'AMOCA', 'OCOF', 'CPAGO', 'ACALL', 'LGFR', 'PLMV', 'MCDP']),
+        ];
+    }
+
     /** Opciones del submenú Cultiva */
     private function opcionesCultiva()
     {
@@ -206,6 +214,7 @@ class Menu
     private function opcionesReportes()
     {
         return [
+            $this->enlace('Solicitud de Software', '/Herramientas/SolicitudSoftware/', ['AMGM', 'ADMIN', 'FLHR']),
             $this->enlace('FTP', '/Ftp/Explorer/', FtpExplorerConfig::menuPermisos()),
         ];
     }
@@ -230,9 +239,9 @@ class Menu
     private function opcionesHerramientas()
     {
         return [
-            $this->enlace('Solicitud de Software', '/Herramientas/SolicitudSoftware/', ['*']),
             $this->enlace('Auditoría Devengo', '/Herramientas/AuditoriaDevengo/', ['AMGM']),
             $this->enlace('Estatus BD', '/Herramientas/EstatusBD/', ['AMGM']),
+            $this->enlace('Productividad Operaciones (Propuesta)', '/Herramientas/ProductividadOP/', ['AMGM']),
         ];
     }
 
@@ -243,6 +252,7 @@ class Menu
 
         $opciones = [
             $this->submenu('Pagos', 'glyphicon glyphicon-usd', $this->opcionesPagos()),
+            $this->submenu('Clientes', 'glyphicon glyphicon-user', $this->opcionesClientes()),
             $this->submenu('Resumen Ahorro', 'fa fa-money', $this->opcionesResumenAhorro()),
             $this->submenu('Créditos', 'fa fa-users', $this->opcionesCreditos()),
             $this->submenu('Call Center', 'glyphicon glyphicon-phone-alt', $this->opcionesCallCenter()),

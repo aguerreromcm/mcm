@@ -62,20 +62,42 @@
                                     <input type="text" name="nombre" id="ss-nombre" value="<?php echo htmlspecialchars($nombre); ?>" placeholder="Ejemplo: María González Pérez">
                                     <span class="ss-error-msg">Escriba su nombre completo.</span>
                                 </div>
-                                <div class="ss-field">
+                                <div class="ss-field ss-field-catalogo">
                                     <label>Puesto o cargo</label>
-                                    <input type="text" name="puesto" id="ss-puesto" value="" placeholder="Ejemplo: Gerente Sucursal">
+                                    <select name="puesto" id="ss-puesto">
+                                        <option value="">-- Seleccione --</option>
+                                        <?php foreach ($catalogo_puestos as $opcionPuesto): ?>
+                                            <option value="<?php echo htmlspecialchars($opcionPuesto); ?>"><?php echo htmlspecialchars($opcionPuesto); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <input type="text" name="puesto_otro" id="ss-puesto-otro" class="ss-otro-input" placeholder="Especifique su puesto o cargo" style="display:none">
                                 </div>
                             </div>
                             <div class="ss-row">
-                                <div class="ss-field" data-required="true">
+                                <div class="ss-field ss-field-catalogo" data-required="true">
                                     <label>Área o departamento <span class="ss-req">*</span></label>
-                                    <input type="text" name="area" id="ss-area" placeholder="Ejemplo: Finanzas, Sistemas, etc.">
-                                    <span class="ss-error-msg">Indique su área o departamento.</span>
+                                    <select name="area" id="ss-area">
+                                        <option value="">-- Seleccione --</option>
+                                        <?php foreach ($catalogo_areas as $opcionArea): ?>
+                                            <option value="<?php echo htmlspecialchars($opcionArea); ?>"><?php echo htmlspecialchars($opcionArea); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <input type="text" name="area_otro" id="ss-area-otro" class="ss-otro-input" placeholder="Especifique su área o departamento" style="display:none">
+                                    <span class="ss-error-msg">Seleccione su área o escriba cuál es.</span>
                                 </div>
                                 <div class="ss-field">
                                     <label>Sucursal</label>
-                                    <input type="text" name="sucursal" id="ss-sucursal" value="<?php echo htmlspecialchars($sucursal); ?>" placeholder="Ejemplo: Oficina Central">
+                                    <select name="sucursal" id="ss-sucursal">
+                                        <option value="">-- Seleccione --</option>
+                                        <?php foreach ($catalogo_sucursales as $opcionSucursal): ?>
+                                            <?php
+                                                $codigoSucursal = (string) ($opcionSucursal['CODIGO'] ?? '');
+                                                $nombreSucursal = (string) ($opcionSucursal['NOMBRE'] ?? '');
+                                                $selectedSucursal = ($sucursal !== '' && $sucursal === $codigoSucursal) ? ' selected' : '';
+                                            ?>
+                                            <option value="<?php echo htmlspecialchars($nombreSucursal); ?>"<?php echo $selectedSucursal; ?>><?php echo htmlspecialchars($nombreSucursal); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
                                 </div>
                             </div>
                             <div class="ss-row">
@@ -147,11 +169,6 @@
                             <h4>Describa lo que necesita</h4>
                         </div>
                         <div class="ss-section-body">
-                            <div class="ss-field">
-                                <label>¿Qué sistema o programa usa actualmente para esta actividad?</label>
-                                <span class="ss-hint">Si no usa ninguno, escriba "Ninguno" o "Se hace en Excel / en papel".</span>
-                                <input type="text" name="sistema_actual" id="ss-sistema-actual" placeholder="Ejemplo: Excel, Word o papel">
-                            </div>
                             <div class="ss-field" data-required="true">
                                 <label>Describa con sus palabras qué necesita <span class="ss-req">*</span></label>
                                 <span class="ss-hint">Explique qué quiere lograr, como si se lo contara a un compañero de trabajo.</span>
@@ -173,11 +190,11 @@
                         </div>
                     </div>
 
-                    <!-- SECCIÓN 4: Prioridad y alcance -->
+                    <!-- SECCIÓN 4: Prioridad -->
                     <div class="ss-section" data-section="4">
                         <div class="ss-section-header">
                             <span class="ss-section-num">4</span>
-                            <h4>Prioridad y alcance</h4>
+                            <h4>Prioridad</h4>
                         </div>
                         <div class="ss-section-body">
                             <div class="ss-field ss-field-prioridad" data-required="true">
@@ -203,58 +220,6 @@
                                     </label>
                                 </div>
                                 <span class="ss-error-msg" id="ss-error-prioridad" style="display:none;">Seleccione una prioridad.</span>
-                            </div>
-                            <div class="ss-row ss-row-alcance">
-                                <div class="ss-field">
-                                    <label>¿Cuántas personas lo usarían?</label>
-                                    <select name="usuarios_afectados" id="ss-usuarios">
-                                        <option value="">-- Seleccione --</option>
-                                        <option value="1">Solo yo</option>
-                                        <option value="2-5">De 2 a 5 personas</option>
-                                        <option value="6-20">De 6 a 20 personas</option>
-                                        <option value="21-50">De 21 a 50 personas</option>
-                                        <option value="50+">Más de 50 personas</option>
-                                        <option value="todos">Toda la empresa</option>
-                                    </select>
-                                </div>
-                                <div class="ss-field ss-field-fecha-limite">
-                                    <label>Fecha límite deseada (opcional)</label>
-                                    <span class="ss-hint">Si hay una fecha importante (cierre, auditoría, etc.), indíquela.</span>
-                                    <input type="date" name="fecha_limite" id="ss-fecha-limite">
-                                </div>
-                                <div class="ss-field">
-                                    <label>¿En qué sucursales o áreas se usaría?</label>
-                                    <input type="text" name="alcance" id="ss-alcance" placeholder="Ejemplo: Todas las sucursales, solo Oficina Central o todo Call Center">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- SECCIÓN 5: Autorización -->
-                    <div class="ss-section" data-section="5">
-                        <div class="ss-section-header">
-                            <span class="ss-section-num">5</span>
-                            <h4>Autorización</h4>
-                        </div>
-                        <div class="ss-section-body">
-                            <p class="ss-section-hint">Descargue el PDF, recabe las firmas y obtenga la autorización de su jefe de área antes de entregar al área de Desarrollo.</p>
-                            <div class="ss-firmas">
-                                <div class="ss-firma-box">
-                                    <div class="ss-firma-linea"></div>
-                                    <div class="ss-firma-label">Firma del solicitante</div>
-                                </div>
-                                <div class="ss-firma-box">
-                                    <div class="ss-firma-linea"></div>
-                                    <div class="ss-firma-label">Firma del jefe de área</div>
-                                </div>
-                                <div class="ss-firma-box">
-                                    <div class="ss-firma-linea"></div>
-                                    <div class="ss-firma-label">Vo. Bo. Área de Desarrollo</div>
-                                </div>
-                            </div>
-                            <div class="ss-field ss-field-spaced" data-triggers-section-complete="true">
-                                <label>Nombre del jefe de área (opcional)</label>
-                                <input type="text" name="jefe_area" id="ss-jefe-area" placeholder="Ejemplo: Lic. Ana Martínez">
                             </div>
                         </div>
                     </div>
