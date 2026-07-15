@@ -1,0 +1,337 @@
+/* Registro Lista Negra — extender visual de consulta-lista-negra.css */
+
+.ln-reg {
+    width: 100%;
+}
+
+/* Dos columnas equilibradas */
+.ln-reg-duo {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    align-items: stretch;
+    margin-bottom: 0;
+}
+
+.ln-reg-resultado {
+    margin-top: 24px;
+    padding: 18px 20px;
+    background: var(--ln-surface-muted);
+    border: 1px solid var(--ln-border);
+    border-radius: 10px;
+}
+
+.ln-reg-resultado.is-visible,
+.ln-reg-preview.is-visible.ln-reg-resultado {
+    display: block;
+}
+
+.ln-reg-resultado .ln-reg-preview-title {
+    margin-bottom: 12px;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.ln-reg-resultado .ln-reg-preview-list {
+    gap: 12px;
+}
+
+.ln-reg-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: 100%;
+}
+
+.ln-reg-section {
+    margin-bottom: 28px;
+}
+
+.ln-reg-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.ln-reg-section-title {
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ln-section);
+}
+
+.ln-reg-section-hint {
+    margin: 0 0 12px;
+    min-height: 2.7em;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--ln-text-muted);
+}
+
+.ln-reg-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 16px;
+    background: var(--ln-surface-muted);
+    border: 1px solid var(--ln-border);
+    border-radius: 10px;
+}
+
+.ln-reg-panel-body {
+    flex: 1 1 auto;
+}
+
+.ln-reg-panel-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--ln-border);
+}
+
+.ln-reg-panel-foot--split {
+    justify-content: space-between;
+}
+
+.ln-reg-panel-foot .ln-btn {
+    min-width: 108px;
+}
+
+.ln-reg-form-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 12px;
+    align-items: end;
+}
+
+.ln-reg-campo--full {
+    grid-column: 1 / -1;
+}
+
+.ln-reg-campo label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ln-label);
+    line-height: 1.2;
+}
+
+.ln-reg-campo .ln-input.form-control,
+.ln-reg-campo select.ln-input.form-control {
+    width: 100%;
+}
+
+.ln-btn-success {
+    background: #15803d;
+    color: #fff;
+    border-color: #15803d;
+}
+
+.ln-btn-success:hover:not(:disabled) {
+    background: #166534;
+    border-color: #166534;
+}
+
+/* Preview acreditados */
+.ln-reg-preview {
+    display: none;
+}
+
+.ln-reg-preview.is-visible {
+    display: block;
+}
+
+.ln-reg-preview-title {
+    margin: 0 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ln-label);
+}
+
+.ln-reg-preview-subtitle {
+    margin: 14px 0 8px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--ln-label);
+}
+
+.ln-reg-preview-note {
+    margin: 0 0 10px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--ln-badge-activo-text);
+}
+
+.ln-reg-preview-list {
+    display: grid;
+    gap: 10px;
+}
+
+.ln-reg-preview-card {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+    background: var(--ln-surface);
+    border: 1px solid var(--ln-border);
+    border-left: 4px solid var(--ln-registro-accent);
+    border-radius: 10px;
+}
+
+.ln-reg-preview-card.is-bloqueado {
+    border-left-color: var(--ln-avatar-baja);
+    opacity: 0.9;
+}
+
+.ln-reg-preview-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--ln-avatar-bg);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.ln-reg-preview-card.is-bloqueado .ln-reg-preview-avatar {
+    background: var(--ln-avatar-baja);
+}
+
+.ln-reg-preview-nombre {
+    margin: 0 0 2px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ln-text-strong);
+    line-height: 1.3;
+}
+
+.ln-reg-preview-meta {
+    margin: 0;
+    font-size: 12px;
+    color: var(--ln-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.ln-reg-preview-meta span + span::before {
+    content: "·";
+    margin: 0 6px;
+    color: var(--ln-border);
+}
+
+.ln-reg-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.ln-reg-badge--ok {
+    background: var(--ln-banner-ok-badge-bg);
+    color: var(--ln-banner-ok-badge-text);
+    border: 1px solid var(--ln-banner-ok-badge-border);
+}
+
+.ln-reg-badge--warn {
+    background: var(--ln-badge-activo-bg);
+    color: var(--ln-badge-activo-text);
+    border: 1px solid var(--ln-badge-activo-border);
+}
+
+/* Carga masiva */
+.ln-reg-file.form-control {
+    padding: 8px 12px;
+    height: auto;
+    min-height: 40px;
+    line-height: 1.3;
+}
+
+.ln-reg-carga-help {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: var(--ln-surface);
+    border: 1px dashed var(--ln-border);
+}
+
+.ln-reg-carga-help p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--ln-text-muted);
+}
+
+.ln-reg-carga-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ln-reg-carga-links .ln-btn {
+    min-width: 0;
+    height: 40px;
+    padding: 0 14px;
+    font-size: 13px;
+    text-decoration: none;
+}
+
+.ln-reg-carga-links .ln-btn:hover {
+    text-decoration: none;
+}
+
+.ln-reg-mono {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+}
+
+@media (max-width: 991px) {
+    .ln-reg-duo {
+        grid-template-columns: 1fr;
+    }
+
+    .ln-reg-section-hint {
+        min-height: 0;
+    }
+}
+
+@media (max-width: 575px) {
+    .ln-reg-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ln-reg-panel {
+        padding: 14px;
+    }
+
+    .ln-reg-panel-foot--split {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .ln-reg-panel-foot--split .ln-btn,
+    .ln-reg-carga-links .ln-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
