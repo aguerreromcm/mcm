@@ -673,8 +673,8 @@ class AhorroSimple extends Controller
 
         // Llamar a tu procedimiento
         $id = AhorroSimpleDao::ActualizaExcepciones($exc);
-
-        return $id;
+        echo $id;
+        return;
     }
 
 

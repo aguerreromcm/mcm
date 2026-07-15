@@ -36,7 +36,7 @@ class JobsAhorro extends Model
 
     public static function AplicaDevengo($datos)
     {
-        $f = $datos["fecha"] ? ':fecha' : 'SYSDATE';
+        $f = isset($datos["fecha"]) ? ':fecha' : 'SYSDATE';
         $qryDevengo = <<<SQL
             INSERT INTO
                 DEVENGO_AHORRO (
@@ -82,7 +82,7 @@ class JobsAhorro extends Model
             ]
         ];
 
-        if ($datos["fecha"]) $parametros[0]["fecha"] = $datos["fecha"];
+        if (isset($datos["fecha"])) $parametros[0]["fecha"] = $datos["fecha"];
 
         try {
             $db = new Database();

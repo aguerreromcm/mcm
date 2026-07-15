@@ -195,7 +195,7 @@ class JobsCredito extends Job
                 </h3>
                 <ul style="list-style: none; padding: 0; margin: 0; color: #555">
                     <li>🔸<b>Cliente:</b> {$credito['CL']} - {$credito['NOMBRE_CL']}</li>
-                    <li>🔸<b>Crédito:</b> {$credito['CDGNS']}</li>
+                    <li>🔸<b>Crédito:</b> {$credito['CREDITO']}</li>
                     <li>🔸<b>Ciclo:</b> {$credito['CICLO']}</li>
                     <li>🔸<b>Fecha de captura:</b> {$credito['SOLICITUD']}</li>
                     <li>🔸<b>Región:</b> {$credito['RG']} - {$credito['NOMBRE_RG']}</li>

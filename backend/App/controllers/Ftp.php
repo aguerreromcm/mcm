@@ -21,7 +21,7 @@ class Ftp extends Controller
             'id'       => 'reportes',
             'etiqueta' => 'Reportes',
             'ruta'     => 'C:/reportes',
-            'usuarios' => ['ADMIN', 'AMGM', 'FECR', 'ORHM'],
+            'usuarios' => ['ADMIN', 'AMGM', 'FECR', 'GOBA'],
         ],
     ];
 
