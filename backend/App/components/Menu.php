@@ -186,6 +186,7 @@ class Menu
     {
         return [
             $this->enlace('Consulta lista negra', '/Clientes/ConsultaListaNegra/', ['ADMIN', 'CAJA', 'GTOCA', 'AMOCA', 'OCOF', 'CPAGO', 'ACALL', 'LGFR', 'PLMV', 'MCDP']),
+            $this->enlace('Registro Lista Negra', '/Clientes/RegistroListaNegra/', ['ADMIN', 'LGFR', 'MCDP', 'PLMV', 'CAJA', 'GTOCA', 'AMOCA']),
         ];
     }
 

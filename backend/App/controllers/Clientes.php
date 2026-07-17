@@ -7,9 +7,10 @@ defined("APPPATH") or die("Access denied");
 use Core\View;
 use Core\Controller;
 use App\services\ListaNegraClientesService;
+use App\services\ListaNegraRegistroService;
 
 /**
- * Consultas de clientes (menú Clientes).
+ * Consultas y registro de clientes (menú Clientes).
  */
 class Clientes extends Controller
 {
@@ -498,5 +499,582 @@ class Clientes extends Controller
         } catch (\Throwable $e) {
             echo json_encode(\Core\Model::Responde(false, 'No se pudo consultar la lista negra.', null, $e->getMessage()), JSON_UNESCAPED_UNICODE);
         }
+    }
+
+    /**
+     * Vista: registro de acreditados en lista negra (alta manual + carga masiva).
+     */
+    public function RegistroListaNegra()
+    {
+        $extraCss = <<<HTML
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+            <link rel="stylesheet" href="/css/consulta-lista-negra.css">
+            <link rel="stylesheet" href="/css/registro-lista-negra.css">
+        HTML;
+
+        $extraFooter = <<<HTML
+            <script>
+                {$this->mensajes}
+
+                let previewListo = false;
+
+                function labelPorTipo(tipo) {
+                    if (tipo === "CLIENTE") return "Número de cliente";
+                    if (tipo === "CREDITO") return "Número de crédito";
+                    return "CURP";
+                }
+
+                function placeholderPorTipo(tipo) {
+                    if (tipo === "CLIENTE") return "Ej. 015572";
+                    if (tipo === "CREDITO") return "Ej. 207615";
+                    return "18 caracteres";
+                }
+
+                function maxLengthPorTipo(tipo) {
+                    if (tipo === "CURP") return 18;
+                    if (tipo === "CLIENTE") return 10;
+                    return 20;
+                }
+
+                function inicialNombre(nombre) {
+                    var n = (nombre || "").trim();
+                    return n ? n.charAt(0).toUpperCase() : "?";
+                }
+
+                function escapeHtml(texto) {
+                    return String(texto == null ? "" : texto)
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;")
+                        .replace(/"/g, "&quot;");
+                }
+
+                function cargarCausas() {
+                    $.ajax({
+                        type: "GET",
+                        url: "/Clientes/RegistroListaNegraCausas/",
+                        dataType: "json",
+                        success: function(res) {
+                            try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) { return; }
+                            if (!res.success) return;
+                            var \$sel = $("#causa_ln");
+                            var actual = \$sel.val();
+                            \$sel.find("option:not(:first)").remove();
+                            (res.datos || []).forEach(function(c) {
+                                var texto = c.DESCRIPCION || c.DESCRIPCION_FMT || "";
+                                \$sel.append(\$("<option></option>").attr("value", c.CODIGO).text(texto));
+                            });
+                            if (actual) \$sel.val(actual);
+                        }
+                    });
+                }
+
+                function limpiarPreview() {
+                    previewListo = false;
+                    $("#btn_guardar_ln").prop("disabled", true);
+                    $("#preview_ln").removeClass("is-visible").attr("hidden", true).empty();
+                }
+
+                function renderPreview(datos) {
+                    if (!datos || !datos.length) {
+                        limpiarPreview();
+                        return;
+                    }
+                    var algunoNuevo = datos.some(function(c) { return !c.YA_EN_LISTA && c.CURP; });
+                    var html = '<p class="ln-reg-preview-title">Acreditado(s) encontrado(s)</p>';
+                    if (!algunoNuevo) {
+                        html += '<p class="ln-reg-preview-note">Ya está en lista negra o no tiene CURP; no se puede volver a registrar.</p>';
+                    }
+                    html += '<div class="ln-reg-preview-list">';
+                    datos.forEach(function(c) {
+                        var ya = !!c.YA_EN_LISTA;
+                        var sinCurp = !(c.CURP || "");
+                        var clase = (ya || sinCurp) ? " is-bloqueado" : "";
+                        var badge = ya
+                            ? '<span class="ln-reg-badge ln-reg-badge--warn">Ya en lista negra</span>'
+                            : (sinCurp
+                                ? '<span class="ln-reg-badge ln-reg-badge--warn">Sin CURP</span>'
+                                : '<span class="ln-reg-badge ln-reg-badge--ok">Listo para registrar</span>');
+                        html += '<div class="ln-reg-preview-card' + clase + '">' +
+                            '<div class="ln-reg-preview-avatar" aria-hidden="true">' + escapeHtml(inicialNombre(c.NOMBRE)) + '</div>' +
+                            '<div>' +
+                                '<p class="ln-reg-preview-nombre">' + escapeHtml(c.NOMBRE || "Sin nombre") + '</p>' +
+                                '<p class="ln-reg-preview-meta">' +
+                                    '<span class="ln-reg-mono">' + escapeHtml(c.CDGCL || "—") + '</span>' +
+                                    '<span class="ln-reg-mono">' + escapeHtml(c.CURP || "Sin CURP") + '</span>' +
+                                '</p>' +
+                            '</div>' +
+                            badge +
+                        '</div>';
+                    });
+                    html += '</div>';
+                    $("#preview_ln").html(html).addClass("is-visible").removeAttr("hidden");
+                    previewListo = algunoNuevo;
+                    $("#btn_guardar_ln").prop("disabled", !algunoNuevo);
+                }
+
+                function renderResumenMasivo(res) {
+                    var regs = res.registrados || [];
+                    var errs = res.errores || [];
+                    var nOk = typeof res.insertados !== "undefined" ? res.insertados : regs.length;
+                    var nOm = typeof res.omitidos !== "undefined" ? res.omitidos : errs.length;
+
+                    var html = '<p class="ln-reg-preview-title">Resultado de carga masiva</p>';
+                    html += '<p class="ln-reg-preview-note">Registrados: <strong>' + nOk + '</strong> · No procesados: <strong>' + nOm + '</strong></p>';
+
+                    if (regs.length) {
+                        html += '<p class="ln-reg-preview-subtitle">Registrados</p>';
+                        html += '<div class="ln-reg-preview-list">';
+                        regs.forEach(function(c) {
+                            html += '<div class="ln-reg-preview-card">' +
+                                '<div class="ln-reg-preview-avatar" aria-hidden="true">' + escapeHtml(inicialNombre(c.NOMBRE)) + '</div>' +
+                                '<div>' +
+                                    '<p class="ln-reg-preview-nombre">' + escapeHtml(c.NOMBRE || "Sin nombre") + '</p>' +
+                                    '<p class="ln-reg-preview-meta">' +
+                                        (c.fila ? '<span>Fila ' + escapeHtml(String(c.fila)) + '</span>' : '') +
+                                        '<span class="ln-reg-mono">' + escapeHtml(c.CDGCL || "—") + '</span>' +
+                                        '<span class="ln-reg-mono">' + escapeHtml(c.CURP || "—") + '</span>' +
+                                    '</p>' +
+                                '</div>' +
+                                '<span class="ln-reg-badge ln-reg-badge--ok">Registrado</span>' +
+                            '</div>';
+                        });
+                        html += '</div>';
+                    }
+
+                    if (errs.length) {
+                        html += '<p class="ln-reg-preview-subtitle">No procesados</p>';
+                        html += '<div class="ln-reg-preview-list">';
+                        errs.forEach(function(e) {
+                            html += '<div class="ln-reg-preview-card is-bloqueado">' +
+                                '<div class="ln-reg-preview-avatar" aria-hidden="true">' + escapeHtml(inicialNombre(e.nombre || e.curp || "?")) + '</div>' +
+                                '<div>' +
+                                    '<p class="ln-reg-preview-nombre">' + escapeHtml(e.nombre || e.curp || "Sin dato") + '</p>' +
+                                    '<p class="ln-reg-preview-meta">' +
+                                        (e.fila ? '<span>Fila ' + escapeHtml(String(e.fila)) + '</span>' : '') +
+                                        (e.cdgcl ? '<span class="ln-reg-mono">' + escapeHtml(String(e.cdgcl)) + '</span>' : '') +
+                                        (e.curp ? '<span class="ln-reg-mono">' + escapeHtml(String(e.curp)) + '</span>' : '') +
+                                    '</p>' +
+                                    '<p class="ln-reg-preview-note" style="margin:6px 0 0;">' + escapeHtml(e.motivo || "Omitido") + '</p>' +
+                                '</div>' +
+                                '<span class="ln-reg-badge ln-reg-badge--warn">Omitido</span>' +
+                            '</div>';
+                        });
+                        html += '</div>';
+                    }
+
+                    if (!regs.length && !errs.length) {
+                        html += '<p class="ln-reg-preview-note">No hubo filas para mostrar.</p>';
+                    }
+
+                    $("#preview_ln").html(html).addClass("is-visible").removeAttr("hidden");
+                    previewListo = false;
+                    $("#btn_guardar_ln").prop("disabled", true);
+                }
+
+                function buscarAntesDeGuardar() {
+                    var tipo = $("#tipo_busqueda").val();
+                    var valor = ($("#valor_busqueda").val() || "").trim();
+                    if (!valor) {
+                        showWarning("Capture el dato a buscar.");
+                        return;
+                    }
+                    showWait("Buscando...");
+                    $.ajax({
+                        type: "POST",
+                        url: "/Clientes/RegistroListaNegraResolver/",
+                        contentType: "application/json; charset=UTF-8",
+                        data: JSON.stringify({ tipo: tipo, valor: valor }),
+                        dataType: "json",
+                        success: function(res) {
+                            swal.close();
+                            try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) {
+                                showError("Respuesta inválida");
+                                return;
+                            }
+                            if (!res.success) {
+                                limpiarPreview();
+                                showError(res.mensaje || "No se encontró");
+                                return;
+                            }
+                            renderPreview(res.datos || []);
+                        },
+                        error: function() {
+                            swal.close();
+                            showError("Error al buscar.");
+                        }
+                    });
+                }
+
+                function guardarRegistro() {
+                    var tipo = $("#tipo_busqueda").val();
+                    var valor = ($("#valor_busqueda").val() || "").trim();
+                    var causa = ($("#causa_ln").val() || "").trim();
+                    if (!valor) {
+                        showWarning("Capture el dato a registrar.");
+                        return;
+                    }
+                    if (!causa) {
+                        showWarning("Seleccione la causa de lista negra.");
+                        return;
+                    }
+                    if (!previewListo) {
+                        showWarning("Primero pulse Buscar y confirme el acreditado.");
+                        return;
+                    }
+                    var causaTxt = ($("#causa_ln option:selected").text() || "").trim();
+                    swal({
+                        title: "¿Registrar en lista negra?",
+                        text: "Se registrará el acreditado con la causa: " + causaTxt,
+                        icon: "warning",
+                        buttons: ["Cancelar", "Sí, registrar"],
+                        dangerMode: true
+                    }).then(function(ok) {
+                        if (!ok) return;
+                        swal({
+                            text: "Procesando la solicitud, espere un momento...",
+                            icon: "/img/wait.gif",
+                            button: false,
+                            closeOnClickOutside: false,
+                            closeOnEsc: false
+                        });
+                        $.ajax({
+                            type: "POST",
+                            url: "/Clientes/RegistroListaNegraGuardar/",
+                            contentType: "application/json; charset=UTF-8",
+                            data: JSON.stringify({ tipo: tipo, valor: valor, causa: causa }),
+                            dataType: "json",
+                            success: function(res) {
+                                swal.close();
+                                try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) {
+                                    showError("Respuesta inválida");
+                                    return;
+                                }
+                                if (res.success) {
+                                    $("#valor_busqueda").val("");
+                                    limpiarPreview();
+                                    showSuccess(res.mensaje || "Registrado");
+                                } else {
+                                    showError(res.mensaje || "Error");
+                                }
+                            },
+                            error: function() {
+                                swal.close();
+                                showError("Error al guardar.");
+                            }
+                        });
+                    });
+                }
+
+                function importarArchivo() {
+                    var f = document.getElementById("archivo_ln_reg").files[0];
+                    if (!f) {
+                        showWarning("Seleccione un archivo.");
+                        return;
+                    }
+                    swal({
+                        title: "¿Registrar carga masiva?",
+                        text: "Se procesará el archivo \"" + f.name + "\" y se registrarán los acreditados válidos en lista negra.",
+                        icon: "warning",
+                        buttons: ["Cancelar", "Sí, registrar"],
+                        dangerMode: true
+                    }).then(function(ok) {
+                        if (!ok) return;
+                        // Misma carga que en el resto del sistema (rueda /img/wait.gif)
+                        swal({
+                            text: "Procesando la solicitud, espere un momento...",
+                            icon: "/img/wait.gif",
+                            button: false,
+                            closeOnClickOutside: false,
+                            closeOnEsc: false
+                        });
+                        var fd = new FormData();
+                        fd.append("archivo", f);
+                        $.ajax({
+                            type: "POST",
+                            url: "/Clientes/RegistroListaNegraCargaMasiva/",
+                            data: fd,
+                            processData: false,
+                            contentType: false,
+                            dataType: "json",
+                            success: function(res) {
+                                swal.close();
+                                try { res = typeof res === "string" ? JSON.parse(res) : res; } catch (e) {
+                                    showError("Respuesta inválida");
+                                    return;
+                                }
+                                var msg = res.mensaje || "Importación finalizada";
+                                $("#archivo_ln_reg").val("");
+                                renderResumenMasivo(res || {});
+                                if (res.success) {
+                                    var omit = typeof res.omitidos !== "undefined" ? res.omitidos : 0;
+                                    if (omit > 0) showWarning(msg); else showSuccess(msg);
+                                } else {
+                                    showError(msg);
+                                }
+                            },
+                            error: function(xhr) {
+                                swal.close();
+                                var detalle = "";
+                                try {
+                                    var j = JSON.parse(xhr.responseText || "");
+                                    if (j && j.mensaje) detalle = j.mensaje;
+                                } catch (e) {}
+                                if (!detalle && xhr.responseText) {
+                                    detalle = String(xhr.responseText).replace(/<[^>]+>/g, " ").trim().substring(0, 240);
+                                }
+                                showError(detalle || ("Error al subir el archivo" + (xhr.status ? " (HTTP " + xhr.status + ")" : "") + "."));
+                            }
+                        });
+                    });
+                }
+
+                function aplicarTipoBusqueda() {
+                    var t = $("#tipo_busqueda").val();
+                    $("#label_valor_busqueda").text(labelPorTipo(t));
+                    $("#valor_busqueda")
+                        .attr("placeholder", placeholderPorTipo(t))
+                        .attr("maxlength", maxLengthPorTipo(t))
+                        .val("");
+                    limpiarPreview();
+                }
+
+                $(document).ready(function() {
+                    cargarCausas();
+
+                    $("#tipo_busqueda").on("change", aplicarTipoBusqueda);
+                    $("#valor_busqueda").on("input", function() {
+                        limpiarPreview();
+                        var t = $("#tipo_busqueda").val();
+                        if (t === "CURP") this.value = this.value.toUpperCase();
+                        if (t === "CLIENTE") this.value = this.value.replace(/\\D/g, "");
+                    });
+
+                    $("#btn_buscar_ln").click(buscarAntesDeGuardar);
+                    $("#btn_guardar_ln").click(guardarRegistro);
+                    $("#btn_importar_ln").click(importarArchivo);
+                });
+            </script>
+        HTML;
+
+        View::set('header', $this->_contenedor->header($this->GetExtraHeader('Registro Lista Negra', [$extraCss])));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::render('clientes_registro_lista_negra');
+    }
+
+    /** JSON: catálogo de causas TIPO = A. */
+    public function RegistroListaNegraCausas()
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode(ListaNegraRegistroService::listarCausas(), JSON_UNESCAPED_UNICODE);
+    }
+
+    /** JSON: resolver crédito / cliente / CURP. */
+    public function RegistroListaNegraResolver()
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        $raw = file_get_contents('php://input');
+        $body = json_decode($raw, true) ?: [];
+        $tipo = isset($body['tipo']) ? (string) $body['tipo'] : '';
+        $valor = isset($body['valor']) ? (string) $body['valor'] : '';
+        echo json_encode(ListaNegraRegistroService::resolver($tipo, $valor), JSON_UNESCAPED_UNICODE);
+    }
+
+    /** JSON: alta manual. */
+    public function RegistroListaNegraGuardar()
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        $raw = file_get_contents('php://input');
+        $body = json_decode($raw, true) ?: [];
+        $tipo = isset($body['tipo']) ? (string) $body['tipo'] : '';
+        $valor = isset($body['valor']) ? (string) $body['valor'] : '';
+        $causa = isset($body['causa']) ? (string) $body['causa'] : '';
+        $usuario = $this->__usuario ?? '';
+        echo json_encode(ListaNegraRegistroService::guardarUno($tipo, $valor, $causa, $usuario), JSON_UNESCAPED_UNICODE);
+    }
+
+    /** Carga masiva desde Excel/CSV. */
+    public function RegistroListaNegraCargaMasiva()
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        try {
+            if (!isset($_FILES['archivo']) || !is_uploaded_file($_FILES['archivo']['tmp_name'])) {
+                echo json_encode(\Core\Model::Responde(false, 'No se recibió el archivo.'), JSON_UNESCAPED_UNICODE);
+                return;
+            }
+            if ($_FILES['archivo']['error'] !== UPLOAD_ERR_OK) {
+                echo json_encode(\Core\Model::Responde(false, 'Error al subir el archivo (código ' . (int) $_FILES['archivo']['error'] . ').'), JSON_UNESCAPED_UNICODE);
+                return;
+            }
+            $tmp = $_FILES['archivo']['tmp_name'];
+            $usuario = $this->__usuario ?? '';
+            $nombre = isset($_FILES['archivo']['name']) ? (string) $_FILES['archivo']['name'] : '';
+            $ext = strtolower((string) pathinfo($nombre, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['xlsx', 'xls', 'xlsm', 'csv', 'txt'], true)) {
+                $ext = 'xlsx';
+            }
+            $dirTmp = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'tmp';
+            if (!is_dir($dirTmp)) {
+                @mkdir($dirTmp, 0755, true);
+            }
+            $dest = $dirTmp . DIRECTORY_SEPARATOR . 'ln_reg_' . uniqid('', true) . '.' . $ext;
+            $okMove = @move_uploaded_file($tmp, $dest);
+            if (!$okMove) {
+                $okMove = @copy($tmp, $dest);
+            }
+            if (!$okMove || !is_readable($dest)) {
+                $fallback = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'ln_reg_' . uniqid('', true) . '.' . $ext;
+                $okMove = @copy($tmp, $fallback);
+                if ($okMove && is_readable($fallback)) {
+                    $dest = $fallback;
+                } else {
+                    echo json_encode(\Core\Model::Responde(false, 'No se pudo guardar el archivo recibido.'), JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+            }
+            try {
+                echo json_encode(ListaNegraRegistroService::cargaMasivaDesdeArchivo($dest, $usuario), JSON_UNESCAPED_UNICODE);
+            } finally {
+                @unlink($dest);
+            }
+        } catch (\Throwable $e) {
+            echo json_encode(
+                \Core\Model::Responde(false, 'Error al procesar el archivo: ' . $e->getMessage()),
+                JSON_UNESCAPED_UNICODE
+            );
+        }
+    }
+
+    /** Layout Excel: CREDITO | CLIENTE | CURP | CAUSA (dropdown de causas). */
+    public function RegistroListaNegraLayout()
+    {
+        $resCausas = ListaNegraRegistroService::listarCausas();
+        $causas = (!empty($resCausas['success']) && is_array($resCausas['datos'] ?? null))
+            ? $resCausas['datos']
+            : [];
+
+        $estilos = \PHPSpreadsheet::GetEstilosExcel();
+        $centrado = ['estilo' => $estilos['centrado']];
+        $columnas = [
+            \PHPSpreadsheet::ColumnaExcel('CREDITO', 'No. crédito', $centrado),
+            \PHPSpreadsheet::ColumnaExcel('CLIENTE', 'No. cliente', $centrado),
+            \PHPSpreadsheet::ColumnaExcel('CURP', 'CURP', $centrado),
+            \PHPSpreadsheet::ColumnaExcel('CAUSA', 'Causa lista negra', $centrado),
+        ];
+
+        // Filas vacías preformateadas para captura
+        $filas = [];
+        for ($i = 0; $i < 50; $i++) {
+            $filas[] = ['CREDITO' => '', 'CLIENTE' => '', 'CURP' => '', 'CAUSA' => ''];
+        }
+
+        $libro = \PHPSpreadsheet::GeneraExcel(
+            'ListaNegra',
+            'Capture una sola identificación por fila (crédito, cliente o CURP) y seleccione la causa del desplegable.',
+            $columnas,
+            $filas
+        );
+
+        $hoja = $libro->getSheetByName('ListaNegra');
+        if ($hoja === null) {
+            $hoja = $libro->getSheet(0);
+        }
+
+        // Título y encabezados legibles
+        $hoja->getRowDimension(1)->setRowHeight(36);
+        $hoja->getStyle('A1:D1')->getAlignment()
+            ->setWrapText(true)
+            ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER)
+            ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
+        $hoja->getRowDimension(2)->setRowHeight(22);
+        $hoja->getStyle('A2:D2')->getAlignment()
+            ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER)
+            ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)
+            ->setWrapText(true);
+
+        // Anchos fijos (evita autoSize irregular)
+        $hoja->getColumnDimension('A')->setAutoSize(false)->setWidth(16);
+        $hoja->getColumnDimension('B')->setAutoSize(false)->setWidth(14);
+        $hoja->getColumnDimension('C')->setAutoSize(false)->setWidth(24);
+        $hoja->getColumnDimension('D')->setAutoSize(false)->setWidth(52);
+
+        for ($r = 3; $r <= 52; $r++) {
+            $hoja->getRowDimension($r)->setRowHeight(20);
+            $hoja->getStyle("A{$r}:D{$r}")->getAlignment()
+                ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER)
+                ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $hoja->getStyle("D{$r}")->getAlignment()
+                ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
+        }
+
+        // Catálogo en hoja oculta (solo para el dropdown)
+        $hojaCausas = $libro->createSheet();
+        $hojaCausas->setTitle('Causas');
+        $hojaCausas->setCellValue('A1', 'Código');
+        $hojaCausas->setCellValue('B1', 'Descripción');
+        $hojaCausas->setCellValue('C1', 'Opción');
+        $hojaCausas->getStyle('A1:C1')->applyFromArray($estilos['encabezado'] ?? [
+            'font' => ['bold' => true],
+        ]);
+        $hojaCausas->getRowDimension(1)->setRowHeight(22);
+
+        $n = 0;
+        foreach ($causas as $c) {
+            $codigo = trim((string) ($c['CODIGO'] ?? ''));
+            $desc = trim((string) ($c['DESCRIPCION'] ?? $c['DESCRIPCION_FMT'] ?? ''));
+            if ($codigo === '') {
+                continue;
+            }
+            $n++;
+            $fila = $n + 1;
+            // Dropdown: solo descripción (sin "4 - …"); el código queda en col. A para referencia
+            $opcion = $desc !== '' ? $desc : $codigo;
+            $hojaCausas->setCellValueExplicit('A' . $fila, $codigo, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+            $hojaCausas->setCellValue('B' . $fila, $desc);
+            $hojaCausas->setCellValue('C' . $fila, $opcion);
+            $hojaCausas->getRowDimension($fila)->setRowHeight(18);
+            $hojaCausas->getStyle("A{$fila}:C{$fila}")->getAlignment()
+                ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        }
+
+        $hojaCausas->getColumnDimension('A')->setWidth(12);
+        $hojaCausas->getColumnDimension('B')->setWidth(48);
+        $hojaCausas->getColumnDimension('C')->setWidth(56);
+        $hojaCausas->getStyle('A2:A' . max(2, $n + 1))->getAlignment()
+            ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        $hojaCausas->setSheetState(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::SHEETSTATE_HIDDEN);
+
+        if ($n > 0) {
+            $rangoLista = 'Causas!$C$2:$C$' . ($n + 1);
+            $validation = new \PhpOffice\PhpSpreadsheet\Cell\DataValidation();
+            $validation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST);
+            $validation->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_STOP);
+            $validation->setAllowBlank(true);
+            $validation->setShowInputMessage(true);
+            $validation->setShowErrorMessage(true);
+            $validation->setShowDropDown(true);
+            $validation->setErrorTitle('Causa inválida');
+            $validation->setError('Selecciona un valor válido de la lista');
+            $validation->setPromptTitle('Causa lista negra');
+            $validation->setPrompt('Seleccione una causa de la lista desplegable');
+            $validation->setFormula1($rangoLista);
+            $hoja->setDataValidation('D3:D52', $validation);
+        }
+
+        $libro->setActiveSheetIndex($libro->getIndex($hoja));
+        $hoja->setSelectedCell('A3');
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="layout_registro_lista_negra.xlsx"');
+        header('Cache-Control: max-age=0');
+        header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
+        header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');
+        header('Pragma: public');
+
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($libro);
+        $writer->save('php://output');
+        exit;
     }
 }
