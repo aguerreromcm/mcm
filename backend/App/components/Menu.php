@@ -215,7 +215,7 @@ class Menu
     private function opcionesReportes()
     {
         return [
-            $this->enlace('Solicitud de Software', '/Herramientas/SolicitudSoftware/', ['AMGM', 'ADMIN', 'FLHR']),
+            $this->enlace('Solicitud de Software', '/Herramientas/SolicitudSoftware/', ['AMGM', 'ADMIN', 'FLHR', 'GUKA']),
             $this->enlace('FTP', '/Ftp/Explorer/', FtpExplorerConfig::menuPermisos()),
         ];
     }
