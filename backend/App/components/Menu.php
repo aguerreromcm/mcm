@@ -224,6 +224,7 @@ class Menu
     {
         return [
             $this->enlace('Productividad Operaciones', '/Indicadores/ProductividadOP/', ['AMGM']),
+            $this->enlace('Dashboard Operaciones', '/Herramientas/ProductividadOP/', ['AMGM']),
         ];
     }
 
@@ -241,7 +242,6 @@ class Menu
         return [
             $this->enlace('Auditoría Devengo', '/Herramientas/AuditoriaDevengo/', ['AMGM']),
             $this->enlace('Estatus BD', '/Herramientas/EstatusBD/', ['AMGM']),
-            $this->enlace('Productividad Operaciones (Propuesta)', '/Herramientas/ProductividadOP/', ['AMGM']),
         ];
     }
 
