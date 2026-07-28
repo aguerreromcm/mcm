@@ -48,8 +48,20 @@ class Controller
         }
     JAVASCRIPT;
     public $consultaServidor = <<<JAVASCRIPT
+        let _consultaServidorActivas = 0
         const consultaServidor = (url, datos, fncOK, metodo = "POST", tipo = "JSON", tipoContenido = null, procesar = null) => {
-            swal({ text: "Procesando la solicitud, espere un momento...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false })
+            _consultaServidorActivas++
+            if (_consultaServidorActivas === 1) {
+                swal({ text: "Procesando la solicitud, espere un momento...", icon: "/img/wait.gif", button: false, closeOnClickOutside: false, closeOnEsc: false })
+            }
+
+            const liberarCarga = () => {
+                _consultaServidorActivas = Math.max(0, _consultaServidorActivas - 1)
+                if (_consultaServidorActivas === 0) {
+                    try { swal.close() } catch (e) {}
+                }
+            }
+
             const configuracion = {
                 type: metodo,
                 url: url,
@@ -61,11 +73,13 @@ class Controller
                     }
                     if (tipo === "blob" && !(res instanceof Blob)) res = new Blob([res], { type: "application/pdf" })
 
-                    swal.close()
+                    // Cierra el wait ANTES del callback (como antes), para no tapar showError/showSuccess.
+                    // El contador evita que una petición paralela cierre el modal de otra aún activa.
+                    liberarCarga()
                     fncOK(res)
                 },
                 error: (xhr, textStatus, errorThrown) => {
-                    swal.close()
+                    liberarCarga()
                     console.error("consultaServidor error:", textStatus, errorThrown, xhr.responseText)
                     let msg = textStatus === "parsererror" ? "La respuesta del servidor no es JSON válido. Revise que no haya errores en el servidor." : "Ocurrió un error al procesar la solicitud."
                     if (xhr.responseJSON && xhr.responseJSON.mensaje) {
