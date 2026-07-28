@@ -81,6 +81,11 @@
                                     <p style="font-size: 16px;">Historial retiro sucursal</p>
                                 </a>
                             </li>
+                            <li class="linea">
+                                <a href="/AdminSucursales/ReporteAhorro/">
+                                    <p style="font-size: 16px;">Reporte de Ahorro</p>
+                                </a>
+                            </li>
                         </ul>
                     </div>
                 </div>

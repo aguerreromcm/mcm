@@ -869,4 +869,485 @@ sql;
             return [];
         }
     }
+
+    /**
+     * Valida fecha de corte (YYYY-MM-DD) y arma filtros opcionales de región/sucursal.
+     */
+    private static function preparaFiltrosReporteAhorro($datos)
+    {
+        $fechaCorte = $datos['fechaCorte'] ?? '';
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaCorte)) {
+            return ['ok' => false, 'mensaje' => 'La fecha de corte no es válida.'];
+        }
+
+        $filtroGeo = '';
+        $sucursal = $datos['sucursal'] ?? '0';
+        $region = $datos['region'] ?? '';
+
+        if ($sucursal !== '' && $sucursal !== '0' && $sucursal !== null) {
+            $sucursal = preg_replace('/[^0-9A-Za-z]/', '', $sucursal);
+            $filtroGeo = " AND DT.SUCURSAL = '{$sucursal}' ";
+            $region = null;
+        } elseif ($region !== '' && $region !== '0' && $region !== null) {
+            $region = preg_replace('/[^0-9A-Za-z]/', '', $region);
+            $filtroGeo = " AND DT.REGION = '{$region}' ";
+            $sucursal = null;
+        } else {
+            $sucursal = null;
+            $region = null;
+        }
+
+        return [
+            'ok' => true,
+            'fechaCorte' => $fechaCorte,
+            'filtroSucursal' => $filtroGeo,
+            'sucursal' => $sucursal,
+            'region' => $region,
+        ];
+    }
+
+    public static function GetCatalogoReporteAhorro()
+    {
+        // Catálogo completo (igual que Dashboard Operaciones): todas las regiones/sucursales
+        $qry = <<<SQL
+            SELECT DISTINCT
+                RG.CODIGO AS ID_REGION
+                , RG.NOMBRE AS REGION
+                , CO.CODIGO AS ID_SUCURSAL
+                , CO.NOMBRE AS SUCURSAL
+            FROM RG
+                INNER JOIN CO ON CO.CDGRG = RG.CODIGO
+            WHERE RG.NOMBRE IS NOT NULL
+                AND CO.NOMBRE IS NOT NULL
+            ORDER BY RG.NOMBRE, CO.NOMBRE
+        SQL;
+
+        try {
+            $db = new Database();
+            $rows = $db->queryAll($qry) ?? [];
+            $regiones = [];
+            $sucursales = [];
+            $vistos = [];
+            foreach ($rows as $r) {
+                $idR = $r['ID_REGION'];
+                if (!isset($vistos[$idR])) {
+                    $vistos[$idR] = true;
+                    $regiones[] = ['id' => $idR, 'nombre' => $r['REGION']];
+                }
+                $sucursales[] = [
+                    'id' => $r['ID_SUCURSAL'],
+                    'nombre' => $r['SUCURSAL'],
+                    'region' => $idR,
+                ];
+            }
+            return ['regiones' => $regiones, 'sucursales' => $sucursales];
+        } catch (Exception $e) {
+            return ['regiones' => [], 'sucursales' => []];
+        }
+    }
+
+    private static function cteBaseReporteAhorro($fechaCorte)
+    {
+        return <<<SQL
+            WITH DATOS AS (
+                SELECT PRC.CDGNS AS CREDITO
+                    , PRC.CDGCL AS CLIENTE
+                    , GET_NOMBRE_CLIENTE(PRC.CDGCL) AS CLIENTE_NOMBRE
+                    , NS.CDGCO AS SUCURSAL
+                    , GET_NOMBRE_SUCURSAL(NS.CDGCO) AS SUCURSAL_NOMBRE
+                    , CO.CDGRG AS REGION
+                    , RG.NOMBRE AS REGION_NOMBRE
+                    , NS.CDGFUNPE AS EJECUTIVO
+                    , GET_NOMBRE_EMPLEADO(NS.CDGFUNPE) AS EJECUTIVO_NOMBRE
+                FROM PRC
+                    LEFT JOIN NS ON NS.CODIGO = PRC.CDGNS
+                    LEFT JOIN CO ON CO.CODIGO = NS.CDGCO
+                    LEFT JOIN RG ON RG.CODIGO = CO.CDGRG
+                GROUP BY
+                    PRC.CDGNS, PRC.CDGCL, NS.CDGCO, CO.CDGRG, RG.NOMBRE, NS.CDGFUNPE
+            )
+            , DEPOSITOS AS (
+                SELECT PD.CDGNS AS CREDITO
+                    , SUM(DECODE(PD.TIPO, 'A', 0, PD.MONTO)) AS ABONOS
+                    , SUM(DECODE(PD.TIPO, 'A', PD.MONTO, 0)) AS AJUSTES
+                FROM PAGOSDIA PD
+                WHERE PD.ESTATUS = 'A'
+                    AND PD.TIPO IN ('A', 'B', 'F', 'E')
+                    AND TRUNC(PD.FECHA) <= TO_DATE('{$fechaCorte}', 'YYYY-MM-DD')
+                GROUP BY PD.CDGNS
+            )
+            , RETIROS AS (
+                SELECT RA.CDGNS AS CREDITO
+                    , SUM(DECODE(RA.ESTATUS, 'E', 0, RA.CANT_SOLICITADA)) AS TRANSITO
+                    , SUM(DECODE(RA.ESTATUS, 'E', RA.CANT_SOLICITADA, 0)) AS RETIROS
+                FROM RETIROS_AHORRO RA
+                WHERE RA.ESTATUS IN ('P', 'V', 'E')
+                    AND TRUNC(RA.FECHA_ENTREGA_REAL) <= TO_DATE('{$fechaCorte}', 'YYYY-MM-DD')
+                GROUP BY RA.CDGNS
+            )
+            , BASE AS (
+                SELECT DT.CREDITO
+                    , DT.CLIENTE
+                    , DT.CLIENTE_NOMBRE
+                    , DT.SUCURSAL
+                    , DT.SUCURSAL_NOMBRE
+                    , DT.REGION
+                    , DT.REGION_NOMBRE
+                    , DT.EJECUTIVO
+                    , DT.EJECUTIVO_NOMBRE
+                    , DECODE(CA.FECHA_REGISTRO, NULL, 'SIN CONTRATO', TO_CHAR(CA.FECHA_REGISTRO, 'DD/MM/YYYY')) AS APERTURA
+                    , CA.FECHA_REGISTRO AS FECHA_ORD
+                    , CA.TASA_ANUAL AS TASA
+                    , 0 AS INTERES
+                    , NVL(DP.ABONOS, 0) AS ABONOS
+                    , NVL(DP.AJUSTES, 0) AS AJUSTES
+                    , NVL(RT.RETIROS, 0) AS RETIROS
+                    , NVL(RT.TRANSITO, 0) AS TRANSITO
+                    , NVL(DP.ABONOS, 0) - NVL(DP.AJUSTES, 0) - NVL(RT.RETIROS, 0) AS SALDO_ACTUAL
+                    , CASE WHEN CA.FECHA_REGISTRO IS NULL THEN 1 ELSE 0 END AS SIN_CONTRATO
+                FROM DATOS DT
+                    LEFT JOIN CONTRATOS_AHORRO CA ON CA.CDGNS = DT.CREDITO
+                    LEFT JOIN DEPOSITOS DP ON DP.CREDITO = DT.CREDITO
+                    LEFT JOIN RETIROS RT ON RT.CREDITO = DT.CREDITO
+                WHERE DP.ABONOS IS NOT NULL
+                    AND (
+                        TRUNC(CA.FECHA_REGISTRO) <= TO_DATE('{$fechaCorte}', 'YYYY-MM-DD')
+                        OR CA.FECHA_REGISTRO IS NULL
+                    )
+            )
+            , CREDITO_AGG AS (
+                SELECT CREDITO
+                    , MAX(CLIENTE) AS CLIENTE
+                    , MAX(CLIENTE_NOMBRE) AS CLIENTE_NOMBRE
+                    , MAX(SUCURSAL) AS SUCURSAL
+                    , MAX(SUCURSAL_NOMBRE) AS SUCURSAL_NOMBRE
+                    , MAX(REGION) AS REGION
+                    , MAX(REGION_NOMBRE) AS REGION_NOMBRE
+                    , MAX(EJECUTIVO) AS EJECUTIVO
+                    , MAX(EJECUTIVO_NOMBRE) AS EJECUTIVO_NOMBRE
+                    , MAX(APERTURA) AS APERTURA
+                    , MAX(ABONOS) AS ABONOS
+                    , MAX(AJUSTES) AS AJUSTES
+                    , MAX(RETIROS) AS RETIROS
+                    , MAX(TRANSITO) AS TRANSITO
+                    , MAX(SALDO_ACTUAL) AS SALDO_ACTUAL
+                    , MAX(INTERES) AS INTERES
+                    , MAX(TASA) AS TASA
+                    , MAX(SIN_CONTRATO) AS SIN_CONTRATO
+                FROM BASE
+                GROUP BY CREDITO
+            )
+        SQL;
+    }
+
+    public static function GetDetalleReporteAhorro($datos)
+    {
+        $filtros = self::preparaFiltrosReporteAhorro($datos);
+        if (!$filtros['ok']) {
+            return [];
+        }
+
+        $cte = self::cteBaseReporteAhorro($filtros['fechaCorte']);
+        $filtroSucursal = $filtros['filtroSucursal'];
+
+        $ejecutivo = preg_replace('/[^0-9A-Za-z]/', '', $datos['ejecutivo'] ?? '');
+        $filtroEjecutivo = $ejecutivo !== '' ? " AND DT.EJECUTIVO = '{$ejecutivo}' " : '';
+
+        $qry = <<<SQL
+            {$cte}
+            SELECT CREDITO
+                , CLIENTE
+                , CLIENTE_NOMBRE
+                , SUCURSAL
+                , SUCURSAL_NOMBRE
+                , EJECUTIVO
+                , EJECUTIVO_NOMBRE
+                , APERTURA
+                , TASA
+                , INTERES
+                , ABONOS
+                , AJUSTES
+                , RETIROS
+                , SALDO_ACTUAL
+                , TRANSITO
+            FROM BASE DT
+            WHERE 1 = 1
+                {$filtroSucursal}
+                {$filtroEjecutivo}
+            ORDER BY FECHA_ORD NULLS LAST
+        SQL;
+
+        try {
+            $db = new Database();
+            return $db->queryAll($qry) ?? [];
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    public static function GetEjecutivosReporteAhorro($datos)
+    {
+        $filtros = self::preparaFiltrosReporteAhorro($datos);
+        if (!$filtros['ok']) {
+            return self::Responde(false, $filtros['mensaje']);
+        }
+
+        $cte = self::cteBaseReporteAhorro($filtros['fechaCorte']);
+        $filtroSucursal = $filtros['filtroSucursal'];
+
+        $qry = <<<SQL
+            {$cte}
+            SELECT EJECUTIVO AS ID
+                , MAX(EJECUTIVO_NOMBRE) AS NOMBRE
+            FROM CREDITO_AGG DT
+            WHERE 1 = 1
+                {$filtroSucursal}
+                AND EJECUTIVO IS NOT NULL
+            GROUP BY EJECUTIVO
+            ORDER BY NOMBRE
+        SQL;
+
+        try {
+            $db = new Database();
+            $rows = $db->queryAll($qry) ?? [];
+            return self::Responde(true, 'Ejecutivos obtenidos', $rows);
+        } catch (Exception $e) {
+            return self::Responde(false, 'Error al obtener ejecutivos', null, $e->getMessage());
+        }
+    }
+
+    public static function GetConsultaDetalleReporteAhorro($datos)
+    {
+        $filtros = self::preparaFiltrosReporteAhorro($datos);
+        if (!$filtros['ok']) {
+            return self::Responde(false, $filtros['mensaje']);
+        }
+
+        $cte = self::cteBaseReporteAhorro($filtros['fechaCorte']);
+        $filtroSucursal = $filtros['filtroSucursal'];
+
+        $tipo = strtolower(trim($datos['tipoContrato'] ?? 'all'));
+        $filtroTipo = '';
+        if ($tipo === 'con') {
+            $filtroTipo = ' AND DT.SIN_CONTRATO = 0 ';
+        } elseif ($tipo === 'sin') {
+            $filtroTipo = ' AND DT.SIN_CONTRATO = 1 ';
+        }
+
+        $ejecutivo = preg_replace('/[^0-9A-Za-z]/', '', $datos['ejecutivo'] ?? '');
+        $filtroEjecutivo = $ejecutivo !== '' ? " AND DT.EJECUTIVO = '{$ejecutivo}' " : '';
+
+        $cliente = preg_replace('/[^0-9A-Za-z]/', '', $datos['cliente'] ?? '');
+        $filtroCliente = $cliente !== '' ? " AND DT.CLIENTE = '{$cliente}' " : '';
+
+        $qry = <<<SQL
+            {$cte}
+            SELECT CREDITO
+                , CLIENTE
+                , CLIENTE_NOMBRE
+                , SUCURSAL
+                , SUCURSAL_NOMBRE
+                , EJECUTIVO
+                , EJECUTIVO_NOMBRE
+                , APERTURA
+                , TASA
+                , INTERES
+                , ABONOS
+                , AJUSTES
+                , RETIROS
+                , SALDO_ACTUAL
+                , TRANSITO
+                , SIN_CONTRATO
+            FROM CREDITO_AGG DT
+            WHERE 1 = 1
+                {$filtroSucursal}
+                {$filtroTipo}
+                {$filtroEjecutivo}
+                {$filtroCliente}
+            ORDER BY SALDO_ACTUAL DESC
+        SQL;
+
+        try {
+            $db = new Database();
+            $filas = $db->queryAll($qry) ?? [];
+
+            $registros = count($filas);
+            $saldo = 0.0;
+            $abonos = 0.0;
+            foreach ($filas as $f) {
+                $saldo += (float) ($f['SALDO_ACTUAL'] ?? 0);
+                $abonos += (float) ($f['ABONOS'] ?? 0);
+            }
+
+            return self::Responde(true, 'Consulta detallada obtenida', [
+                'filas' => $filas,
+                'totales' => [
+                    'REGISTROS' => $registros,
+                    'SALDO_TOTAL' => $saldo,
+                    'ABONOS_TOTAL' => $abonos,
+                    'PROMEDIO' => $registros > 0 ? ($saldo / $registros) : 0,
+                ],
+            ]);
+        } catch (Exception $e) {
+            return self::Responde(false, 'Error al obtener la consulta detallada', null, $e->getMessage());
+        }
+    }
+
+    public static function GetDashboardReporteAhorro($datos)
+    {
+        $filtros = self::preparaFiltrosReporteAhorro($datos);
+        if (!$filtros['ok']) {
+            return self::Responde(false, $filtros['mensaje']);
+        }
+
+        $cte = self::cteBaseReporteAhorro($filtros['fechaCorte']);
+        $filtroSucursal = $filtros['filtroSucursal'];
+        $fechaCorte = $filtros['fechaCorte'];
+        $sucursal = $filtros['sucursal'];
+        $region = $filtros['region'];
+
+        $filtroSucMov = '';
+        if ($sucursal) {
+            $filtroSucMov = " AND NS.CDGCO = '{$sucursal}' ";
+        } elseif ($region) {
+            $filtroSucMov = " AND CO.CDGRG = '{$region}' ";
+        }
+
+        $qryResumen = <<<SQL
+            {$cte}
+            SELECT
+                (SELECT COUNT(*) FROM CREDITO_AGG DT WHERE 1 = 1 {$filtroSucursal}) AS TOTAL
+                , (SELECT NVL(SUM(CASE WHEN SIN_CONTRATO = 0 THEN 1 ELSE 0 END), 0) FROM CREDITO_AGG DT WHERE 1 = 1 {$filtroSucursal}) AS CONTRATOS
+                , (SELECT NVL(SUM(CASE WHEN SIN_CONTRATO = 1 THEN 1 ELSE 0 END), 0) FROM CREDITO_AGG DT WHERE 1 = 1 {$filtroSucursal}) AS SIN_CONTRATO
+                , (SELECT COUNT(*) FROM CREDITO_AGG DT WHERE 1 = 1 {$filtroSucursal}) AS CLIENTES
+                , (SELECT NVL(SUM(ABONOS), 0) FROM CREDITO_AGG DT WHERE 1 = 1 {$filtroSucursal}) AS ABONOS
+                , (SELECT NVL(SUM(AJUSTES), 0) FROM CREDITO_AGG DT WHERE 1 = 1 {$filtroSucursal}) AS AJUSTES
+                , (SELECT NVL(SUM(RETIROS), 0) FROM CREDITO_AGG DT WHERE 1 = 1 {$filtroSucursal}) AS RETIROS
+                , (SELECT NVL(SUM(TRANSITO), 0) FROM CREDITO_AGG DT WHERE 1 = 1 {$filtroSucursal}) AS TRANSITO
+                , (SELECT NVL(SUM(SALDO_ACTUAL), 0) FROM CREDITO_AGG DT WHERE 1 = 1 {$filtroSucursal}) AS SALDO_ACTUAL
+                , (SELECT NVL(SUM(INTERES), 0) FROM CREDITO_AGG DT WHERE 1 = 1 {$filtroSucursal}) AS INTERES
+                , (
+                    SELECT CASE
+                        WHEN NVL(SUM(CASE WHEN TASA IS NOT NULL AND SALDO_ACTUAL > 0 THEN SALDO_ACTUAL ELSE 0 END), 0) = 0 THEN 0
+                        ELSE ROUND(
+                            NVL(SUM(CASE WHEN TASA IS NOT NULL AND SALDO_ACTUAL > 0 THEN TASA * SALDO_ACTUAL ELSE 0 END), 0)
+                            / SUM(CASE WHEN TASA IS NOT NULL AND SALDO_ACTUAL > 0 THEN SALDO_ACTUAL ELSE 0 END)
+                        , 4)
+                      END
+                    FROM CREDITO_AGG DT
+                    WHERE 1 = 1 {$filtroSucursal}
+                  ) AS TASA_PROMEDIO
+            FROM DUAL
+        SQL;
+
+        $qrySucursal = <<<SQL
+            {$cte}
+            SELECT
+                NVL(SUCURSAL, 'N/D') AS SUCURSAL
+                , NVL(SUCURSAL_NOMBRE, 'SIN SUCURSAL') AS SUCURSAL_NOMBRE
+                , COUNT(*) AS CONTRATOS
+                , NVL(SUM(ABONOS), 0) AS ABONOS
+                , NVL(SUM(AJUSTES), 0) AS AJUSTES
+                , NVL(SUM(RETIROS), 0) AS RETIROS
+                , NVL(SUM(SALDO_ACTUAL), 0) AS SALDO_ACTUAL
+            FROM CREDITO_AGG DT
+            WHERE 1 = 1
+                {$filtroSucursal}
+            GROUP BY SUCURSAL, SUCURSAL_NOMBRE
+            ORDER BY SALDO_ACTUAL DESC
+        SQL;
+
+        $qryEjecutivos = <<<SQL
+            {$cte}
+            SELECT * FROM (
+                SELECT
+                    NVL(EJECUTIVO, 'N/D') AS EJECUTIVO
+                    , NVL(EJECUTIVO_NOMBRE, 'SIN EJECUTIVO') AS EJECUTIVO_NOMBRE
+                    , COUNT(*) AS CONTRATOS
+                    , NVL(SUM(SALDO_ACTUAL), 0) AS SALDO_ACTUAL
+                FROM CREDITO_AGG DT
+                WHERE 1 = 1
+                    {$filtroSucursal}
+                GROUP BY EJECUTIVO, EJECUTIVO_NOMBRE
+                ORDER BY SALDO_ACTUAL DESC
+            ) WHERE ROWNUM <= 10
+        SQL;
+
+        $qryClientes = <<<SQL
+            {$cte}
+            SELECT * FROM (
+                SELECT
+                    NVL(CLIENTE, 'N/D') AS CLIENTE
+                    , NVL(CLIENTE_NOMBRE, 'SIN CLIENTE') AS CLIENTE_NOMBRE
+                    , NVL(MAX(SUCURSAL_NOMBRE), 'SIN SUCURSAL') AS SUCURSAL_NOMBRE
+                    , NVL(SUM(SALDO_CREDITO), 0) AS SALDO_ACTUAL
+                FROM (
+                    SELECT CLIENTE
+                        , CLIENTE_NOMBRE
+                        , SUCURSAL_NOMBRE
+                        , CREDITO
+                        , MAX(SALDO_ACTUAL) AS SALDO_CREDITO
+                    FROM BASE DT
+                    WHERE 1 = 1
+                        {$filtroSucursal}
+                    GROUP BY CLIENTE, CLIENTE_NOMBRE, SUCURSAL_NOMBRE, CREDITO
+                )
+                GROUP BY CLIENTE, CLIENTE_NOMBRE
+                ORDER BY SALDO_ACTUAL DESC
+            ) WHERE ROWNUM <= 10
+        SQL;
+
+        $qryMensual = <<<SQL
+            SELECT PERIODO
+                , SUM(ABONOS) AS ABONOS
+                , SUM(RETIROS) AS RETIROS
+            FROM (
+                SELECT TO_CHAR(PD.FECHA, 'YYYY-MM') AS PERIODO
+                    , SUM(DECODE(PD.TIPO, 'A', 0, PD.MONTO)) AS ABONOS
+                    , 0 AS RETIROS
+                FROM PAGOSDIA PD
+                    LEFT JOIN NS ON NS.CODIGO = PD.CDGNS
+                    LEFT JOIN CO ON CO.CODIGO = NS.CDGCO
+                WHERE PD.ESTATUS = 'A'
+                    AND PD.TIPO IN ('A', 'B', 'F', 'E')
+                    AND TRUNC(PD.FECHA) BETWEEN ADD_MONTHS(TRUNC(TO_DATE('{$fechaCorte}', 'YYYY-MM-DD'), 'MM'), -11)
+                        AND TO_DATE('{$fechaCorte}', 'YYYY-MM-DD')
+                    {$filtroSucMov}
+                GROUP BY TO_CHAR(PD.FECHA, 'YYYY-MM')
+                UNION ALL
+                SELECT TO_CHAR(RA.FECHA_ENTREGA_REAL, 'YYYY-MM') AS PERIODO
+                    , 0 AS ABONOS
+                    , SUM(DECODE(RA.ESTATUS, 'E', RA.CANT_SOLICITADA, 0)) AS RETIROS
+                FROM RETIROS_AHORRO RA
+                    LEFT JOIN NS ON NS.CODIGO = RA.CDGNS
+                    LEFT JOIN CO ON CO.CODIGO = NS.CDGCO
+                WHERE RA.ESTATUS IN ('P', 'V', 'E')
+                    AND TRUNC(RA.FECHA_ENTREGA_REAL) BETWEEN ADD_MONTHS(TRUNC(TO_DATE('{$fechaCorte}', 'YYYY-MM-DD'), 'MM'), -11)
+                        AND TO_DATE('{$fechaCorte}', 'YYYY-MM-DD')
+                    {$filtroSucMov}
+                GROUP BY TO_CHAR(RA.FECHA_ENTREGA_REAL, 'YYYY-MM')
+            )
+            GROUP BY PERIODO
+            ORDER BY PERIODO
+        SQL;
+
+        try {
+            $db = new Database();
+            $resumen = $db->queryOne($qryResumen) ?? [];
+            $porSucursal = $db->queryAll($qrySucursal) ?? [];
+            $topEjecutivos = $db->queryAll($qryEjecutivos) ?? [];
+            $topClientes = $db->queryAll($qryClientes) ?? [];
+            $mensual = $db->queryAll($qryMensual) ?? [];
+
+            return self::Responde(true, 'Dashboard de ahorro obtenido correctamente', [
+                'resumen' => $resumen,
+                'porSucursal' => $porSucursal,
+                'topEjecutivos' => $topEjecutivos,
+                'topClientes' => $topClientes,
+                'mensual' => $mensual,
+            ]);
+        } catch (Exception $e) {
+            return self::Responde(false, 'Error al obtener el dashboard de ahorro', null, $e->getMessage());
+        }
+    }
 }

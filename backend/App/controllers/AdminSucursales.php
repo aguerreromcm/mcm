@@ -3196,4 +3196,69 @@ script;
     {
         echo AdminSucursalesDao::GetHistorialRetirosSucursal($_POST);
     }
+
+    public function ReporteAhorro()
+    {
+        $chartJs = '<script src="/js/Chart.min.js"></script>';
+        $extraCss = '<link href="/css/herramientas-productividad-op.css" rel="stylesheet">';
+        $extraFooter = <<<HTML
+        <script>
+            {$this->mensajes}
+            {$this->consultaServidor}
+            {$this->formatoMoneda}
+            {$this->descargaExcel}
+        </script>
+        <script src="/js/reporte-ahorro.js"></script>
+        HTML;
+
+        $ayer = date('Y-m-d', strtotime('-1 day'));
+        $catalogo = AdminSucursalesDao::GetCatalogoReporteAhorro();
+
+        View::set('header', $this->_contenedor->header(self::GetExtraHeader("Reporte de Ahorro", [$chartJs, $extraCss])));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::set('fechaCorte', $ayer);
+        View::set('catalogoJson', json_encode($catalogo, JSON_UNESCAPED_UNICODE));
+        View::render("caja_admin_reporteria_ahorro");
+    }
+
+    public function GetDashboardReporteAhorro()
+    {
+        echo AdminSucursalesDao::GetDashboardReporteAhorro($_POST);
+    }
+
+    public function GetConsultaDetalleReporteAhorro()
+    {
+        echo AdminSucursalesDao::GetConsultaDetalleReporteAhorro($_POST);
+    }
+
+    public function GetEjecutivosReporteAhorro()
+    {
+        echo AdminSucursalesDao::GetEjecutivosReporteAhorro($_POST);
+    }
+
+    public function excelReporteAhorro()
+    {
+        $estilos = \PHPSpreadsheet::GetEstilosExcel();
+
+        $columnas = [
+            \PHPSpreadsheet::ColumnaExcel('CREDITO', 'Crédito'),
+            \PHPSpreadsheet::ColumnaExcel('CLIENTE', 'Cliente'),
+            \PHPSpreadsheet::ColumnaExcel('CLIENTE_NOMBRE', 'Nombre cliente'),
+            \PHPSpreadsheet::ColumnaExcel('SUCURSAL', 'Sucursal'),
+            \PHPSpreadsheet::ColumnaExcel('SUCURSAL_NOMBRE', 'Nombre sucursal'),
+            \PHPSpreadsheet::ColumnaExcel('EJECUTIVO', 'Ejecutivo'),
+            \PHPSpreadsheet::ColumnaExcel('EJECUTIVO_NOMBRE', 'Nombre ejecutivo'),
+            \PHPSpreadsheet::ColumnaExcel('APERTURA', 'Apertura'),
+            \PHPSpreadsheet::ColumnaExcel('TASA', 'Tasa'),
+            \PHPSpreadsheet::ColumnaExcel('INTERES', 'Interés', ['estilo' => $estilos['moneda'], 'total' => true]),
+            \PHPSpreadsheet::ColumnaExcel('ABONOS', 'Abonos', ['estilo' => $estilos['moneda'], 'total' => true]),
+            \PHPSpreadsheet::ColumnaExcel('AJUSTES', 'Ajustes', ['estilo' => $estilos['moneda'], 'total' => true]),
+            \PHPSpreadsheet::ColumnaExcel('RETIROS', 'Retiros', ['estilo' => $estilos['moneda'], 'total' => true]),
+            \PHPSpreadsheet::ColumnaExcel('SALDO_ACTUAL', 'Saldo actual', ['estilo' => $estilos['moneda'], 'total' => true]),
+            \PHPSpreadsheet::ColumnaExcel('TRANSITO', 'Tránsito', ['estilo' => $estilos['moneda'], 'total' => true]),
+        ];
+
+        $filas = AdminSucursalesDao::GetDetalleReporteAhorro($_GET);
+        \PHPSpreadsheet::DescargaExcel('Reporte de Ahorro', 'Reporte', 'Detalle de ahorro', $columnas, $filas);
+    }
 }
