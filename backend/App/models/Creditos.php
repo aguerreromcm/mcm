@@ -130,26 +130,28 @@ sql;
         return $mysqli->queryAll($query);
     }
 
-    public static function SelectSucursalAllCreditoCambioSuc($noCredito, $ciclo = null)
+    public static function SelectCreditoReasignacion($noCredito, $ciclo = null)
     {
         $noCredito = self::normalizarNumeroCredito($noCredito);
         if ($noCredito === '') return null;
 
         $query = <<<SQL
             SELECT 
-                SN.CDGNS NO_CREDITO,
+                TRIM(SN.CDGNS) NO_CREDITO,
                 GET_NOMBRE_CLIENTE(SC.CDGCL) CLIENTE,
-                SN.CICLO,
+                TRIM(SN.CICLO) CICLO,
                 NVL(SN.CANTAUTOR, SN.CANTSOLIC) MONTO,
                 SN.SITUACION,
-                SN.CDGCO ID_SUCURSAL,
+                TRIM(SN.CDGCO) ID_SUCURSAL,
                 GET_NOMBRE_SUCURSAL(SN.CDGCO) SUCURSAL,
+                TRIM(SN.CDGOCPE) ID_ASESOR,
                 GET_NOMBRE_EMPLEADO(SN.CDGOCPE) EJECUTIVO
             FROM 
                 SN
                 LEFT JOIN SC ON SC.CDGNS = SN.CDGNS AND SC.CICLO = SN.CICLO AND SC.CANTSOLIC <> '9999'
             WHERE
-                SN.CDGNS = :credito
+                SN.CDGEM = 'EMPFIN'
+                AND SN.CDGNS = :credito
                 AND SN.CICLO FILTRO_CICLO
             ORDER BY
                 SN.INICIO DESC
@@ -163,7 +165,8 @@ sql;
             $db = new Database();
 
             if ($ciclo !== null) {
-                $query = str_replace('FILTRO_CICLO', '= :ciclo', $query);
+                $query = str_replace('SN.CICLO FILTRO_CICLO', 'TRIM(SN.CICLO) = :ciclo', $query);
+                $ciclo = trim((string) $ciclo);
                 $params['ciclo'] = $ciclo;
                 return $db->queryOne($query, $params);
             } else {
@@ -189,7 +192,7 @@ sql;
         return $noCredito;
     }
 
-    public static function ListaSucursales()
+    public static function ListaSucursalesReasignacion()
     {
         //////cambiar el parametro CDGPE
         $query = <<<sql
@@ -212,15 +215,38 @@ sql;
         return $mysqli->queryAll($query);
     }
 
-    public static function UpdateSucursal($sucursal_c)
+    public static function ListaAsesoresReasignacion()
     {
+        $query = <<<SQL
+            SELECT
+                PE.CODIGO ID_ASESOR,
+                CONCATENA_NOMBRE(PE.NOMBRE1, PE.NOMBRE2, PE.PRIMAPE, PE.SEGAPE) ASESOR
+            FROM PE
+            WHERE PE.CDGEM = 'EMPFIN'
+              AND PE.ACTIVO = 'S'
+              AND (PE.BLOQUEO = 'N' OR PE.BLOQUEO IS NULL)
+            ORDER BY ASESOR ASC
+        SQL;
 
-        $credito = $sucursal_c->_credito;
-        $ciclo = $sucursal_c->_ciclo;
-        $nueva_sucursal = $sucursal_c->_nueva_sucursal;
+        $db = new Database();
+        return $db->queryAll($query);
+    }
 
-        $mysqli = new Database();
-        return $mysqli->queryProcedureActualizaSucursal($credito, $ciclo, $nueva_sucursal);
+    public static function EjecutarReasignacion(
+        $credito,
+        $ciclo,
+        $nuevoAsesor,
+        $nuevaSucursal,
+        $usuario
+    ) {
+        $db = new Database();
+        return $db->queryProcedureReasignaciones(
+            $credito,
+            $ciclo,
+            $nuevoAsesor,
+            $nuevaSucursal,
+            $usuario
+        );
     }
 
     public static function ConsultarPagosAdministracionOne($noCredito)

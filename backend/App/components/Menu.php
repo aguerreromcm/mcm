@@ -120,7 +120,7 @@ class Menu
             $this->enlace('Calculo Descuento Telaraña', '/Promociones/Telarana/', ['ADMIN', 'GOBA', 'MAPH']),
             $this->enlace('Registro Telaraña', '/Validaciones/RegistroTelarana/', ['ADMIN', 'GOBA', 'MAPH']),
             $this->enlace('Actualización de Créditos', '/Creditos/ActualizaCredito/', ['ADMIN', 'GOBA', 'MAPH']),
-            $this->enlace('Cambio de Sucursal', '/Creditos/CambioSucursal/', ['ADMIN', 'CAMAG', 'GOBA', 'MAPH']),
+            $this->enlace('Reasignación', '/Creditos/Reasignacion/', ['ADMIN', 'CAMAG', 'GOBA', 'MAPH']),
             $this->enlace('Cancelación de Ref', '/CancelaRef/', ['ADMIN', 'CAMAG', 'GOBA', 'MAPH']),
             $this->enlace('Corrección Mov Ajustes', '/CorreccionAjustes/', ['ADMIN', 'CAMAG', 'GOBA', 'MAPH']),
             $this->enlace('Consulta Clientes Solicitudes', '/Cultiva/', ['ADMIN', 'CAMAG', 'GOBA', 'MAPH']),

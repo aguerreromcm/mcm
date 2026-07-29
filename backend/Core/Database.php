@@ -744,34 +744,48 @@ class Database
         }
     }
 
-    public function queryProcedureActualizaSucursal($n_credito_p, $ciclo_p, $nueva_suc_p)
-    {
+    public function queryProcedureReasignaciones(
+        $credito,
+        $ciclo,
+        $nuevoAsesor,
+        $nuevaSucursal,
+        $usuario
+    ) {
+        $estatus = '';
+        $resultado = '';
+        $nuevoAsesor = trim((string) $nuevoAsesor);
+        $nuevaSucursal = trim((string) $nuevaSucursal);
 
-        $empresa = "EMPFIN";
-        $no_credito = $n_credito_p;
-        $ciclo = $ciclo_p;
-        $nuevaSucursal = $nueva_suc_p;
-        $resultado = "";
+        $sql = 'BEGIN SP_REASIGNACIONES(
+            :p_credito,
+            :p_ciclo,
+            :p_nuevo_asesor,
+            :p_nueva_sucursal,
+            :p_usuario,
+            :p_estatus,
+            :p_resultado
+        ); END;';
 
-        $query_text = "CALL SPACTUALIZASUC(?, ?, ?, ?, ?)";
-        $stmt = $this->db_activa->prepare($query_text);
-        $stmt->bindParam(1, $empresa, PDO::PARAM_STR);
-        $stmt->bindParam(2, $no_credito, PDO::PARAM_STR);
-        $stmt->bindParam(3, $ciclo, PDO::PARAM_STR);
-        $stmt->bindParam(4, $nuevaSucursal, PDO::PARAM_STR);
-        $stmt->bindParam(5, $resultado, PDO::PARAM_STR | PDO::PARAM_INPUT_OUTPUT, 100);
+        try {
+            $stmt = $this->db_activa->prepare($sql);
+            $stmt->bindValue(':p_credito', trim((string) $credito), PDO::PARAM_STR);
+            $stmt->bindValue(':p_ciclo', trim((string) $ciclo), PDO::PARAM_STR);
+            $stmt->bindValue(':p_nuevo_asesor', $nuevoAsesor !== '' ? $nuevoAsesor : null, $nuevoAsesor !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
+            $stmt->bindValue(':p_nueva_sucursal', $nuevaSucursal !== '' ? $nuevaSucursal : null, $nuevaSucursal !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
+            $stmt->bindValue(':p_usuario', trim((string) $usuario), PDO::PARAM_STR);
+            $stmt->bindParam(':p_estatus', $estatus, PDO::PARAM_STR | PDO::PARAM_INPUT_OUTPUT, 20);
+            $stmt->bindParam(':p_resultado', $resultado, PDO::PARAM_STR | PDO::PARAM_INPUT_OUTPUT, 4000);
+            $stmt->execute();
 
-        $result = $stmt->execute();
-
-        if ($result) {
-            //print_r($stmt->fetchAll(PDO::FETCH_ASSOC));
-            return $resultado;
-            //var_dump($resultado);
-
-        } else {
-            echo "\nPDOStatement::errorInfo():\n";
-            $arr = $stmt->errorInfo();
-            print_r($arr);
+            return [
+                'ESTATUS' => trim((string) $estatus),
+                'RESULTADO' => trim((string) $resultado),
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'ESTATUS' => 'ERROR',
+                'RESULTADO' => $e->getMessage(),
+            ];
         }
     }
 
