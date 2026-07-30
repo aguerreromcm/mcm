@@ -219,8 +219,9 @@ sql;
     {
         $query = <<<SQL
             SELECT
-                PE.CODIGO ID_ASESOR,
-                CONCATENA_NOMBRE(PE.NOMBRE1, PE.NOMBRE2, PE.PRIMAPE, PE.SEGAPE) ASESOR
+                TRIM(PE.CODIGO) ID_ASESOR,
+                CONCATENA_NOMBRE(PE.NOMBRE1, PE.NOMBRE2, PE.PRIMAPE, PE.SEGAPE) ASESOR,
+                TRIM(PE.CDGCO) ID_SUCURSAL
             FROM PE
             WHERE PE.CDGEM = 'EMPFIN'
               AND PE.ACTIVO = 'S'

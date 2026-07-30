@@ -437,25 +437,8 @@ $totalRegistros = count($registros);
                         <div class="reasignacion-credito-modal" id="reasignacion_resumen_credito"></div>
 
                         <div class="form-group">
-                            <label for="reasignacion_asesor">Nuevo asesor</label>
-                            <select class="form-control" id="reasignacion_asesor" name="asesor">
-                                <option value="">Sin cambio de asesor</option>
-                                <?php foreach ($asesores as $asesor) : ?>
-                                    <option value="<?php echo htmlspecialchars((string) ($asesor['ID_ASESOR'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                                        <?php echo htmlspecialchars(
-                                            (string) ($asesor['ID_ASESOR'] ?? '') . ' - ' . (string) ($asesor['ASESOR'] ?? ''),
-                                            ENT_QUOTES,
-                                            'UTF-8'
-                                        ); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
                             <label for="reasignacion_sucursal">Nueva sucursal</label>
                             <select class="form-control" id="reasignacion_sucursal" name="sucursal">
-                                <option value="">Sin cambio de sucursal</option>
                                 <?php foreach ($sucursales as $sucursal) : ?>
                                     <option value="<?php echo htmlspecialchars((string) ($sucursal['ID_SUCURSAL'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                         <?php echo htmlspecialchars(
@@ -465,6 +448,13 @@ $totalRegistros = count($registros);
                                         ); ?>
                                     </option>
                                 <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="reasignacion_asesor">Nuevo asesor</label>
+                            <select class="form-control" id="reasignacion_asesor" name="asesor">
+                                <option value="">Selecciona un asesor</option>
                             </select>
                         </div>
 
@@ -481,27 +471,101 @@ $totalRegistros = count($registros);
 </div>
 
 <script>
-var reasignacionActual = { asesor: '', sucursal: '' };
+<?php
+$catalogoAsesores = [];
+foreach ($asesores as $asesorCatalogo) {
+    $catalogoAsesores[] = [
+        'id' => trim((string) ($asesorCatalogo['ID_ASESOR'] ?? '')),
+        'nombre' => trim((string) ($asesorCatalogo['ASESOR'] ?? '')),
+        'sucursal' => trim((string) ($asesorCatalogo['ID_SUCURSAL'] ?? '')),
+    ];
+}
+?>
+var reasignacionActual = { asesor: '', sucursal: '', nombreAsesor: '' };
+var asesoresReasignacion = <?php echo json_encode($catalogoAsesores, JSON_UNESCAPED_UNICODE); ?>;
+
+function escaparHtml(texto) {
+    return $('<div>').text(texto == null ? '' : String(texto)).html();
+}
+
+function sucursalDestinoModal() {
+    return String($('#reasignacion_sucursal').val() || '');
+}
+
+function cambiaSucursalModal() {
+    var sucursal = sucursalDestinoModal();
+    return sucursal !== '' && sucursal !== reasignacionActual.sucursal;
+}
+
+function refrescarAsesoresModal(asesorPreferido) {
+    var $select = $('#reasignacion_asesor');
+    var sucursal = sucursalDestinoModal();
+    var cambiaSucursal = cambiaSucursalModal();
+    var preferido = String(asesorPreferido || '');
+
+    $select.empty();
+    if (!cambiaSucursal) {
+        $select.append($('<option>', { value: '', text: 'Sin cambio de asesor' }));
+    } else {
+        $select.append($('<option>', { value: '', text: 'Selecciona un asesor de la sucursal' }));
+    }
+
+    asesoresReasignacion.forEach(function (asesor) {
+        if (String(asesor.sucursal || '') !== sucursal) {
+            return;
+        }
+        $select.append($('<option>', {
+            value: asesor.id,
+            text: asesor.id + ' - ' + asesor.nombre
+        }));
+    });
+
+    // Si el asesor actual no viene en PE.CDGCO de la sucursal del crédito, igual lo mostramos
+    // para poder dejar "sin cambio" al abrir el modal.
+    if (!cambiaSucursal
+        && reasignacionActual.asesor
+        && $select.find('option').filter(function () {
+            return String($(this).val()) === reasignacionActual.asesor;
+        }).length === 0) {
+        $select.append($('<option>', {
+            value: reasignacionActual.asesor,
+            text: reasignacionActual.asesor
+                + (reasignacionActual.nombreAsesor ? ' - ' + reasignacionActual.nombreAsesor : '')
+        }));
+    }
+
+    if (preferido && $select.find('option').filter(function () {
+        return String($(this).val()) === preferido;
+    }).length) {
+        $select.val(preferido);
+    } else if (!cambiaSucursal) {
+        $select.val(reasignacionActual.asesor);
+    } else {
+        $select.val('');
+    }
+}
 
 function abrirReasignacion(credito, ciclo, cliente, idAsesor, idSucursal, nombreAsesor, nombreSucursal) {
     document.getElementById('reasignacion_credito').value = credito;
     document.getElementById('reasignacion_ciclo').value = ciclo;
     reasignacionActual = {
         asesor: String(idAsesor || ''),
-        sucursal: String(idSucursal || '')
+        sucursal: String(idSucursal || ''),
+        nombreAsesor: String(nombreAsesor || '')
     };
-    document.getElementById('reasignacion_asesor').value = reasignacionActual.asesor;
     document.getElementById('reasignacion_sucursal').value = reasignacionActual.sucursal;
+    refrescarAsesoresModal(reasignacionActual.asesor);
     $('#reasignacion_resumen_credito').html(
-        '<strong>Crédito ' + $('<div>').text(credito).html() + '</strong>'
-        + ' &middot; Ciclo ' + $('<div>').text(ciclo).html()
-        + '<br><span class="text-muted">' + $('<div>').text(cliente || '').html() + '</span>'
+        '<strong>Crédito ' + escaparHtml(credito) + '</strong>'
+        + ' &middot; Ciclo ' + escaparHtml(ciclo)
+        + '<br><span class="text-muted">' + escaparHtml(cliente || '') + '</span>'
         + '<br><span class="text-muted">Asesor actual: '
-        + $('<div>').text(nombreAsesor || '—').html()
+        + escaparHtml(nombreAsesor || '—')
         + ' &middot; Sucursal actual: '
-        + $('<div>').text(nombreSucursal || '—').html()
+        + escaparHtml(nombreSucursal || '—')
         + '</span>'
     );
+    $('#btn_guardar_reasignacion').prop('disabled', false);
     $('#modal_reasignacion').modal('show');
 }
 
@@ -546,20 +610,42 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    $('#reasignacion_sucursal').on('change', function () {
+        refrescarAsesoresModal('');
+    });
+
     $('#form_reasignacion_individual').on('submit', function (event) {
         event.preventDefault();
-        var asesor = String($('#reasignacion_asesor').val() || '');
-        var sucursal = String($('#reasignacion_sucursal').val() || '');
-        if (asesor === reasignacionActual.asesor) {
-            asesor = '';
-        }
-        if (sucursal === reasignacionActual.sucursal) {
-            sucursal = '';
-        }
-        if (!asesor && !sucursal) {
-            swal('Selecciona un asesor, una sucursal o ambos distintos a los actuales.', { icon: 'warning' });
+        var asesorSeleccionado = String($('#reasignacion_asesor').val() || '');
+        var sucursalSeleccionada = String($('#reasignacion_sucursal').val() || '');
+        var cambiaSucursal = sucursalSeleccionada !== ''
+            && sucursalSeleccionada !== reasignacionActual.sucursal;
+        var cambiaAsesor = asesorSeleccionado !== ''
+            && asesorSeleccionado !== reasignacionActual.asesor;
+
+        if (cambiaSucursal && !cambiaAsesor) {
+            swal('Si cambias la sucursal, también debes seleccionar un asesor de esa sucursal.', { icon: 'warning' });
             return;
         }
+
+        if (!cambiaSucursal && !cambiaAsesor) {
+            swal('Selecciona un asesor distinto al actual, o cambia de sucursal y de asesor.', { icon: 'warning' });
+            return;
+        }
+
+        if (cambiaAsesor) {
+            var pertenece = asesoresReasignacion.some(function (asesor) {
+                return String(asesor.id) === asesorSeleccionado
+                    && String(asesor.sucursal) === sucursalSeleccionada;
+            });
+            if (!pertenece && !(asesorSeleccionado === reasignacionActual.asesor && !cambiaSucursal)) {
+                swal('El asesor seleccionado no pertenece a la sucursal elegida.', { icon: 'warning' });
+                return;
+            }
+        }
+
+        var asesor = cambiaAsesor ? asesorSeleccionado : '';
+        var sucursal = cambiaSucursal ? sucursalSeleccionada : '';
         var credito = $('#reasignacion_credito').val();
         var ciclo = $('#reasignacion_ciclo').val();
 
