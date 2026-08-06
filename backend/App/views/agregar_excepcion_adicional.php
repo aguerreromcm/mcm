@@ -1,141 +1,139 @@
 <?php echo $header; ?>
 
-<div class="right_col" style="color: #000;">
+<?php
+$cdgnsBusqueda = isset($cdgns) ? (string) $cdgns : '';
+$ConsultaDatos = (isset($ConsultaDatos) && is_array($ConsultaDatos)) ? $ConsultaDatos : null;
+$ConsultaActivos = (isset($ConsultaActivos) && is_array($ConsultaActivos)) ? $ConsultaActivos : [];
+$mensajeError = isset($mensaje_error) ? (string) $mensaje_error : '';
+$creditoEncontrado = !empty($ConsultaDatos['NO_CREDITO']);
+$tieneExcepciones = !empty($ConsultaActivos['ID_EXCEPCION']);
+$exc = [
+    'uno'    => !empty($ConsultaActivos['EXC_UNO']) && $ConsultaActivos['EXC_UNO'] === 'S',
+    'dos'    => !empty($ConsultaActivos['EXC_DOS']) && $ConsultaActivos['EXC_DOS'] === 'S',
+    'tres'   => !empty($ConsultaActivos['EXC_TRES']) && $ConsultaActivos['EXC_TRES'] === 'S',
+    'cuatro' => !empty($ConsultaActivos['EXC_CUATRO']) && $ConsultaActivos['EXC_CUATRO'] === 'S',
+    'cinco'  => !empty($ConsultaActivos['EXC_CINCO']) && $ConsultaActivos['EXC_CINCO'] === 'S',
+    'seis'   => !empty($ConsultaActivos['EXC_SEIS']) && $ConsultaActivos['EXC_SEIS'] === 'S',
+];
+$politicas = [
+    ['id' => 'exc_ciclo',   'name' => 'exc_ciclo',   'checked' => $exc['uno'],    'texto' => 'Excepción: Política de ciclo mayor a 04.'],
+    ['id' => 'exc_semanas', 'name' => 'exc_semanas', 'checked' => $exc['dos'],    'texto' => 'Excepción: No cumple con las semanas necesarias para continuar.'],
+    ['id' => 'exc_rango',   'name' => 'exc_rango',   'checked' => $exc['tres'],   'texto' => 'Excepción: Cliente fuera del rango de semanas para crédito adicional.'],
+    ['id' => 'exc_atraso',  'name' => 'exc_atraso',  'checked' => $exc['cuatro'], 'texto' => 'Excepción: Días de atraso mayores a lo permitido.'],
+    ['id' => 'exc_5pagos',  'name' => 'exc_5pagos',  'checked' => $exc['cinco'],  'texto' => 'Excepción: No cumple con los 5 pagos requeridos.'],
+    ['id' => 'exc_ahorro',  'name' => 'exc_ahorro',  'checked' => $exc['seis'],   'texto' => 'Excepción: No cumple con la política de ahorro.'],
+];
+$marcadas = count(array_filter($politicas, function ($p) { return !empty($p['checked']); }));
+?>
 
-    <form onsubmit="enviar_add(); return false" id="Add">
-
-        <!-- Hidden para enviar datos del cliente -->
-        <input type="hidden" name="no_credito" id="no_credito" value="<?= $ConsultaDatos['NO_CREDITO'] ?>">
-        <input type="hidden" name="cliente" id="cliente" value="<?= $ConsultaDatos['CLIENTE'] ?>">
-        <input type="hidden" name="sucursal" id="sucursal" value="<?= $ConsultaDatos['SUCURSAL'] ?>">
-        <input type="hidden" name="ejecutivo_nombre" id="ejecutivo_nombre" value="<?= $ConsultaDatos['EJECUTIVO'] ?>">
-        <input type="hidden" name="ciclo" id="ciclo" value="<?= $ConsultaDatos['CICLO'] ?>">
-
-
-        <!-- Panel principal -->
-        <div class="panel panel-body"
-             style="margin-bottom: 0px; background: #f9f9f9; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 20px;">
-
-            <div class="x_title">
-                <a href="/AhorroSimple/ExepcionesMXT/" style="text-decoration: none; color: inherit;">
-                    <label style="font-size: 28px; font-weight: bold; cursor: pointer;">
-                        📊 Agregar Excepciones para Créditos Adicionales Más por Ti
-                    </label>
-                </a>
-                <div class="clearfix"></div>
+<div class="right_col">
+    <div class="exc-mxt-page">
+        <div class="page">
+            <div class="page-header">
+                <div>
+                    <h1>Excepciones MXT</h1>
+                    <p>Configura excepciones para créditos adicionales Más por Ti</p>
+                </div>
             </div>
 
-            <div class="card col-md-12 mb-3" style="padding: 15px;">
-
-                <div class="row">
-
-                    <!-- INFO -->
-                    <div class="tile_count col-sm-12" style="margin-bottom: 10px;">
-
-                        <div class="col-md-4 col-sm-4 tile_stats_count">
-                            <span class="count_top" style="font-size: 15px;">
-                                <i class="fa fa-user-circle"></i> Cliente
-                            </span>
-                            <div class="count" style="font-size: 16px; font-weight: bold;">
-                                (<?= $ConsultaDatos['NO_CREDITO'] ?>) - <?= $ConsultaDatos['CLIENTE'] ?>
-                            </div>
-                        </div>
-
-                        <div class="col-md-2 col-sm-2 tile_stats_count">
-                            <span class="count_top" style="font-size: 15px;">
-                                <i class="fa fa-building"></i> Sucursal
-                            </span>
-                            <div class="count" style="font-size: 16px; font-weight: bold;">
-                                <?= $ConsultaDatos['SUCURSAL'] ?>
-                            </div>
-                        </div>
-
-                        <div class="col-md-2 col-sm-2 tile_stats_count">
-                            <span class="count_top" style="font-size: 15px;">
-                                <i class="fa fa-user-tie"></i> Ejecutivo
-                            </span>
-                            <div class="count" style="font-size: 16px; font-weight: bold;">
-                                <?= $ConsultaDatos['EJECUTIVO']; ?>
-                            </div>
-                        </div>
-
+            <div class="toolbar<?= $creditoEncontrado ? ' toolbar--con-meta' : '' ?>">
+                <form action="/AhorroSimple/ExepcionesMXT/" method="GET" class="tb-search">
+                    <label for="cdgns" class="tb-lbl">Número de crédito</label>
+                    <div class="tb-search-line">
+                        <input type="text"
+                               class="form-control"
+                               id="cdgns"
+                               name="cdgns"
+                               maxlength="12"
+                               autocomplete="off"
+                               autofocus
+                               required
+                               placeholder="Ej. 006592"
+                               value="<?= htmlspecialchars($cdgnsBusqueda, ENT_QUOTES, 'UTF-8') ?>">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fa fa-search"></i> Buscar
+                        </button>
                     </div>
+                </form>
 
-                    <!-- CHECKBOXES -->
-                    <div class="col-md-12" style="margin-top: 1px;">
-                        <div style="
-                            background: #ffffff;
-                            padding: 20px;
-                            border-radius: 12px;
-                            border: 1px solid #ccc;
-                            font-size: 20px;
-                            line-height: 1.5;
-                        ">
-
-                            <div class="checkbox" style="margin-bottom: 12px;">
-                                <label style="font-size: 20px;">
-                                    <input type="checkbox" name="exc_ciclo" id="exc_ciclo"
-                                           style="transform: scale(1.3); margin-right: 10px;" <?= (!empty($ConsultaActivos['EXC_UNO']) && $ConsultaActivos['EXC_UNO'] === 'S') ? 'checked' : '' ?>>
-                                    Excepción: Política de ciclo mayor a 04.
-                                </label>
-                            </div>
-
-                            <div class="checkbox" style="margin-bottom: 12px;">
-                                <label style="font-size: 20px;">
-                                    <input type="checkbox" name="exc_semanas" id="exc_semanas"
-                                           style="transform: scale(1.3); margin-right: 10px;" <?= (!empty($ConsultaActivos['EXC_DOS']) && $ConsultaActivos['EXC_DOS'] === 'S') ? 'checked' : '' ?>>
-                                    Excepción: No cumple con las semanas necesarias para continuar.
-                                </label>
-                            </div>
-
-                            <div class="checkbox" style="margin-bottom: 12px;">
-                                <label style="font-size: 20px;">
-                                    <input type="checkbox" name="exc_rango" id="exc_rango"
-                                           style="transform: scale(1.3); margin-right: 10px;"
-                                        <?= (!empty($ConsultaActivos['EXC_TRES']) && $ConsultaActivos['EXC_TRES'] === 'S') ? 'checked' : '' ?>>
-                                    Excepción: Cliente fuera del rango de semanas para crédito adicional.
-                                </label>
-                            </div>
-
-                            <div class="checkbox" style="margin-bottom: 12px;">
-                                <label style="font-size: 20px;">
-                                    <input type="checkbox" name="exc_atraso" id="exc_atraso"
-                                           style="transform: scale(1.3); margin-right: 10px;" <?= (!empty($ConsultaActivos['EXC_CUATRO']) && $ConsultaActivos['EXC_CUATRO'] === 'S') ? 'checked' : '' ?>>
-                                    Excepción: Días de atraso mayores a lo permitido.
-                                </label>
-                            </div>
-
-                            <div class="checkbox" style="margin-bottom: 12px;">
-                                <label style="font-size: 20px;">
-                                    <input type="checkbox" name="exc_5pagos" id="exc_5pagos"
-                                           style="transform: scale(1.3); margin-right: 10px;" <?= (!empty($ConsultaActivos['EXC_CINCO']) && $ConsultaActivos['EXC_CINCO'] === 'S') ? 'checked' : '' ?>>
-                                    Excepción: No cumple con los 5 pagos requeridos.
-                                </label>
-                            </div>
-
-                            <div class="checkbox">
-                                <label style="font-size: 20px;">
-                                    <input type="checkbox" name="exc_ahorro" id="exc_ahorro"
-                                           style="transform: scale(1.3); margin-right: 10px;" <?= (!empty($ConsultaActivos['EXC_SEIS']) && $ConsultaActivos['EXC_SEIS'] === 'S') ? 'checked' : '' ?>>
-                                    Excepción: No cumple con la política de ahorro.
-                                </label>
-                            </div>
-
+                <?php if ($creditoEncontrado) : ?>
+                    <div class="tb-sep" aria-hidden="true"></div>
+                    <div class="tb-meta">
+                        <div class="tb-cell">
+                            <span class="tb-lbl"><i class="fa fa-user"></i> Cliente</span>
+                            <span class="tb-val"><?= htmlspecialchars((string) $ConsultaDatos['CLIENTE'], ENT_QUOTES, 'UTF-8') ?></span>
+                        </div>
+                        <div class="tb-cell">
+                            <span class="tb-lbl"><i class="fa fa-building"></i> Sucursal</span>
+                            <span class="tb-val"><?= htmlspecialchars((string) $ConsultaDatos['SUCURSAL'], ENT_QUOTES, 'UTF-8') ?></span>
+                        </div>
+                        <div class="tb-cell">
+                            <span class="tb-lbl"><i class="fa fa-id-badge"></i> Ejecutivo</span>
+                            <span class="tb-val"><?= htmlspecialchars((string) $ConsultaDatos['EJECUTIVO'], ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </div>
-
-                </div>
-
-                <!-- BOTÓN ENVIAR -->
-                <div class="col-md-12 text-center" style="margin-top: 25px;">
-                    <button type="submit" class="btn btn-success btn-lg" style="padding: 10px 25px; font-size: 20px;">
-                        ✔ Guardar Excepciones
-                    </button>
-                </div>
-
+                <?php endif; ?>
             </div>
+
+            <?php if ($mensajeError !== '') : ?>
+                <div class="alert alert-warning" role="alert">
+                    <?= htmlspecialchars($mensajeError, ENT_QUOTES, 'UTF-8') ?>
+                </div>
+            <?php endif; ?>
+
+            <?php if (!$creditoEncontrado && $cdgnsBusqueda === '' && $mensajeError === '') : ?>
+                <div class="exc-empty">
+                    <div class="exc-empty-icon"><i class="fa fa-search"></i></div>
+                    <p>Busca un crédito tradicional para configurar sus excepciones.</p>
+                    <small>Si ya tiene excepciones registradas se actualizarán; si no, se creará un nuevo registro.</small>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($creditoEncontrado) : ?>
+                <form onsubmit="enviar_add(); return false" id="Add">
+                    <input type="hidden" name="no_credito" id="no_credito" value="<?= htmlspecialchars((string) $ConsultaDatos['NO_CREDITO'], ENT_QUOTES, 'UTF-8') ?>">
+                    <input type="hidden" name="cliente" id="cliente" value="<?= htmlspecialchars((string) $ConsultaDatos['CLIENTE'], ENT_QUOTES, 'UTF-8') ?>">
+                    <input type="hidden" name="sucursal" id="sucursal" value="<?= htmlspecialchars((string) $ConsultaDatos['SUCURSAL'], ENT_QUOTES, 'UTF-8') ?>">
+                    <input type="hidden" name="ejecutivo_nombre" id="ejecutivo_nombre" value="<?= htmlspecialchars((string) $ConsultaDatos['EJECUTIVO'], ENT_QUOTES, 'UTF-8') ?>">
+                    <input type="hidden" name="ciclo" id="ciclo" value="<?= htmlspecialchars((string) $ConsultaDatos['CICLO'], ENT_QUOTES, 'UTF-8') ?>">
+
+                    <div class="panel-card">
+                        <div class="head">
+                            <div class="head-left">
+                                <h4>Políticas a exceptuar</h4>
+                                <span class="head-badge" id="excCountBadge"><?= (int) $marcadas ?> de 6</span>
+                            </div>
+                        </div>
+                        <div class="body">
+                            <div class="exc-list" id="excList">
+                                <?php foreach ($politicas as $i => $p) : ?>
+                                    <label class="exc-item<?= !empty($p['checked']) ? ' is-on' : '' ?>" for="<?= htmlspecialchars($p['id'], ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="checkbox"
+                                               class="exc-check"
+                                               name="<?= htmlspecialchars($p['name'], ENT_QUOTES, 'UTF-8') ?>"
+                                               id="<?= htmlspecialchars($p['id'], ENT_QUOTES, 'UTF-8') ?>"
+                                               <?= !empty($p['checked']) ? 'checked' : '' ?>>
+                                        <span class="exc-num"><?= str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT) ?></span>
+                                        <span class="exc-box" aria-hidden="true"><i class="fa fa-check"></i></span>
+                                        <span class="exc-item-title"><?= htmlspecialchars($p['texto'], ENT_QUOTES, 'UTF-8') ?></span>
+                                    </label>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                        <div class="foot">
+                            <span class="foot-hint" id="excCountHint">
+                                <?= $marcadas > 0 ? $marcadas . ' excepción(es) seleccionada(s)' : 'Ninguna excepción seleccionada' ?>
+                            </span>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fa <?= $tieneExcepciones ? 'fa-save' : 'fa-plus' ?>"></i>
+                                <?= $tieneExcepciones ? 'Actualizar excepciones' : 'Guardar excepciones' ?>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            <?php endif; ?>
         </div>
-    </form>
+    </div>
 </div>
 
 <?php echo $footer; ?>

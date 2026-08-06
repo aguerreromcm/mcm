@@ -1,11 +1,74 @@
 /* Archivo: custom_menu.css
    Correcciones de scroll para el menú lateral (sidebar) */
 
+/* Logo MCM: sin recorte y ligeramente más abajo */
+.left_col .nav_title {
+  height: auto;
+  min-height: 68px;
+  overflow: visible;
+}
+
+.left_col .nav_title .site_title {
+  overflow: visible !important;
+  height: auto !important;
+  min-height: 68px;
+  line-height: normal !important;
+  padding: 8px 8px 8px !important;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.left_col .nav_title .site_title #img_home {
+  width: 210px;
+  max-width: 92%;
+  height: auto;
+  display: block;
+  margin-top: 2px;
+  object-fit: contain;
+}
+
 /* Hacemos que la sección del menú tenga altura limitada y permita scroll */
 .main_menu_side .menu_section {
   max-height: calc(100vh - 200px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Ítems e iconos del menú: mismo tamaño que en la última versión (sin forzar agrande) */
+.nav.side-menu > li > a {
+  font-size: 13px;
+  line-height: 1.3;
+  padding: 13px 15px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.nav.side-menu > li > a > i:first-child,
+.nav.side-menu > li > a > i.glyphicon {
+  font-size: 13px;
+  width: 1.15em;
+  text-align: center;
+  flex: 0 0 auto;
+  line-height: 1;
+}
+
+.nav.side-menu > li > a > span.fa.fa-chevron-down {
+  font-size: 10px;
+  margin-top: 0;
+  margin-left: auto;
+  float: none;
+}
+
+.nav.child_menu > li > a {
+  font-size: 13px;
+  line-height: 1.3;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 /* Pequeño ajuste: asegurar que los submenús no oculten el scroll */

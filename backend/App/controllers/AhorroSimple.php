@@ -304,70 +304,125 @@ class AhorroSimple extends Controller
 
     public function ExepcionesMXT()
     {
-        $extraHeader = self::GetExtraHeader('Exepciones Adicional MXT');
+        $extraCss = '<link href="/css/excepciones-mxt.css" rel="stylesheet">';
+        $extraHeader = self::GetExtraHeader('Exepciones Adicional MXT', [$extraCss]);
 
         $extraFooter = <<<HTML
         <script>
-            function getParameterByName(name) {
-                name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]")
-                var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
-                    results = regex.exec(location.search)
-                return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "))
+            function actualizarContadorExcepciones() {
+                var checks = document.querySelectorAll('#excList .exc-check');
+                var total = checks.length;
+                var marcadas = 0;
+                checks.forEach(function (c) {
+                    var item = c.closest('.exc-item');
+                    if (c.checked) {
+                        marcadas++;
+                        if (item) item.classList.add('is-on');
+                    } else if (item) {
+                        item.classList.remove('is-on');
+                    }
+                });
+                var badge = document.getElementById('excCountBadge');
+                var hint = document.getElementById('excCountHint');
+                if (badge) badge.textContent = marcadas + ' de ' + total;
+                if (hint) {
+                    hint.textContent = marcadas > 0
+                        ? marcadas + ' excepción(es) seleccionada(s)'
+                        : 'Ninguna excepción seleccionada';
+                }
             }
 
-            function enviar_add() {
-                $.ajax({
-                type: 'POST',
-                url: '/AhorroSimple/GuardarExcepcionesMXT/',
-                data: $('#Add').serialize(),
-                success: function(respuesta) {
-        
-                    if (respuesta == '1') {
-        
-                        swal("Excepciones guardadas exitosamente", {
-                            icon: "success",
-                        });
-        
-                        setTimeout(() => { location.reload(); }, 1500);
-        
-                    } else {
-        
-                        swal(respuesta, {
-                            icon: "error",
-                        });
-                    }
+            document.addEventListener('change', function (e) {
+                if (e.target && e.target.classList.contains('exc-check')) {
+                    actualizarContadorExcepciones();
                 }
             });
-        }
 
+            function enviar_add() {
+                var credito = $('#no_credito').val() || '';
+                var esActualizar = ($('#Add button[type="submit"]').text() || '').indexOf('Actualizar') !== -1;
+                var titulo = esActualizar
+                    ? '¿Autorizar actualización de excepciones?'
+                    : '¿Autorizar registro de excepciones?';
+                var texto = esActualizar
+                    ? 'Se actualizarán las excepciones del crédito ' + credito + '.'
+                    : 'Se crearán las excepciones para el crédito ' + credito + '.';
+
+                swal({
+                    title: titulo,
+                    text: texto,
+                    icon: 'warning',
+                    buttons: {
+                        cancel: 'Cancelar',
+                        confirm: {
+                            text: 'Autorizar',
+                            value: true
+                        }
+                    },
+                    dangerMode: true
+                }).then(function (autorizado) {
+                    if (!autorizado) {
+                        return;
+                    }
+
+                    var \$btn = $('#Add button[type="submit"]').prop('disabled', true);
+                    $.ajax({
+                        type: 'POST',
+                        url: '/AhorroSimple/GuardarExcepcionesMXT/',
+                        data: $('#Add').serialize(),
+                        success: function (respuesta) {
+                            if (respuesta == '1') {
+                                swal('Excepciones registradas correctamente', {
+                                    icon: 'success'
+                                });
+                                setTimeout(function () { location.reload(); }, 1500);
+                            } else {
+                                \$btn.prop('disabled', false);
+                                swal(respuesta, {
+                                    icon: 'error'
+                                });
+                            }
+                        },
+                        error: function () {
+                            \$btn.prop('disabled', false);
+                            swal('No fue posible comunicarse con el servidor.', {
+                                icon: 'error'
+                            });
+                        }
+                    });
+                });
+            }
         </script>
         HTML;
 
-        $fechaActual = date('Y-m-d');
-        $cdgns = $_GET['cdgns'];
+        $cdgns = trim((string) ($_GET['cdgns'] ?? ''));
+        $ConsultaDatos = null;
+        $ConsultaActivos = [];
+        $Consulta1 = null;
+        $mensajeError = '';
 
-
-
-        if ($cdgns != '') {
-            $ConsultaA = AhorroSimpleDao::ConsultarActivosExcepciones($cdgns);
-            $ConsultaActivos = $ConsultaA[0];
+        if ($cdgns !== '') {
             $Consulta = AhorroSimpleDao::ConsultarPagosFechaSucursal($cdgns);
-            $ConsultaDatos = $Consulta[0];
+            $ConsultaDatos = !empty($Consulta[0]) ? $Consulta[0] : null;
 
-            $Consulta1 = AhorroSimpleDao::ProcesaProcedure($cdgns, $ConsultaDatos['CICLO']);
-
-            View::set('header', $this->_contenedor->header($extraHeader));
-            View::set('footer', $this->_contenedor->footer($extraFooter));
-            View::set('ConsultaDatos', $ConsultaDatos);
-            View::set('resultado', $Consulta1);
-            View::set('ConsultaActivos', $ConsultaActivos);
-            View::render("agregar_excepcion_adicional");
-        } else {
-            View::set('header', $this->_contenedor->header($extraHeader));
-            View::set('footer', $this->_contenedor->footer($extraFooter));
-            View::set('fechaActual', $fechaActual);
-            View::render("agrega_excepciones_adicional_all");
+            if (!$ConsultaDatos || empty($ConsultaDatos['NO_CREDITO'])) {
+                $ConsultaDatos = null;
+                $mensajeError = 'No se encontró información del crédito tradicional ' . $cdgns . '.';
+            } else {
+                $ConsultaA = AhorroSimpleDao::ConsultarActivosExcepciones($cdgns);
+                $ConsultaActivos = !empty($ConsultaA) ? $ConsultaA[0] : [];
+                $Consulta1 = AhorroSimpleDao::ProcesaProcedure($cdgns, $ConsultaDatos['CICLO']);
+            }
         }
+
+        View::set('header', $this->_contenedor->header($extraHeader));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::set('cdgns', $cdgns);
+        View::set('ConsultaDatos', $ConsultaDatos);
+        View::set('ConsultaActivos', $ConsultaActivos);
+        View::set('resultado', $Consulta1);
+        View::set('mensaje_error', $mensajeError);
+        View::render("agregar_excepcion_adicional");
     }
 
     public function Contrato()
@@ -671,7 +726,7 @@ class AhorroSimple extends Controller
         $exc->_exc_cinco   = (MasterDom::getData('exc_5pagos')   ? 'S' : 'N');
         $exc->_exc_seis    = (MasterDom::getData('exc_ahorro')   ? 'S' : 'N');
 
-        // Llamar a tu procedimiento
+        // Llamar al upsert: crea si no hay excepción activa por CDGNS; actualiza si ya existe
         $id = AhorroSimpleDao::ActualizaExcepciones($exc);
         echo $id;
         return;

@@ -225,13 +225,13 @@ class AhorroSimple extends Model
 
     public static function ConsultarActivosExcepciones($cdgns)
     {
+        // Excepciones MXT se validan por crédito tradicional (CDGNS), sin ciclo
         $query = <<<sql
-        SELECT
-       *
-    FROM
-        EXCEPCIONES_CREDITO
-    WHERE
-        CDGNS = $cdgns
+        SELECT *
+        FROM EXCEPCIONES_CREDITO
+        WHERE CDGNS = '$cdgns'
+          AND ESTATUS = 'ACTIVO'
+        ORDER BY FECHA_CARGA DESC
 sql;
         $mysqli = new Database();
         return $mysqli->queryAll($query);
@@ -239,10 +239,19 @@ sql;
 
     public static function ActualizaExcepciones($datos)
     {
-        // $datos es un stdClass, no un array
+        $cdgns = $datos->_no_credito;
+        $ciclo = $datos->_ciclo;
+        $usuario = $datos->_usuario ?: ($_SESSION['usuario'] ?? null);
+        $uno = $datos->_exc_uno;
+        $dos = $datos->_exc_dos;
+        $tres = $datos->_exc_tres;
+        $cuatro = $datos->_exc_cuatro;
+        $cinco = $datos->_exc_cinco;
+        $seis = $datos->_exc_seis;
+
         $mysqli = new Database();
 
-        // Buscar si ya existe una excepción activa
+        // Existe excepción activa para el crédito (sin filtrar por ciclo)
         $query_datos = <<<sql
         SELECT ID_EXCEPCION
         FROM ESIACOM.EXCEPCIONES_CREDITO
@@ -253,50 +262,59 @@ sql;
 
         $res1 = $mysqli->queryOne($query_datos);
 
-        // Si NO existe → INSERT
         if (!$res1) {
-
             $query = <<<sql
             INSERT INTO ESIACOM.EXCEPCIONES_CREDITO
             (CDGNS, CICLO, USUARIO_CARGA, EXC_UNO, EXC_DOS, EXC_TRES, EXC_CUATRO, EXC_CINCO, EXC_SEIS, ESTATUS, FECHA_CARGA)
             VALUES
-            (:cdgns, :ciclo, :usuario, :uno,:dos,:tres,:cuatro,:cinco,:seis,'ACTIVO', SYSTIMESTAMP)
+            (:cdgns, :ciclo, :usuario, :uno, :dos, :tres, :cuatro, :cinco, :seis, 'ACTIVO', SYSTIMESTAMP)
 sql;
 
-        $params = [
-            'cdgns' => $datos->_no_credito,
-            'ciclo' => $datos->_ciclo,
-            'usuario' => $_SESSION['usuario'],
-            'uno' => $datos->_exc_uno,
-            'dos' => $datos->_exc_dos,
-            'tres' => $datos->_exc_tres,
-            'cuatro' => $datos->_exc_cuatro,
-            'cinco' => $datos->_exc_cinco,
-            'seis' => $datos->_exc_seis,
-        ];
+            $params = [
+                'cdgns' => $cdgns,
+                'ciclo' => $ciclo,
+                'usuario' => $usuario,
+                'uno' => $uno,
+                'dos' => $dos,
+                'tres' => $tres,
+                'cuatro' => $cuatro,
+                'cinco' => $cinco,
+                'seis' => $seis,
+            ];
 
             $mysqli->insertar($query, $params);
             return '1';
-        } else {
+        }
 
-            // Si existe → UPDATE
-            $id = $res1->ID_EXCEPCION;  // porque queryOne también devuelve stdClass
-
-            $query = <<<sql
-            UPDATE ESIACOM.EXCEPCIONES_CREDITO
-            SET EXC_UNO='$uno',
-                EXC_DOS='$dos',
-                EXC_TRES='$tres',
-                EXC_CUATRO='$cuatro',
-                EXC_CINCO='$cinco',
-                EXC_SEIS='$seis',
-                FECHA_CARGA=SYSTIMESTAMP,
-                USUARIO_CARGA=NULL
-            WHERE CDGNS = '$cdgns'
+        $query = <<<sql
+        UPDATE ESIACOM.EXCEPCIONES_CREDITO
+        SET EXC_UNO = :uno,
+            EXC_DOS = :dos,
+            EXC_TRES = :tres,
+            EXC_CUATRO = :cuatro,
+            EXC_CINCO = :cinco,
+            EXC_SEIS = :seis,
+            CICLO = :ciclo,
+            FECHA_CARGA = SYSTIMESTAMP,
+            USUARIO_CARGA = :usuario
+        WHERE CDGNS = :cdgns
+          AND ESTATUS = 'ACTIVO'
 sql;
 
-            return $mysqli->insert($query);
-        }
+        $params = [
+            'uno' => $uno,
+            'dos' => $dos,
+            'tres' => $tres,
+            'cuatro' => $cuatro,
+            'cinco' => $cinco,
+            'seis' => $seis,
+            'ciclo' => $ciclo,
+            'usuario' => $usuario,
+            'cdgns' => $cdgns,
+        ];
+
+        $mysqli->insertar($query, $params);
+        return '1';
     }
 
     public static function ProcesaProcedure($credito_, $ciclo_)
