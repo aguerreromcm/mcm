@@ -191,8 +191,7 @@
     border: 1px dashed var(--border);
     border-radius: 12px;
     background:
-        radial-gradient(circle at top, rgba(26, 111, 181, 0.08), transparent 55%),
-        var(--bloque-bg);
+        radial-gradient(circle at top, rgba(26, 111, 181, 0.08), transparent 55%), var(--bloque-bg);
 }
 
 .exc-mxt-page .exc-empty-icon {
@@ -317,16 +316,19 @@
 .exc-mxt-page .exc-item {
     position: relative;
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
     margin: 0;
     padding: 16px 16px 16px 14px;
     border: 1px solid var(--border);
     border-radius: 12px;
-    background:
-        linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
     cursor: pointer;
-    transition: border-color 0.18s, background 0.18s, box-shadow 0.18s, transform 0.18s;
+    transition:
+        border-color 0.18s,
+        background 0.18s,
+        box-shadow 0.18s,
+        transform 0.18s;
     min-height: 84px;
     box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
     overflow: hidden;
@@ -545,7 +547,11 @@
     .exc-mxt-page .exc-item.is-on,
     .exc-mxt-page .exc-item:has(.exc-check:checked) {
         border-color: rgba(88, 166, 255, 0.55);
-        background: linear-gradient(180deg, rgba(88, 166, 255, 0.16) 0%, rgba(31, 111, 235, 0.12) 100%);
+        background: linear-gradient(
+            180deg,
+            rgba(88, 166, 255, 0.16) 0%,
+            rgba(31, 111, 235, 0.12) 100%
+        );
         box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
     }
 

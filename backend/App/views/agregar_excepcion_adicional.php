@@ -16,14 +16,16 @@ $exc = [
     'seis'   => !empty($ConsultaActivos['EXC_SEIS']) && $ConsultaActivos['EXC_SEIS'] === 'S',
 ];
 $politicas = [
-    ['id' => 'exc_ciclo',   'name' => 'exc_ciclo',   'checked' => $exc['uno'],    'texto' => 'Excepción: Política de ciclo mayor a 04.'],
-    ['id' => 'exc_semanas', 'name' => 'exc_semanas', 'checked' => $exc['dos'],    'texto' => 'Excepción: No cumple con las semanas necesarias para continuar.'],
-    ['id' => 'exc_rango',   'name' => 'exc_rango',   'checked' => $exc['tres'],   'texto' => 'Excepción: Cliente fuera del rango de semanas para crédito adicional.'],
-    ['id' => 'exc_atraso',  'name' => 'exc_atraso',  'checked' => $exc['cuatro'], 'texto' => 'Excepción: Días de atraso mayores a lo permitido.'],
-    ['id' => 'exc_5pagos',  'name' => 'exc_5pagos',  'checked' => $exc['cinco'],  'texto' => 'Excepción: No cumple con los 5 pagos requeridos.'],
-    ['id' => 'exc_ahorro',  'name' => 'exc_ahorro',  'checked' => $exc['seis'],   'texto' => 'Excepción: No cumple con la política de ahorro.'],
+    ['id' => 'exc_ciclo',   'name' => 'exc_ciclo',   'checked' => $exc['uno'],    'texto' => 'Política de ciclo mayor a 04.'],
+    ['id' => 'exc_semanas', 'name' => 'exc_semanas', 'checked' => $exc['dos'],    'texto' => 'No cumple con las semanas necesarias para continuar.'],
+    ['id' => 'exc_rango',   'name' => 'exc_rango',   'checked' => $exc['tres'],   'texto' => 'Cliente fuera del rango de semanas para crédito adicional.'],
+    ['id' => 'exc_atraso',  'name' => 'exc_atraso',  'checked' => $exc['cuatro'], 'texto' => 'Días de atraso mayores a lo permitido.'],
+    ['id' => 'exc_5pagos',  'name' => 'exc_5pagos',  'checked' => $exc['cinco'],  'texto' => 'No cumple con los 5 pagos requeridos.'],
+    ['id' => 'exc_ahorro',  'name' => 'exc_ahorro',  'checked' => $exc['seis'],   'texto' => 'No cumple con la política de ahorro (> $ 2,500.00).'],
 ];
-$marcadas = count(array_filter($politicas, function ($p) { return !empty($p['checked']); }));
+$marcadas = count(array_filter($politicas, function ($p) {
+    return !empty($p['checked']);
+}));
 ?>
 
 <div class="right_col">
@@ -38,18 +40,18 @@ $marcadas = count(array_filter($politicas, function ($p) { return !empty($p['che
 
             <div class="toolbar<?= $creditoEncontrado ? ' toolbar--con-meta' : '' ?>">
                 <form action="/AhorroSimple/ExepcionesMXT/" method="GET" class="tb-search">
-                    <label for="cdgns" class="tb-lbl">Número de crédito</label>
+                    <label for="cdgns" class="tb-lbl">Número de crédito eje</label>
                     <div class="tb-search-line">
                         <input type="text"
-                               class="form-control"
-                               id="cdgns"
-                               name="cdgns"
-                               maxlength="12"
-                               autocomplete="off"
-                               autofocus
-                               required
-                               placeholder="Ej. 006592"
-                               value="<?= htmlspecialchars($cdgnsBusqueda, ENT_QUOTES, 'UTF-8') ?>">
+                            class="form-control"
+                            id="cdgns"
+                            name="cdgns"
+                            maxlength="12"
+                            autocomplete="off"
+                            autofocus
+                            required
+                            placeholder="Ej. 006592"
+                            value="<?= htmlspecialchars($cdgnsBusqueda, ENT_QUOTES, 'UTF-8') ?>">
                         <button type="submit" class="btn btn-primary">
                             <i class="fa fa-search"></i> Buscar
                         </button>
@@ -109,10 +111,10 @@ $marcadas = count(array_filter($politicas, function ($p) { return !empty($p['che
                                 <?php foreach ($politicas as $i => $p) : ?>
                                     <label class="exc-item<?= !empty($p['checked']) ? ' is-on' : '' ?>" for="<?= htmlspecialchars($p['id'], ENT_QUOTES, 'UTF-8') ?>">
                                         <input type="checkbox"
-                                               class="exc-check"
-                                               name="<?= htmlspecialchars($p['name'], ENT_QUOTES, 'UTF-8') ?>"
-                                               id="<?= htmlspecialchars($p['id'], ENT_QUOTES, 'UTF-8') ?>"
-                                               <?= !empty($p['checked']) ? 'checked' : '' ?>>
+                                            class="exc-check"
+                                            name="<?= htmlspecialchars($p['name'], ENT_QUOTES, 'UTF-8') ?>"
+                                            id="<?= htmlspecialchars($p['id'], ENT_QUOTES, 'UTF-8') ?>"
+                                            <?= !empty($p['checked']) ? 'checked' : '' ?>>
                                         <span class="exc-num"><?= str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT) ?></span>
                                         <span class="exc-box" aria-hidden="true"><i class="fa fa-check"></i></span>
                                         <span class="exc-item-title"><?= htmlspecialchars($p['texto'], ENT_QUOTES, 'UTF-8') ?></span>

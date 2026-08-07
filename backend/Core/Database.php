@@ -363,7 +363,7 @@ class Database
         $this->db_activa->exec("BEGIN DBMS_OUTPUT.ENABLE(NULL); END;");
 
         // LLAMADA AL SP
-        $query_text = "BEGIN ESIACOM.SP_VALIDACION_CLIENTE_CO(:p1,:p2,:p3,:p4,:p5); END;";
+        $query_text = "BEGIN ESIACOM.SP_VALIDACION_CLIENTE_CO(:p1,:p2,:p3,:p4,TO_DATE(:p5, 'DD-MM-YYYY')); END;";
         $stmt = $this->db_activa->prepare($query_text);
 
         $stmt->bindParam(':p1', $empresa);
