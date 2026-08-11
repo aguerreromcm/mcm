@@ -741,7 +741,7 @@ class JobsPrueba extends Job
 
         $mensaje = Mensajero::Notificaciones($cuerpo);
 
-        if (Mensajero::EnviarCorreo($destinatarios, $asunto, $mensaje)) {
+        if (Mensajero::EnviarCorreo($destinatarios, $asunto, $mensaje, [], false)) {
             echo "Correo enviado a " . implode(', ', $destinatarios) . " (" . $fechaFmt . ")\n";
         } else {
             echo "Error al enviar correo\n";

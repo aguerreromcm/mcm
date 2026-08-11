@@ -16,40 +16,67 @@ class CierreDiaService
 {
     /**
      * Datos para la pantalla: últimos 7 cierres en bitácora, estado de ejecución y tiempo estimado.
+     * Las métricas salen de la bitácora (SP); si faltan, se completa con consultas agregadas livianas.
      *
+     * @param bool $conResumenesExternos Si true y faltan métricas en bitácora, consulta TBL_CIERRE_DIA/DEVENGO
      * @return array { success, mensaje, datos: { ultimos5, ejecutando, inicio, usuario, tiempoEstimado } }
      */
-    public static function obtenerDatosPantalla()
+    public static function obtenerDatosPantalla($conResumenesExternos = true)
     {
         $repo = new CierreDiaRepository();
         $ultimos5 = $repo->getUltimos7Cierres();
-        $fechasResumen = [];
+        $fechasFaltantes = [];
         foreach ($ultimos5 as $fila) {
-            $fechaIso = isset($fila['FECHA_CIERRE_ISO']) ? trim((string) $fila['FECHA_CIERRE_ISO']) : '';
-            if ($fechaIso !== '') {
-                $fechasResumen[] = $fechaIso;
+            $tieneMetricas = array_key_exists('REGISTROS_PROCESADOS', $fila)
+                || array_key_exists('CREDITOS_DEVENGO', $fila)
+                || array_key_exists('DEVENGO_MONTO_NUM', $fila);
+            if (!$tieneMetricas) {
+                $fechaIso = isset($fila['FECHA_CIERRE_ISO']) ? trim((string) $fila['FECHA_CIERRE_ISO']) : '';
+                if ($fechaIso !== '') {
+                    $fechasFaltantes[] = $fechaIso;
+                }
             }
         }
-        $resumenes = $repo->getResumenesPorFechas($fechasResumen);
-        $mapCierre = isset($resumenes['cierre']) && is_array($resumenes['cierre']) ? $resumenes['cierre'] : [];
-        $mapDevengo = isset($resumenes['devengo']) && is_array($resumenes['devengo']) ? $resumenes['devengo'] : [];
+
+        $mapCierre = [];
+        $mapDevengo = [];
+        if ($conResumenesExternos && !empty($fechasFaltantes)) {
+            $resumenes = $repo->getResumenesPorFechas($fechasFaltantes);
+            $mapCierre = isset($resumenes['cierre']) && is_array($resumenes['cierre']) ? $resumenes['cierre'] : [];
+            $mapDevengo = isset($resumenes['devengo']) && is_array($resumenes['devengo']) ? $resumenes['devengo'] : [];
+        }
+
         foreach ($ultimos5 as &$fila) {
             $fechaIso = isset($fila['FECHA_CIERRE_ISO']) ? (string) $fila['FECHA_CIERRE_ISO'] : '';
             unset($fila['FECHA_CIERRE_ISO']);
-            if ($fechaIso !== '') {
-                $registros = isset($mapCierre[$fechaIso]) ? (int) $mapCierre[$fechaIso] : 0;
-                $resDevengo = isset($mapDevengo[$fechaIso]) && is_array($mapDevengo[$fechaIso]) ? $mapDevengo[$fechaIso] : ['creditos' => 0, 'monto' => 0];
-                $fila['REGISTROS_PROCESADOS'] = $registros;
-                $fila['CREDITOS_DEVENGO'] = (int) ($resDevengo['creditos'] ?? 0);
-                $fila['MONTO_INTERESES_DEVENGADOS'] = '$ ' . number_format((float) ($resDevengo['monto'] ?? 0), 2);
+
+            $registros = array_key_exists('REGISTROS_PROCESADOS', $fila)
+                ? (int) $fila['REGISTROS_PROCESADOS']
+                : (isset($mapCierre[$fechaIso]) ? (int) $mapCierre[$fechaIso] : 0);
+            $creditos = array_key_exists('CREDITOS_DEVENGO', $fila)
+                ? (int) $fila['CREDITOS_DEVENGO']
+                : (int) ($mapDevengo[$fechaIso]['creditos'] ?? 0);
+            if (array_key_exists('DEVENGO_MONTO_NUM', $fila)) {
+                $monto = (float) $fila['DEVENGO_MONTO_NUM'];
             } else {
-                $fila['REGISTROS_PROCESADOS'] = 0;
-                $fila['CREDITOS_DEVENGO'] = 0;
-                $fila['MONTO_INTERESES_DEVENGADOS'] = '$ 0.00';
+                $monto = (float) ($mapDevengo[$fechaIso]['monto'] ?? 0);
             }
+            unset($fila['DEVENGO_MONTO_NUM']);
+
+            $fila['REGISTROS_PROCESADOS'] = $registros;
+            $fila['CREDITOS_DEVENGO'] = $creditos;
+            $fila['MONTO_INTERESES_DEVENGADOS'] = '$ ' . number_format($monto, 2);
+
             $enProceso = !empty($fila['EN_PROCESO']) && (int) $fila['EN_PROCESO'] === 1;
+            $exito = isset($fila['EXITO']) ? (int) $fila['EXITO'] : 0;
             unset($fila['EN_PROCESO']);
-            $fila['ESTADO_TEXTO'] = $enProceso ? 'Procesando' : 'Finalizado';
+            if ($enProceso) {
+                $fila['ESTADO_TEXTO'] = 'Procesando';
+            } elseif ($exito === 1) {
+                $fila['ESTADO_TEXTO'] = 'Finalizado';
+            } else {
+                $fila['ESTADO_TEXTO'] = 'Error';
+            }
         }
         unset($fila);
         $enEjecucion = $repo->validaCierreEnEjecucion();
@@ -61,6 +88,7 @@ class CierreDiaService
             'ejecutando' => $ejecutando,
             'inicio' => $ejecutando ? ($enEjecucion['INICIO'] ?? null) : null,
             'usuario' => $ejecutando ? ($enEjecucion['USUARIO'] ?? null) : null,
+            'segundos' => $ejecutando ? (int) ($enEjecucion['SEGUNDOS'] ?? 0) : 0,
             'tiempoEstimado' => $tiempoEstimado,
         ]);
     }
@@ -73,6 +101,7 @@ class CierreDiaService
     public static function validaCierreEnEjecucion()
     {
         $repo = new CierreDiaRepository();
+        $repo->liberarCandadosPhpHuerfanos();
         $r = $repo->validaCierreEnEjecucion();
         return Model::Responde(true, 'OK', $r);
     }
@@ -131,6 +160,77 @@ class CierreDiaService
     }
 
     /**
+     * Valida y adquiere el candado antes de lanzar el Job.
+     * Debe llamarse desde ProcesaCierreDiario (no confiar solo en la validación del cliente).
+     *
+     * @param string $fecha Y-m-d
+     * @param string $usuario
+     * @param string $perfil
+     * @param int|bool $regenerar
+     * @return array { success, mensaje, datos?: { inicio, usuario } }
+     */
+    public static function iniciarProcesoCierre($fecha, $usuario, $perfil = '', $regenerar = 0)
+    {
+        $fecha = trim((string) $fecha);
+        $usuario = trim((string) $usuario);
+        $regenerar = $regenerar ? 1 : 0;
+
+        if ($fecha === '' || $usuario === '') {
+            return Model::Responde(false, 'No se ha indicado los parámetros necesarios para el cierre diario.');
+        }
+
+        $repo = new CierreDiaRepository();
+        // Libera candados PHP huérfanos (Job no arrancó / murió sin finally) antes de validar.
+        $repo->liberarCandadosPhpHuerfanos();
+
+        $previa = self::validacionPrevia($fecha, $perfil);
+        if (empty($previa['success'])) {
+            return $previa;
+        }
+
+        $datosPrevia = isset($previa['datos']) && is_array($previa['datos']) ? $previa['datos'] : [];
+        $yaEjecutado = !empty($datosPrevia['yaEjecutado']);
+        $puedeRegenerar = !empty($datosPrevia['puedeRegenerar']);
+
+        if ($yaEjecutado && !$regenerar) {
+            return Model::Responde(false, 'El cierre de ese día ya fue ejecutado. No es posible iniciarlo de nuevo.', $datosPrevia, 'Ya ejecutado');
+        }
+
+        if ($yaEjecutado && $regenerar && !$puedeRegenerar) {
+            return Model::Responde(false, 'No tiene permisos para regenerar el cierre de ese día.', $datosPrevia, 'Sin permiso regenerar');
+        }
+
+        if (!$repo->registrarInicio($fecha, $usuario)) {
+            $enEjecucion = $repo->validaCierreEnEjecucion();
+            if (!empty($enEjecucion)) {
+                return Model::Responde(false, 'Ya hay un proceso de cierre diario en ejecución, no es posible iniciar otro.', $enEjecucion, 'Concurrencia');
+            }
+            return Model::Responde(false, 'No fue posible adquirir el candado del cierre. Intente de nuevo.', null, 'Candado');
+        }
+
+        $enEjecucion = $repo->validaCierreEnEjecucion();
+        return Model::Responde(true, 'El proceso de cierre diario se ha iniciado correctamente.', [
+            'inicio' => $enEjecucion['INICIO'] ?? date('d/m/Y H:i:s'),
+            'usuario' => $enEjecucion['USUARIO'] ?? $usuario,
+            'segundos' => (int) ($enEjecucion['SEGUNDOS'] ?? 0),
+            'regenerar' => $regenerar,
+        ]);
+    }
+
+    /**
+     * Libera el candado PHP de la fecha (p. ej. si el Job no pudo arrancar tras adquirirlo).
+     *
+     * @param string $fecha Y-m-d
+     * @param int $exito
+     * @return bool
+     */
+    public static function liberarCandadoInicio($fecha, $exito = 0)
+    {
+        $repo = new CierreDiaRepository();
+        return $repo->cerrarCandadoInicio($fecha, (int) $exito);
+    }
+
+    /**
      * Registra el inicio del cierre y deja listo para que el Job ejecute SP_PAGOS_CIERRE_DEVENGO.
      * No ejecuta el SP aquí (proceso pesado); el controlador lanzará el Job.
      *
@@ -141,11 +241,7 @@ class CierreDiaService
      */
     public static function registrarInicioYResponder($fecha, $usuario, $regenerar = 0)
     {
-        $repo = new CierreDiaRepository();
-        if (!$repo->registrarInicio($fecha, $usuario)) {
-            return Model::Responde(false, 'Error al registrar el inicio del cierre.', null, 'Registro bitácora');
-        }
-        return Model::Responde(true, 'El proceso de cierre diario se ha iniciado correctamente.');
+        return self::iniciarProcesoCierre($fecha, $usuario, '', $regenerar);
     }
 
     /**
@@ -225,7 +321,7 @@ class CierreDiaService
                 'Resumen de cierre de día - ' . $fechaFmt,
                 \Mensajero::Notificaciones($html),
                 [],
-                true
+                !$soloFlujo
             );
         }
     }

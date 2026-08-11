@@ -1640,44 +1640,118 @@ class JobsCredito extends Model
         }
     }
 
+    /**
+     * Misma conversión que la pantalla: DATE de bitácora a hora de México
+     * (respaldo en UTC; en producción el offset de sesión suele ser México y no altera la hora).
+     */
+    private static function sqlHoraMexico($columna, $conSegundos = false)
+    {
+        $fmt = $conSegundos ? 'DD/MM/YYYY HH24:MI:SS' : 'DD/MM/YYYY HH24:MI';
+
+        return "CASE WHEN {$columna} IS NULL THEN NULL ELSE TO_CHAR("
+            . "FROM_TZ(CAST({$columna} AS TIMESTAMP), TO_CHAR(SYSTIMESTAMP, 'TZH:TZM')) "
+            . "AT TIME ZONE 'America/Mexico_City', '{$fmt}') END";
+    }
+
     public static function CierreDia($datos)
     {
+        $fecha = isset($datos['fecha']) ? trim((string) $datos['fecha']) : '';
+        $usuario = isset($datos['usuario']) ? trim((string) $datos['usuario']) : '';
+        $regenerar = !empty($datos['regenerar']);
+
         $sp = "CALL SP_PAGOS_CIERRE_DEVENGO(TO_DATE(:fecha, 'YYYY-MM-DD'), :usuario, :output)";
 
+        $inicioMx = self::sqlHoraMexico('b.INICIO');
+        $finMx = self::sqlHoraMexico('b.FIN');
+        // ID_IMPORTACION se reutiliza entre intentos. ORDER BY la columna DATE (b.INICIO),
+        // nunca el alias TO_CHAR DD/MM (ordenaría 24/07 encima de 11/08).
         $qry = <<<SQL
             SELECT
-                TO_CHAR(FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CALCULO
-                ,USUARIO
-                ,TO_CHAR(INICIO, 'DD/MM/YYYY HH24:MI') AS INICIO
-                ,TO_CHAR(FIN, 'DD/MM/YYYY HH24:MI') AS FIN
-                ,EXITO
-                ,ID_IMPORTACION
-                ,ID_PROCESO
-                ,MENSAJE
-                ,CIERRE_REGISTROS
-                ,DEVENGO_REGISTROS
-                ,DEVENGO_MONTO
-                ,TO_CHAR(FECHA_CALCULO + 1, 'DD/MM/YYYY') AS DEVENGO_FECHA
+                TO_CHAR(b.FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CALCULO
+                ,b.USUARIO
+                ,{$inicioMx} AS INICIO
+                ,{$finMx} AS FIN
+                ,b.EXITO
+                ,b.ID_IMPORTACION
+                ,b.ID_PROCESO
+                ,b.MENSAJE
+                ,b.CIERRE_REGISTROS
+                ,b.DEVENGO_REGISTROS
+                ,b.DEVENGO_MONTO
+                ,TO_CHAR(b.FECHA_CALCULO + 1, 'DD/MM/YYYY') AS DEVENGO_FECHA
             FROM
-                BITACORA_CIERRE_DIARIO
-            WHERE ID_IMPORTACION = :id_importacion
+                BITACORA_CIERRE_DIARIO b
+            WHERE TRUNC(b.FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
+              AND b.ID_IMPORTACION IS NOT NULL
+            ORDER BY b.INICIO DESC NULLS LAST
+            FETCH FIRST 1 ROW ONLY
         SQL;
 
         $parametros = [
-            'fecha' => $datos['fecha'],
-            'usuario' => $datos['usuario']
+            'fecha' => $fecha,
+            'usuario' => $usuario
         ];
 
         try {
             $db = new Database();
-            $res = $db->EjecutaSP($sp, $parametros);
-            $res = $db->queryOne($qry, ['id_importacion' => $res]);
+            if ($regenerar) {
+                // Devengo del cierre X se guarda en FECHA_CALC = X+1. TBL_CIERRE_DIA usa la fecha de cierre.
+                $fechaDevengo = date('Y-m-d', strtotime($fecha . ' +1 day'));
+                $sqlRegen = <<<PLSQL
+BEGIN
+  DELETE FROM DEVENGO_DIARIO d
+  WHERE TRUNC(d.FECHA_CALC) = TO_DATE(:f1, 'YYYY-MM-DD');
+  DELETE FROM TBL_CIERRE_DIA t
+  WHERE TRUNC(t.FECHA_CALC) = TO_DATE(:f2, 'YYYY-MM-DD');
+END;
+PLSQL;
+                $db->db_activa->prepare($sqlRegen)->execute(['f1' => $fechaDevengo, 'f2' => $fecha]);
+            }
 
-            return $res['EXITO'] == 1 ?
+            $db->EjecutaSP($sp, $parametros);
+            $res = $db->queryOne($qry, ['fecha' => $fecha]);
+            if (!$res) {
+                return self::Responde(false, 'Error en el proceso', null, 'No se encontró bitácora del SP para la fecha.');
+            }
+
+            return ((int) ($res['EXITO'] ?? 0) === 1) ?
                 self::Responde(true, 'Proceso exitoso', $res) :
                 self::Responde(false, 'Error en el proceso', $res);
         } catch (\Exception $e) {
             return self::Responde(false, 'Error al ejecutar el SP de cierre de día.', null, $e->getMessage());
+        }
+    }
+
+    /**
+     * Libera candado PHP: filas abiertas sin ID_IMPORTACION (creadas por la app antes del Job).
+     *
+     * @param string $fecha Y-m-d
+     * @param int $exito
+     * @return bool
+     */
+    public static function CerrarCandadoCierreDia($fecha, $exito = 0)
+    {
+        $fecha = trim((string) $fecha);
+        if ($fecha === '') {
+            return false;
+        }
+
+        // Al terminar el Job (éxito o error) cierra cualquier bitácora abierta de esa fecha:
+        // candado PHP y fila del SP si el procedimiento murió sin poner FIN.
+        $qry = <<<SQL
+            UPDATE BITACORA_CIERRE_DIARIO
+            SET FIN = SYSDATE, EXITO = :exito
+            WHERE TRUNC(FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
+              AND FIN IS NULL
+        SQL;
+
+        try {
+            $db = new Database();
+            $stmt = $db->db_activa->prepare($qry);
+            $stmt->execute(['fecha' => $fecha, 'exito' => (int) $exito]);
+            return true;
+        } catch (\Exception $e) {
+            return false;
         }
     }
 

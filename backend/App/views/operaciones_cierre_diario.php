@@ -403,14 +403,14 @@
                                         $estado = isset($c['ESTADO_TEXTO']) ? (string) $c['ESTADO_TEXTO'] : (
                                             (!empty($c['EN_PROCESO']) || empty($c['FIN']) || trim((string) ($c['FIN'] ?? '')) === '')
                                                 ? 'Procesando'
-                                                : 'Finalizado'
+                                                : ((isset($c['EXITO']) && (int) $c['EXITO'] === 1) ? 'Finalizado' : 'Error')
                                         );
                                         echo '<tr>';
                                         echo '<td>' . htmlspecialchars($c['FECHA_CALCULO'] ?? '-') . '</td>';
                                         $inicioRaw = (string) ($c['INICIO'] ?? '-');
                                         $finRaw = (string) ($c['FIN'] ?? '-');
-                                        echo '<td><span class="js-local-time">' . htmlspecialchars($inicioRaw) . '</span></td>';
-                                        echo '<td><span class="js-local-time">' . htmlspecialchars($finRaw) . '</span></td>';
+                                        echo '<td>' . htmlspecialchars($inicioRaw) . '</td>';
+                                        echo '<td>' . htmlspecialchars($finRaw) . '</td>';
                                         echo '<td>' . htmlspecialchars($c['USUARIO'] ?? '-') . '</td>';
                                         echo '<td>' . htmlspecialchars($estado) . '</td>';
                                         echo '<td>' . htmlspecialchars((string) ($c['REGISTROS_PROCESADOS'] ?? '0')) . '</td>';
@@ -509,13 +509,6 @@
             if (typeof $ === "undefined" || !$.fn.DataTable) return;
             destruirDataTableSiExiste(selectorTabla);
             $(selectorTabla).DataTable(opcionesDataTableCierreDia(emptyTableMsg));
-        };
-
-        const parseDmYHmAsUtc = (txt) => {
-            if (!txt || txt === "-") return null;
-            const m = txt.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
-            if (!m) return null;
-            return new Date(Date.UTC(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10), parseInt(m[4], 10), parseInt(m[5], 10), 0));
         };
 
         let cacheFilasAplicacion = [];
@@ -868,18 +861,6 @@
 
         window.refrescarDatosOperativosCierreDia = (silencioso) => buscarPorFecha({ silencioso: !!silencioso });
         window.buscarPorFechaCierreDia = buscarPorFecha;
-
-        document.querySelectorAll(".js-local-time").forEach((el) => {
-            const original = (el.textContent || "").trim();
-            const dt = parseDmYHmAsUtc(original);
-            if (!dt || isNaN(dt.getTime())) return;
-            const dd = String(dt.getDate()).padStart(2, "0");
-            const mm = String(dt.getMonth() + 1).padStart(2, "0");
-            const yyyy = dt.getFullYear();
-            const hh = String(dt.getHours()).padStart(2, "0");
-            const mi = String(dt.getMinutes()).padStart(2, "0");
-            el.textContent = dd + "/" + mm + "/" + yyyy + " " + hh + ":" + mi;
-        });
 
         const escHtml = (s) => {
             const d = document.createElement("div");

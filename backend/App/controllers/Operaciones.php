@@ -31,6 +31,7 @@ class Operaciones extends Controller
         $ejecutando = !empty($datos['ejecutando']) ? 1 : 0;
         $inicioEjecucion = isset($datos['inicio']) ? $datos['inicio'] : '';
         $usuarioEjecucion = isset($datos['usuario']) ? $datos['usuario'] : '';
+        $segundosTranscurridos = isset($datos['segundos']) ? (int) $datos['segundos'] : 0;
         $estimado = isset($datos['tiempoEstimado']) ? (int) $datos['tiempoEstimado'] : 0;
         $perfil = isset($this->__perfil) ? (string) $this->__perfil : '';
 
@@ -49,34 +50,9 @@ class Operaciones extends Controller
                 let ejecutando = $ejecutando
                 let inicioEjecucion = "$inicioEjecucion"
                 let usuarioEjecucion = "$usuarioEjecucion"
+                let segundosTranscurridos = $segundosTranscurridos
                 let actualiza = null
                 let renueva = null
-
-                const aplicarHorasLocalesTablaCierre = (root) => {
-                    if (!root || !root.querySelectorAll) return
-                    const parseDmYHmAsUtc = (txt) => {
-                        if (!txt || txt === "-") return null
-                        const m = txt.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/)
-                        if (!m) return null
-                        const dia = parseInt(m[1], 10)
-                        const mes = parseInt(m[2], 10) - 1
-                        const anio = parseInt(m[3], 10)
-                        const hora = parseInt(m[4], 10)
-                        const minuto = parseInt(m[5], 10)
-                        return new Date(Date.UTC(anio, mes, dia, hora, minuto, 0))
-                    }
-                    root.querySelectorAll(".js-local-time").forEach((el) => {
-                        const original = (el.textContent || "").trim()
-                        const dt = parseDmYHmAsUtc(original)
-                        if (!dt || isNaN(dt.getTime())) return
-                        const dd = String(dt.getDate()).padStart(2, "0")
-                        const mm = String(dt.getMonth() + 1).padStart(2, "0")
-                        const yyyy = dt.getFullYear()
-                        const hh = String(dt.getHours()).padStart(2, "0")
-                        const mi = String(dt.getMinutes()).padStart(2, "0")
-                        el.textContent = dd + "/" + mm + "/" + yyyy + " " + hh + ":" + mi
-                    })
-                }
 
                 const escHtml = (s) => {
                     const d = document.createElement("div")
@@ -112,14 +88,14 @@ class Operaciones extends Controller
                                         ? String(c.ESTADO_TEXTO)
                                         : (c.EN_PROCESO === 1 || c.EN_PROCESO === "1" || !c.FIN || String(c.FIN).trim() === ""
                                             ? "Procesando"
-                                            : "Finalizado")
+                                            : (Number(c.EXITO) === 1 ? "Finalizado" : "Error"))
                                     const inicio = escHtml(String(c.INICIO ?? "-"))
                                     const fin = escHtml(String(c.FIN ?? "-"))
                                     return (
                                         "<tr>" +
                                         "<td>" + escHtml(String(c.FECHA_CALCULO ?? "-")) + "</td>" +
-                                        '<td><span class="js-local-time">' + inicio + "</span></td>" +
-                                        '<td><span class="js-local-time">' + fin + "</span></td>" +
+                                        "<td>" + inicio + "</td>" +
+                                        "<td>" + fin + "</td>" +
                                         "<td>" + escHtml(String(c.USUARIO ?? "-")) + "</td>" +
                                         "<td>" + escHtml(estado) + "</td>" +
                                         "<td>" + escHtml(String(c.REGISTROS_PROCESADOS ?? "0")) + "</td>" +
@@ -129,12 +105,15 @@ class Operaciones extends Controller
                                     )
                                 })
                                 .join("")
-                            // aplicarHorasLocalesTablaCierre(tbody)
                         })
                         .catch(() => {})
                 }
 
                 const iniciaCierreDiario = () => {
+                    if (ejecutando) {
+                        showError("Ya hay un proceso de cierre diario en ejecución.")
+                        return
+                    }
                     confirmarMovimiento(
                         "Iniciar proceso de cierre diario.",
                         "¿Está seguro de querer procesar el cierre del día\\n" + diaMsg() + "?"
@@ -150,11 +129,18 @@ class Operaciones extends Controller
                     consultaServidor("/operaciones/ValidacionPreviaCierre", { fecha }, (respuesta) => {
                         if (!respuesta.success) {
                             showError(respuesta.mensaje || "Ya hay un proceso de cierre en ejecución.")
+                            if (respuesta.datos && Object.keys(respuesta.datos).length > 0) {
+                                ejecutando = true
+                                inicioEjecucion = respuesta.datos.INICIO || inicioEjecucion
+                                usuarioEjecucion = respuesta.datos.USUARIO || usuarioEjecucion
+                                segundosTranscurridos = parseInt(respuesta.datos.SEGUNDOS, 10) || 0
+                                validaEjecucionActiva()
+                            }
                             return
                         }
                         var d = respuesta.datos || {}
                         if (d.yaEjecutado && !d.puedeRegenerar) {
-                            showError("El cierre de ese día ya fue ejecutado. Solo un administrador puede regenerar el cierre de los últimos 3 días.")
+                            showError("El cierre de ese día ya fue ejecutado. Solo un administrador puede regenerarlo.")
                             return
                         }
                         if (d.yaEjecutado && d.puedeRegenerar) {
@@ -178,34 +164,26 @@ class Operaciones extends Controller
                 }
 
                 const procesaCierreDiario = (regenerar) => {
+                    if (ejecutando) {
+                        showError("Ya hay un proceso de cierre diario en ejecución.")
+                        return
+                    }
                     var payload = { fecha: $("#fecha").val(), usuario: "{$this->__usuario}" }
                     if (regenerar) payload.regenerar = "1"
                     consultaServidor("/operaciones/ProcesaCierreDiario", payload, (respuesta) => {
-                        if (!respuesta.success) return showError(respuesta.mensaje)
-                        refrescarPantallaTrasCierre()
-                        const mensaje = respuesta.mensaje || "El proceso de cierre diario ha finalizado. Se enviará el resumen por correo."
+                        if (!respuesta || !respuesta.success) {
+                            return showError((respuesta && respuesta.mensaje) ? respuesta.mensaje : "No fue posible iniciar el cierre.")
+                        }
+                        const d = respuesta.datos || {}
+                        ejecutando = true
+                        inicioEjecucion = d.inicio || fechaActualFormateada()
+                        usuarioEjecucion = d.usuario || "{$this->__usuario}"
+                        segundosTranscurridos = parseInt(d.segundos, 10) || 0
+                        $("#procesar").attr("disabled", true)
+                        refrescarTablaUltimosCierres()
+                        const mensaje = respuesta.mensaje || "El proceso de cierre diario se ha iniciado. Se enviará un correo al finalizar."
                         showSuccess(mensaje).then(() => {
-                            $("#procesar").attr("disabled", true)
-                            fetch("/operaciones/ValidaCierreEnEjecucion", {
-                                method: "GET",
-                                headers: {
-                                    "Content-Type": "application/json"
-                                }
-                            })
-                                .then((response) => response.json())
-                                .then((respuesta) => {
-                                    ejecutando = respuesta.datos && Object.keys(respuesta.datos).length > 0
-                                    inicioEjecucion = ejecutando ? respuesta.datos.INICIO : null
-                                    usuarioEjecucion = ejecutando ? respuesta.datos.USUARIO : null
-                                })
-                                .catch(() => {
-                                    ejecutando = false
-                                    inicioEjecucion = null
-                                    usuarioEjecucion = null
-                                })
-                                .then(() => {
-                                    validaEjecucionActiva()
-                                })
+                            validaEjecucionActiva()
                         })
                     })
                 }
@@ -252,22 +230,22 @@ class Operaciones extends Controller
                 }
 
                 const validaEjecucionActiva = () => {
+                    clearTimeout(actualiza)
+                    clearTimeout(renueva)
                     if (!ejecutando) {
-                        clearTimeout(actualiza)
-                        clearTimeout(renueva)
                         $("#procesar").attr("disabled", false)
                         $("#alertaEjecucion").hide()
                         $("#tiempoEstimado").html("")
                         return
                     }
-                    const inicio = inicioEjecucion.split(" ")
-                    const fecha = inicio[0].split("/")
-                    const hora = inicio[1].split(":")
-                    const fechaInicio = new Date(parseInt(fecha[2]), parseInt(fecha[1]) - 1, parseInt(fecha[0]), parseInt(hora[0]), parseInt(hora[1]), parseInt(hora[2]))
-                    const fechaActual = new Date()
-                    const diferencia = Math.floor((fechaActual - fechaInicio) / 1000)
-                    let mensaje = "<p>El proceso de cierre diario se encuentra en ejecución desde el " + inicioEjecucion + " por el usuario <b>" + usuarioEjecucion + "</b>.</p>"
-                    mensaje += "<p>Tiempo estimado de finalización: <b>" + estimado + "</b> minutos.</p>"
+                    if (!inicioEjecucion) {
+                        inicioEjecucion = fechaActualFormateada()
+                    }
+                    const diferencia = Math.max(0, parseInt(segundosTranscurridos, 10) || 0)
+                    let mensaje = "<p>El proceso de cierre diario se encuentra en ejecución desde el " + escHtml(String(inicioEjecucion)) + " por el usuario <b>" + escHtml(String(usuarioEjecucion || "-")) + "</b>.</p>"
+                    if (estimado > 0) {
+                        mensaje += "<p>Tiempo estimado de finalización: <b>" + estimado + "</b> minutos.</p>"
+                    }
                     mensaje += "<p>Tiempo transcurrido: <b id='transcurrido'>" + getTiempoTranscurrido(diferencia) + "</b></p>"
                     actualizaTiempoEstimado(diferencia)
                     renuevaEjecucionActiva()
@@ -288,6 +266,7 @@ class Operaciones extends Controller
                 }
 
                 const actualizaTiempoEstimado = (diferencia) => {
+                    clearTimeout(actualiza)
                     actualiza = setTimeout(() => {
                         diferencia++
                         actualizaTiempoEstimado(diferencia)
@@ -296,24 +275,59 @@ class Operaciones extends Controller
                 }
 
                 const renuevaEjecucionActiva = () => {
-                    fetch("/operaciones/ValidaCierreEnEjecucion", {
+                    clearTimeout(renueva)
+                    renueva = setTimeout(() => {
+                        fetch("/operaciones/ValidaCierreEnEjecucion", {
                             method: "GET",
                             headers: {
-                                "Content-Type": "application/json"
+                                Accept: "application/json"
                             }
                         })
-                        .then((response) => response.json())
-                        .then((respuesta) => {
-                            if (!respuesta.success) return showError(respuesta.mensaje)
-                            const ejecutabaAntes = ejecutando
-                            ejecutando = respuesta.datos && Object.keys(respuesta.datos).length > 0
-                            inicioEjecucion = ejecutando ? respuesta.datos.INICIO : null
-                            usuarioEjecucion = ejecutando ? respuesta.datos.USUARIO : null
-                            if (ejecutabaAntes && !ejecutando) {
-                                refrescarPantallaTrasCierre()
-                            }
-                            // validaEjecucionActiva()
-                        })
+                            .then((response) => response.json())
+                            .then((respuesta) => {
+                                if (!respuesta || !respuesta.success) {
+                                    renuevaEjecucionActiva()
+                                    return
+                                }
+                                const ejecutabaAntes = ejecutando
+                                const datos = respuesta.datos || {}
+                                ejecutando = datos && Object.keys(datos).length > 0
+                                if (ejecutando) {
+                                    inicioEjecucion = datos.INICIO || inicioEjecucion
+                                    usuarioEjecucion = datos.USUARIO || usuarioEjecucion
+                                    if (datos.SEGUNDOS != null && datos.SEGUNDOS !== "") {
+                                        segundosTranscurridos = Math.max(0, parseInt(datos.SEGUNDOS, 10) || 0)
+                                        clearTimeout(actualiza)
+                                        let mensajePoll = "<p>El proceso de cierre diario se encuentra en ejecución desde el " + escHtml(String(inicioEjecucion)) + " por el usuario <b>" + escHtml(String(usuarioEjecucion || "-")) + "</b>.</p>"
+                                        if (estimado > 0) {
+                                            mensajePoll += "<p>Tiempo estimado de finalización: <b>" + estimado + "</b> minutos.</p>"
+                                        }
+                                        mensajePoll += "<p>Tiempo transcurrido: <b id='transcurrido'>" + getTiempoTranscurrido(segundosTranscurridos) + "</b></p>"
+                                        $("#tiempoEstimado").html(mensajePoll)
+                                        actualizaTiempoEstimado(segundosTranscurridos)
+                                    }
+                                    renuevaEjecucionActiva()
+                                    return
+                                }
+                                inicioEjecucion = null
+                                usuarioEjecucion = null
+                                segundosTranscurridos = 0
+                                clearTimeout(actualiza)
+                                clearTimeout(renueva)
+                                $("#procesar").attr("disabled", false)
+                                $("#alertaEjecucion").hide()
+                                $("#tiempoEstimado").html("")
+                                if (ejecutabaAntes) {
+                                    refrescarPantallaTrasCierre()
+                                    if (typeof showSuccess === "function") {
+                                        showSuccess("El proceso de cierre diario ha finalizado.")
+                                    }
+                                }
+                            })
+                            .catch(() => {
+                                renuevaEjecucionActiva()
+                            })
+                    }, 5000)
                 }
 
                 $(document).ready(() => {
@@ -425,9 +439,13 @@ class Operaciones extends Controller
     function ProcesaCierreDiario()
     {
         $this->limpiaSalidaParaJson();
+        $fechaCierre = '';
+        $candadoAdquirido = false;
         try {
             $fecha = isset($_POST['fecha']) ? trim((string) $_POST['fecha']) : '';
             $usuario = isset($this->__usuario) ? (string) $this->__usuario : '';
+            $perfil = isset($this->__perfil) ? (string) $this->__perfil : '';
+            $regenerar = !empty($_POST['regenerar']) ? 1 : 0;
 
             if (empty($fecha) || empty($usuario)) {
                 echo json_encode(\Core\Model::Responde(false, 'No se ha indicado los parámetros necesarios para el cierre diario.'));
@@ -436,22 +454,143 @@ class Operaciones extends Controller
 
             $fechaCierre = date('Y-m-d', strtotime($fecha));
 
+            $jobScript = realpath(__DIR__ . '/../../Jobs/Controllers/JobsCredito.php');
+            if ($jobScript === false || !is_file($jobScript)) {
+                echo json_encode(\Core\Model::Responde(false, 'No se encontró el Job de cierre diario. No se inició el proceso.'));
+                exit;
+            }
+
+            $phpBin = $this->resolverBinarioPhpCierreDia();
+            if ($phpBin === '') {
+                echo json_encode(\Core\Model::Responde(false, 'No se encontró el intérprete PHP para lanzar el Job. No se inició el proceso.'));
+                exit;
+            }
+
+            $inicio = CierreDiaService::iniciarProcesoCierre($fechaCierre, $usuario, $perfil, $regenerar);
+            if (empty($inicio['success'])) {
+                if (ob_get_level()) {
+                    ob_end_clean();
+                }
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode($inicio);
+                exit;
+            }
+            $candadoAdquirido = true;
+
             ignore_user_abort(true);
-            $dir = __DIR__ . '/../../Jobs/Controllers/';
+            $lanzado = $this->lanzarJobCierreDia($phpBin, $jobScript, $fechaCierre, $usuario, $regenerar);
+            if (!$lanzado) {
+                CierreDiaService::liberarCandadoInicio($fechaCierre, 0);
+                $candadoAdquirido = false;
+                if (ob_get_level()) {
+                    ob_end_clean();
+                }
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(\Core\Model::Responde(false, 'No fue posible iniciar el Job de cierre diario. Se liberó el candado; intente de nuevo.'));
+                exit;
+            }
 
-            $cmd = PHP_OS_FAMILY === 'Windows' ?
-                "start /B C:\\xampp\\php\\php.exe \"{$dir}JobsCredito.php\" \"CierreDia\" \"{$fechaCierre}\" \"{$usuario}\"" :
-                "nohup php '{$dir}JobsCredito.php' 'CierreDia' '{$fechaCierre}' '{$usuario}' > /dev/null 2>&1 &";
-
-            exec($cmd);
-
-            echo json_encode(\Core\Model::Responde(true, 'El proceso de cierre diario ha sido iniciado. Se enviará un correo con el resumen al finalizar.'));
+            if (ob_get_level()) {
+                ob_end_clean();
+            }
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(\Core\Model::Responde(
+                true,
+                'El proceso de cierre diario se ha iniciado. Se enviará un correo con el resumen al finalizar.',
+                isset($inicio['datos']) ? $inicio['datos'] : null
+            ));
+            exit;
         } catch (\Throwable $e) {
-            if (ob_get_level()) ob_end_clean();
+            if ($candadoAdquirido && $fechaCierre !== '') {
+                try {
+                    CierreDiaService::liberarCandadoInicio($fechaCierre, 0);
+                } catch (\Throwable $e2) {
+                    // no tapar el error original
+                }
+            }
+            if (ob_get_level()) {
+                ob_end_clean();
+            }
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode(\Core\Model::Responde(false, 'Error al procesar: ' . $e->getMessage(), null, $e->getMessage()));
             exit;
         }
+    }
+
+    /**
+     * Resuelve la ruta del php.exe / php CLI para lanzar Jobs en segundo plano.
+     *
+     * @return string Ruta absoluta o vacía si no se encuentra
+     */
+    private function resolverBinarioPhpCierreDia()
+    {
+        $candidatos = [];
+        if (defined('PHP_BINARY') && PHP_BINARY) {
+            $candidatos[] = PHP_BINARY;
+        }
+        if (PHP_OS_FAMILY === 'Windows') {
+            $candidatos[] = 'C:\\xampp\\php\\php.exe';
+        } else {
+            $candidatos[] = '/usr/bin/php';
+            $candidatos[] = '/usr/local/bin/php';
+        }
+        foreach ($candidatos as $bin) {
+            $bin = trim((string) $bin);
+            if ($bin === '') {
+                continue;
+            }
+            // php-cgi / php-fpm no sirven para CLI de Jobs
+            if (stripos($bin, 'php-cgi') !== false || stripos($bin, 'php-fpm') !== false) {
+                continue;
+            }
+            if (is_file($bin)) {
+                return $bin;
+            }
+        }
+        return '';
+    }
+
+    /**
+     * Lanza JobsCredito.php CierreDia en segundo plano.
+     *
+     * @param string $phpBin
+     * @param string $jobScript
+     * @param string $fechaCierre Y-m-d
+     * @param string $usuario
+     * @param int $regenerar
+     * @return bool true si el SO aceptó el arranque
+     */
+    private function lanzarJobCierreDia($phpBin, $jobScript, $fechaCierre, $usuario, $regenerar)
+    {
+        $regenerarArg = $regenerar ? '1' : '0';
+        if (PHP_OS_FAMILY === 'Windows') {
+            $cmd = 'start /B "" '
+                . escapeshellarg($phpBin) . ' '
+                . escapeshellarg($jobScript) . ' '
+                . escapeshellarg('CierreDia') . ' '
+                . escapeshellarg($fechaCierre) . ' '
+                . escapeshellarg($usuario) . ' '
+                . escapeshellarg($regenerarArg);
+            $handle = @popen($cmd, 'r');
+            if (!is_resource($handle)) {
+                return false;
+            }
+            pclose($handle);
+            return true;
+        }
+
+        $cmd = 'nohup ' . escapeshellarg($phpBin) . ' '
+            . escapeshellarg($jobScript) . ' '
+            . escapeshellarg('CierreDia') . ' '
+            . escapeshellarg($fechaCierre) . ' '
+            . escapeshellarg($usuario) . ' '
+            . escapeshellarg($regenerarArg)
+            . ' > /dev/null 2>&1 & echo $!';
+        $out = [];
+        $code = 1;
+        @exec($cmd, $out, $code);
+        $pid = isset($out[0]) ? trim((string) $out[0]) : '';
+        return $code === 0 && $pid !== '' && ctype_digit($pid);
     }
 
     ////////////////////////////////////////////////////////////////////

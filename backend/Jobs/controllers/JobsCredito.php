@@ -291,56 +291,123 @@ class JobsCredito extends Job
         self::SaveLog('Finalizado');
     }
 
-    public function CierreDia($fecha, $usuario)
+    public function CierreDia($fecha, $usuario, $regenerar = 0)
     {
+        set_time_limit(0);
         self::SaveLog('Inicio');
         if (empty($fecha) || empty($usuario)) {
             self::SaveLog('Finalizado con error: Fecha y usuario son requeridos');
+            $this->cerrarCandadoCierreDia($fecha, 0);
             return;
         }
 
         $dest = null;
         $mensajeRes = null;
+        $exito = 0;
         $datos = [
             'fecha' => $fecha,
-            'usuario' => $usuario
+            'usuario' => $usuario,
+            'regenerar' => $regenerar ? 1 : 0,
         ];
 
-        $resultado = JobsDao::CierreDia($datos);
+        try {
+            $resultado = JobsDao::CierreDia($datos);
 
-        if (isset($resultado['datos']) && isset($resultado['datos']['MENSAJE'])) {
-            $lineas = explode(PHP_EOL, trim($resultado['datos']['MENSAJE']));
-            $mensajeRes = end($lineas);
-            $resultado['datos']['MENSAJE'] = $mensajeRes;
-        }
-
-        if ($resultado['success']) {
-            $dest = $this->GetDestinatarios(JobsDao::GetDestinatarios_Aplicacion(5));
-            $mensaje = "Cierre de día concluido: fecha $fecha - usuario $usuario";
-        } else {
-            $dest = $this->GetDestinatarios(JobsDao::GetDestinatarios_Aplicacion(6));
-            $error = isset($resultado['error']) ? $resultado['error'] : $mensajeRes;
-            $mensaje = "Finalizado con error: $error";
-        }
-
-        if (!empty($dest)) {
-            try {
-                $fecha = new \DateTime($fecha);
-                $fecha = $fecha->format('d/m/Y');
-                Mensajero::EnviarCorreo(
-                    $dest,
-                    "Cierre del día $fecha",
-                    Mensajero::Notificaciones(self::PLantilla_mail_Cierre_Dia($resultado['datos'] ?? []))
-                );
-
-                $resCorreo = JobsDao::CorreoCierreDia($resultado['datos'] ?? []);
-                self::SaveLog('Estatus del correo: ' . $resCorreo['mensaje'] . ' -> ' . ($resCorreo['error'] ?? ''));
-            } catch (\Exception $e) {
-                self::SaveLog('Error al enviar correo: ' . $e->getMessage());
+            if (isset($resultado['datos']) && isset($resultado['datos']['MENSAJE'])) {
+                $lineas = explode(PHP_EOL, trim($resultado['datos']['MENSAJE']));
+                $mensajeRes = end($lineas);
+                $resultado['datos']['MENSAJE'] = $mensajeRes;
             }
+
+            if ($resultado['success']) {
+                $exito = 1;
+                $mensaje = "Cierre de día concluido: fecha $fecha - usuario $usuario";
+            } else {
+                $error = isset($resultado['error']) ? $resultado['error'] : $mensajeRes;
+                $mensaje = "Finalizado con error: $error";
+            }
+
+            $envio = $this->destinosCorreoCierreDia($exito === 1);
+            $dest = $envio['destinatarios'];
+            $copiaHistorico = $envio['copiaHistorico'];
+
+            if (!empty($dest)) {
+                try {
+                    $fechaFmt = new \DateTime($fecha);
+                    $fechaFmt = $fechaFmt->format('d/m/Y');
+                    Mensajero::EnviarCorreo(
+                        $dest,
+                        "Cierre del día $fechaFmt",
+                        Mensajero::Notificaciones(self::PLantilla_mail_Cierre_Dia($resultado['datos'] ?? [])),
+                        [],
+                        $copiaHistorico
+                    );
+
+                    $resCorreo = JobsDao::CorreoCierreDia($resultado['datos'] ?? []);
+                    self::SaveLog('Estatus del correo: ' . $resCorreo['mensaje'] . ' -> ' . ($resCorreo['error'] ?? ''));
+                } catch (\Exception $e) {
+                    self::SaveLog('Error al enviar correo: ' . $e->getMessage());
+                }
+            }
+
+            self::SaveLog($mensaje);
+        } catch (\Throwable $e) {
+            self::SaveLog('Finalizado con error: ' . $e->getMessage());
+            $exito = 0;
+        } finally {
+            $this->cerrarCandadoCierreDia($fecha, $exito);
+        }
+    }
+
+    /**
+     * Destinatarios del correo de cierre.
+     * Con CIERRE_DIA_SOLO_FLUJO: solo CORREOS_DESARROLLO, sin copia a SMTP_USER.
+     * En producción: grupos de aplicación 5 (éxito) / 6 (error) y copia histórica.
+     *
+     * @param bool $exito
+     * @return array{destinatarios: string[], copiaHistorico: bool}
+     */
+    private function destinosCorreoCierreDia($exito)
+    {
+        $ini = @parse_ini_file(dirname(__DIR__) . '/../App/config/configuracion.ini', true);
+        $cfg = isset($ini['cierre_dia']) && is_array($ini['cierre_dia']) ? $ini['cierre_dia'] : [];
+        $val = isset($cfg['CIERRE_DIA_SOLO_FLUJO']) ? trim((string) $cfg['CIERRE_DIA_SOLO_FLUJO']) : '';
+        $soloFlujo = $val !== '' && (filter_var($val, FILTER_VALIDATE_BOOLEAN) || strtolower($val) === 'true' || $val === '1');
+
+        if ($soloFlujo) {
+            $raw = isset($cfg['CORREOS_DESARROLLO']) ? trim((string) $cfg['CORREOS_DESARROLLO']) : '';
+            $dest = array_values(array_filter(array_unique(array_map('trim', explode(',', $raw)))));
+            if (empty($dest)) {
+                self::SaveLog('CIERRE_DIA_SOLO_FLUJO activo y CORREOS_DESARROLLO vacío: no se envía correo.');
+            } else {
+                self::SaveLog('Correo solo desarrollo: ' . implode(', ', $dest));
+            }
+            return ['destinatarios' => $dest, 'copiaHistorico' => false];
         }
 
-        self::SaveLog($mensaje);
+        $appId = $exito ? 5 : 6;
+        $dest = $this->GetDestinatarios(JobsDao::GetDestinatarios_Aplicacion($appId));
+        return ['destinatarios' => $dest, 'copiaHistorico' => true];
+    }
+
+    /**
+     * Libera el candado PHP (bitácora abierta sin ID_IMPORTACION) al terminar el Job.
+     *
+     * @param string|null $fecha Y-m-d
+     * @param int $exito
+     */
+    private function cerrarCandadoCierreDia($fecha, $exito = 0)
+    {
+        $fecha = trim((string) $fecha);
+        if ($fecha === '') {
+            return;
+        }
+        try {
+            $ok = JobsDao::CerrarCandadoCierreDia($fecha, (int) $exito);
+            self::SaveLog('Candado cierre día: ' . ($ok ? 'liberado' : 'sin cambios') . ' (exito=' . (int) $exito . ')');
+        } catch (\Throwable $e) {
+            self::SaveLog('Error al liberar candado: ' . $e->getMessage());
+        }
     }
 
     public function PLantilla_mail_Cierre_Dia($datos)
@@ -1101,13 +1168,14 @@ if (isset($argv[1])) {
         case 'CierreDia':
             $fecha = isset($argv[2]) ? $argv[2] : NULL;
             $usuario = isset($argv[3]) ? $argv[3] : NULL;
-            $jobs->CierreDia($fecha, $usuario);
+            $regenerar = isset($argv[4]) ? (int) $argv[4] : 0;
+            $jobs->CierreDia($fecha, $usuario, $regenerar);
             break;
         case 'help':
             echo 'JobCheques: Actualiza los cheques de los créditos autorizados\n';
             echo 'SolicitudesFinalizadas: Evalúa el comentario final de la solicitud y la procesa para concluir con la solicitud\n';
             echo 'RepDiasAtraso [ruta]: Genera Rep_Días_atraso_YYYYMMDD.csv; ruta opcional (por defecto Desktop del usuario)\n';
-            echo 'CierreDia [fecha] [usuario]: Ejecuta el cierre del día para la fecha y usuario especificados\n';
+            echo 'CierreDia [fecha] [usuario] [regenerar]: Ejecuta el cierre del día (regenerar opcional 0|1)\n';
             break;
         default:
             echo 'No se encontró el job solicitado.\nEjecute "php JobsAhorro.php help" para ver los jobs disponibles.\n';

@@ -9,7 +9,7 @@ use Core\Database;
 /**
  * Repository: acceso a datos del Cierre de Día.
  * Consultas a BITACORA_CIERRE_DIARIO, TBL_CIERRE_DIA (resúmenes/correo), DEVENGO_DIARIO y SP_PAGOS_CIERRE_DEVENGO.
- * Concurrencia (cierre en curso): BITACORA_CIERRE_DIARIO. «Cierre ya ejecutado» para validación previa: IMPORTACIONPAG (FEC_PAGO), sin TBL_CIERRE_DIA.
+ * Concurrencia (cierre en curso): BITACORA_CIERRE_DIARIO. «Cierre ya ejecutado»: bitácora EXITO=1 o IMPORTACIONPAG (FEC_PAGO).
  * Sin lógica de negocio; solo SQL y llamadas a procedimientos.
  */
 class CierreDiaRepository
@@ -51,10 +51,23 @@ class CierreDiaRepository
     }
 
     /**
+     * Formatea un DATE de bitácora a hora de México (el respaldo guarda SYSDATE en UTC;
+     * producción suele coincidir con México). Usa el offset de SYSTIMESTAMP.
+     */
+    private function sqlHoraMexico($columna, $conSegundos = false)
+    {
+        $fmt = $conSegundos ? 'DD/MM/YYYY HH24:MI:SS' : 'DD/MM/YYYY HH24:MI';
+
+        return "CASE WHEN {$columna} IS NULL THEN NULL ELSE TO_CHAR("
+            . "FROM_TZ(CAST({$columna} AS TIMESTAMP), TO_CHAR(SYSTIMESTAMP, 'TZH:TZM')) "
+            . "AT TIME ZONE 'America/Mexico_City', '{$fmt}') END";
+    }
+
+    /**
      * Indica si hay un proceso de cierre en ejecución (bitácora: cierre abierto, FIN IS NULL).
      * Primero COUNT(*) sobre BITACORA_CIERRE_DIARIO; si hay pendiente, se obtiene INICIO/USUARIO del último.
      *
-     * @return array { INICIO, FECHA_CIERRE, USUARIO } o vacío
+     * @return array { INICIO, FECHA_CIERRE, USUARIO, SEGUNDOS } o vacío
      */
     public function validaCierreEnEjecucion()
     {
@@ -64,13 +77,12 @@ class CierreDiaRepository
                 return [];
             }
 
-            // Proceso activo: solo bitácora (no TBL_CIERRE_DIA). Criterio: FIN IS NULL = aún no terminó.
+            // Proceso activo: FIN IS NULL. No exigir EXITO IS NULL: un renglón abierto bloquea otro inicio.
             $qryConCierrePendiente = <<<SQL
                 SELECT COUNT(*) AS TOTAL
                 FROM BITACORA_CIERRE_DIARIO
                 WHERE FIN IS NULL
                   AND INICIO IS NOT NULL
-                  AND EXITO IS NULL
             SQL;
 
             $cnt = $db->queryOne($qryConCierrePendiente);
@@ -79,16 +91,17 @@ class CierreDiaRepository
                 return [];
             }
 
+            $inicioMx = $this->sqlHoraMexico('INICIO', true);
             $qry = <<<SQL
                 SELECT
                     TO_CHAR(FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CIERRE,
-                    TO_CHAR(INICIO, 'DD/MM/YYYY HH24:MI:SS') AS INICIO,
-                    USUARIO
+                    {$inicioMx} AS INICIO,
+                    USUARIO,
+                    GREATEST(0, ROUND((SYSDATE - INICIO) * 86400)) AS SEGUNDOS
                 FROM BITACORA_CIERRE_DIARIO
                 WHERE FIN IS NULL
                   AND INICIO IS NOT NULL
-                  AND EXITO IS NULL
-                ORDER BY INICIO DESC
+                ORDER BY INICIO ASC
                 FETCH FIRST 1 ROW ONLY
             SQL;
 
@@ -127,31 +140,83 @@ class CierreDiaRepository
 
     /**
      * Últimos 7 cierres en bitácora (más recientes primero; incluye en proceso y finalizados).
+     * Prefiere filas del SP (con métricas / ID_IMPORTACION) y omite candados PHP ya cerrados sin importación.
      *
-     * @return array Lista de filas con FECHA_CALCULO, INICIO, FIN, USUARIO, EXITO
+     * Importante: ORDER BY debe usar columnas de tabla (alias b.), nunca el alias TO_CHAR(FECHA_CALCULO,'DD/MM/YYYY'):
+     * ordenar el texto DD/MM/YYYY deja fuera fechas recientes (p. ej. agosto tras julio).
+     *
+     * @return array Lista de filas con FECHA_CALCULO, INICIO, FIN, USUARIO, EXITO, métricas
      */
     public function getUltimos7Cierres()
     {
-        $qry = <<<SQL
-            SELECT
-                TO_CHAR(FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CALCULO,
-                TO_CHAR(FECHA_CALCULO, 'YYYY-MM-DD') AS FECHA_CIERRE_ISO,
-                TO_CHAR(INICIO, 'DD/MM/YYYY HH24:MI') AS INICIO,
-                TO_CHAR(FIN, 'DD/MM/YYYY HH24:MI') AS FIN,
-                USUARIO,
-                NVL(EXITO, 0) AS EXITO,
-                CASE WHEN FIN IS NULL THEN 1 ELSE 0 END AS EN_PROCESO
-            FROM BITACORA_CIERRE_DIARIO
-            ORDER BY NVL(FIN, INICIO) DESC, INICIO DESC, FECHA_CALCULO DESC
-            FETCH FIRST 7 ROWS ONLY
+        // Producción (SP): columnas de métricas e ID_IMPORTACION.
+        $inicioMx = $this->sqlHoraMexico('b.INICIO');
+        $finMx = $this->sqlHoraMexico('b.FIN');
+        $qryConMetricas = <<<SQL
+            SELECT * FROM (
+                SELECT
+                    TO_CHAR(b.FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CALCULO,
+                    TO_CHAR(b.FECHA_CALCULO, 'YYYY-MM-DD') AS FECHA_CIERRE_ISO,
+                    {$inicioMx} AS INICIO,
+                    {$finMx} AS FIN,
+                    b.USUARIO,
+                    NVL(b.EXITO, 0) AS EXITO,
+                    CASE WHEN b.FIN IS NULL THEN 1 ELSE 0 END AS EN_PROCESO,
+                    NVL(b.CIERRE_REGISTROS, 0) AS REGISTROS_PROCESADOS,
+                    NVL(b.DEVENGO_REGISTROS, 0) AS CREDITOS_DEVENGO,
+                    NVL(b.DEVENGO_MONTO, 0) AS DEVENGO_MONTO_NUM
+                FROM BITACORA_CIERRE_DIARIO b
+                WHERE b.ID_IMPORTACION IS NOT NULL
+                   OR (
+                        b.FIN IS NULL
+                        AND b.ID_IMPORTACION IS NULL
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM BITACORA_CIERRE_DIARIO s
+                            WHERE s.FIN IS NULL
+                              AND s.ID_IMPORTACION IS NOT NULL
+                              AND TRUNC(s.FECHA_CALCULO) = TRUNC(b.FECHA_CALCULO)
+                        )
+                   )
+                ORDER BY b.INICIO DESC NULLS LAST, b.FECHA_CALCULO DESC
+            ) WHERE ROWNUM <= 7
         SQL;
-        return $this->sinSalida(function () use ($qry) {
+
+        $qryBasico = <<<SQL
+            SELECT * FROM (
+                SELECT
+                    TO_CHAR(b.FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CALCULO,
+                    TO_CHAR(b.FECHA_CALCULO, 'YYYY-MM-DD') AS FECHA_CIERRE_ISO,
+                    {$inicioMx} AS INICIO,
+                    {$finMx} AS FIN,
+                    b.USUARIO,
+                    NVL(b.EXITO, 0) AS EXITO,
+                    CASE WHEN b.FIN IS NULL THEN 1 ELSE 0 END AS EN_PROCESO
+                FROM BITACORA_CIERRE_DIARIO b
+                WHERE b.FIN IS NOT NULL
+                   OR b.INICIO = (
+                        SELECT MAX(s.INICIO)
+                        FROM BITACORA_CIERRE_DIARIO s
+                        WHERE s.FIN IS NULL
+                          AND TRUNC(s.FECHA_CALCULO) = TRUNC(b.FECHA_CALCULO)
+                   )
+                ORDER BY b.INICIO DESC NULLS LAST, b.FECHA_CALCULO DESC
+            ) WHERE ROWNUM <= 7
+        SQL;
+
+        return $this->sinSalida(function () use ($qryConMetricas, $qryBasico) {
             try {
                 $db = new Database();
-                $filas = $db->queryAll($qry);
+                $filas = $db->queryAll($qryConMetricas);
                 return is_array($filas) ? $filas : [];
             } catch (\Exception $e) {
-                return [];
+                try {
+                    $db = new Database();
+                    $filas = $db->queryAll($qryBasico);
+                    return is_array($filas) ? $filas : [];
+                } catch (\Exception $e2) {
+                    return [];
+                }
             }
         });
     }
@@ -175,11 +240,13 @@ class CierreDiaRepository
             return null;
         }
 
+        $inicioMx = $this->sqlHoraMexico('INICIO');
+        $finMx = $this->sqlHoraMexico('FIN');
         $qry = <<<SQL
             SELECT
                 USUARIO,
-                TO_CHAR(INICIO, 'DD/MM/YYYY HH24:MI') AS INICIO,
-                TO_CHAR(FIN, 'DD/MM/YYYY HH24:MI') AS FIN,
+                {$inicioMx} AS INICIO,
+                {$finMx} AS FIN,
                 NVL(EXITO, 0) AS EXITO,
                 CASE WHEN FIN IS NULL THEN 1 ELSE 0 END AS EN_PROCESO
             FROM BITACORA_CIERRE_DIARIO
@@ -230,24 +297,55 @@ class CierreDiaRepository
     }
 
     /**
-     * Indica si ya hay registros de importación de pagos para esa fecha de pago (IMPORTACIONPAG), sin TBL_CIERRE_DIA.
-     * TRUNC(FEC_PAGO) alinea el día calendario si la columna incluye hora.
+     * Indica si el cierre del día ya se ejecutó con éxito.
+     * Prioridad: bitácora EXITO=1. Un cierre fallido (EXITO=0) no bloquea reintento.
+     * IMPORTACIONPAG solo como respaldo si no hay bitácora de esa fecha.
      *
      * @param string $fecha Y-m-d
      * @return bool
      */
     public function cierreYaEjecutado($fecha)
     {
-        $qry = <<<SQL
+        $qryExito = <<<SQL
+            SELECT COUNT(*) AS TOTAL
+            FROM BITACORA_CIERRE_DIARIO
+            WHERE TRUNC(FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
+              AND FIN IS NOT NULL
+              AND NVL(EXITO, 0) = 1
+        SQL;
+
+        $qryCualquiera = <<<SQL
+            SELECT COUNT(*) AS TOTAL
+            FROM BITACORA_CIERRE_DIARIO
+            WHERE TRUNC(FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
+              AND FIN IS NOT NULL
+        SQL;
+
+        $qryImportacion = <<<SQL
             SELECT COUNT(*) AS TOTAL
             FROM IMPORTACIONPAG
             WHERE TRUNC(FEC_PAGO) = TO_DATE(:fecha, 'YYYY-MM-DD')
         SQL;
 
-        return $this->sinSalida(function () use ($qry, $fecha) {
+        return $this->sinSalida(function () use ($qryExito, $qryCualquiera, $qryImportacion, $fecha) {
             try {
                 $db = new Database();
-                $r = $db->queryOne($qry, ['fecha' => $fecha]);
+                $rOk = $db->queryOne($qryExito, ['fecha' => $fecha]);
+                if ($rOk !== false && isset($rOk['TOTAL']) && (int) $rOk['TOTAL'] > 0) {
+                    return true;
+                }
+                $rAny = $db->queryOne($qryCualquiera, ['fecha' => $fecha]);
+                if ($rAny !== false && isset($rAny['TOTAL']) && (int) $rAny['TOTAL'] > 0) {
+                    // Hubo intento(s) fallidos y ninguno exitoso: se puede reintentar.
+                    return false;
+                }
+            } catch (\Exception $e) {
+                // Continúa con IMPORTACIONPAG
+            }
+
+            try {
+                $db = new Database();
+                $r = $db->queryOne($qryImportacion, ['fecha' => $fecha]);
 
                 return $r !== false && isset($r['TOTAL']) && (int) $r['TOTAL'] > 0;
             } catch (\Exception $e) {
@@ -471,19 +569,47 @@ SQL;
     }
 
     /**
-     * Registra el inicio del cierre en la bitácora (FIN = NULL hasta que finalice).
+     * Adquiere el candado de concurrencia: inserta bitácora abierta solo si no hay otra con FIN IS NULL.
+     * Usa bloqueo exclusivo breve de la tabla para evitar dos inicios concurrentes (TOCTOU).
      *
      * @param string $fecha Y-m-d
      * @param string $usuario
-     * @return bool
+     * @return bool true si se adquirió el candado
      */
     public function registrarInicio($fecha, $usuario)
     {
-        $qry = "INSERT INTO BITACORA_CIERRE_DIARIO (FECHA_CALCULO, USUARIO) VALUES (TO_DATE(:fecha, 'YYYY-MM-DD'), :usuario)";
         try {
             $db = new Database();
-            $db->insertar($qry, ['fecha' => $fecha, 'usuario' => $usuario]);
-            return true;
+            if ($db->db_activa === null) {
+                return false;
+            }
+            $pdo = $db->db_activa;
+            $pdo->beginTransaction();
+            try {
+                $pdo->exec('LOCK TABLE BITACORA_CIERRE_DIARIO IN EXCLUSIVE MODE');
+
+                $cntStmt = $pdo->query(
+                    'SELECT COUNT(*) AS TOTAL FROM BITACORA_CIERRE_DIARIO WHERE FIN IS NULL AND INICIO IS NOT NULL'
+                );
+                $cntRow = $cntStmt ? $cntStmt->fetch(\PDO::FETCH_ASSOC) : false;
+                $total = ($cntRow && isset($cntRow['TOTAL'])) ? (int) $cntRow['TOTAL'] : 0;
+                if ($total > 0) {
+                    $pdo->rollBack();
+                    return false;
+                }
+
+                $ins = $pdo->prepare(
+                    "INSERT INTO BITACORA_CIERRE_DIARIO (FECHA_CALCULO, USUARIO) VALUES (TO_DATE(:fecha, 'YYYY-MM-DD'), :usuario)"
+                );
+                $ins->execute(['fecha' => $fecha, 'usuario' => $usuario]);
+                $pdo->commit();
+                return true;
+            } catch (\Exception $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                throw $e;
+            }
         } catch (\Exception $e) {
             return false;
         }
@@ -505,6 +631,91 @@ SQL;
             return true;
         } catch (\Exception $e) {
             return false;
+        }
+    }
+
+    /**
+     * Cierra el candado PHP (filas abiertas sin ID_IMPORTACION del SP) para la fecha.
+     * Si la columna ID_IMPORTACION no existe, cierra cualquier FIN IS NULL de esa fecha.
+     *
+     * @param string $fecha Y-m-d
+     * @param int $exito 1 = éxito, 0 = error
+     * @return bool
+     */
+    public function cerrarCandadoInicio($fecha, $exito = 1)
+    {
+        $fecha = trim((string) $fecha);
+        if ($fecha === '') {
+            return false;
+        }
+
+        $qryConImportacion = <<<SQL
+            UPDATE BITACORA_CIERRE_DIARIO
+            SET FIN = SYSDATE, EXITO = :exito
+            WHERE TRUNC(FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
+              AND FIN IS NULL
+              AND ID_IMPORTACION IS NULL
+        SQL;
+
+        try {
+            $db = new Database();
+            if ($db->db_activa === null) {
+                return false;
+            }
+            $stmt = $db->db_activa->prepare($qryConImportacion);
+            $stmt->execute(['fecha' => $fecha, 'exito' => (int) $exito]);
+            return true;
+        } catch (\Exception $e) {
+            return $this->registrarFin($fecha, $exito);
+        }
+    }
+
+    /**
+     * Cierra bitácoras huérfanas (candado PHP o fila del SP) con FIN IS NULL y más de $minutosAntiguedad.
+     * Si el Job/SP muere, la pantalla no debe quedar en "Procesando" indefinidamente.
+     *
+     * @param int $minutosAntiguedad Por defecto 40 (cierre típico ~10 min)
+     * @return int Filas actualizadas (0 si ninguna / error)
+     */
+    public function liberarCandadosPhpHuerfanos($minutosAntiguedad = 40)
+    {
+        $minutos = max(15, (int) $minutosAntiguedad);
+        $qry = <<<SQL
+            UPDATE BITACORA_CIERRE_DIARIO b
+            SET b.FIN = SYSDATE, b.EXITO = 0
+            WHERE b.FIN IS NULL
+              AND b.INICIO IS NOT NULL
+              AND b.INICIO < SYSDATE - (:mins / 1440)
+        SQL;
+
+        try {
+            $db = new Database();
+            if ($db->db_activa === null) {
+                return 0;
+            }
+            $stmt = $db->db_activa->prepare($qry);
+            $stmt->execute(['mins' => $minutos]);
+            return (int) $stmt->rowCount();
+        } catch (\Exception $e) {
+            // Esquema sin ID_IMPORTACION: cierra cualquier abierto viejo.
+            try {
+                $db = new Database();
+                if ($db->db_activa === null) {
+                    return 0;
+                }
+                $qryBasico = <<<SQL
+                    UPDATE BITACORA_CIERRE_DIARIO
+                    SET FIN = SYSDATE, EXITO = 0
+                    WHERE FIN IS NULL
+                      AND INICIO IS NOT NULL
+                      AND INICIO < SYSDATE - (:mins / 1440)
+                SQL;
+                $stmt = $db->db_activa->prepare($qryBasico);
+                $stmt->execute(['mins' => $minutos]);
+                return (int) $stmt->rowCount();
+            } catch (\Exception $e2) {
+                return 0;
+            }
         }
     }
 
@@ -532,8 +743,8 @@ SQL;
 
     /**
      * Invoca SP_PAGOS_CIERRE_DEVENGO (cierre unificado en BD).
-     * Si $regenerar es true, elimina antes las filas de DEVENGO_DIARIO y TBL_CIERRE_DIA de esa fecha calendario
-     * para evitar ORA-00001 (TBL_CIERRE_DIA_PK) al volver a ejecutar el SP.
+     * Si $regenerar es true, elimina TBL_CIERRE_DIA del día y DEVENGO_DIARIO de (día+1)
+     * para evitar ORA-00001 al volver a ejecutar el SP.
      *
      * @param string $fecha Y-m-d (fecha de cálculo / cierre)
      * @param string $usuario Usuario que ejecuta el proceso
@@ -557,6 +768,7 @@ SQL;
         }
 
         if ($regenerar) {
+            $fechaDevengo = $this->fechaCalculoDevengoDesdeCierre($fecha);
             $sql = <<<PLSQL
 BEGIN
   DELETE FROM DEVENGO_DIARIO d
@@ -567,7 +779,7 @@ BEGIN
 END;
 PLSQL;
             $stmt = $pdo->prepare($sql);
-            $stmt->execute(['f1' => $fecha, 'f2' => $fecha, 'f3' => $fecha, 'usuario' => $u]);
+            $stmt->execute(['f1' => $fechaDevengo, 'f2' => $fecha, 'f3' => $fecha, 'usuario' => $u]);
 
             return;
         }
