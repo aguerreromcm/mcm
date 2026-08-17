@@ -29,18 +29,26 @@ class CierreDiaService
         foreach ($ultimos5 as $fila) {
             $enProceso = !empty($fila['EN_PROCESO']) && (int) $fila['EN_PROCESO'] === 1;
             $exito = isset($fila['EXITO']) ? (int) $fila['EXITO'] : 0;
-            // Un error no debe tomar cifras de TBL_CIERRE_DIA/DEVENGO de otro día (el SP reutiliza ID_IMPORTACION).
+            $fechaIso = isset($fila['FECHA_CIERRE_ISO']) ? trim((string) $fila['FECHA_CIERRE_ISO']) : '';
+            if ($fechaIso === '') {
+                continue;
+            }
+            // Errores: ceros en pantalla; no consultar tablas operativas.
             if (!$enProceso && $exito !== 1) {
                 continue;
             }
+            // Éxito: siempre por fecha de cierre (TBL_CIERRE_DIA / DEVENGO). El SP reutiliza
+            // ID_IMPORTACION y deja las mismas cifras en bitácora en todos los renglones.
+            if ($exito === 1) {
+                $fechasFaltantes[] = $fechaIso;
+                continue;
+            }
+            // En proceso: bitácora del SP en vivo; respaldo solo si faltan columnas.
             $tieneMetricas = array_key_exists('REGISTROS_PROCESADOS', $fila)
                 || array_key_exists('CREDITOS_DEVENGO', $fila)
                 || array_key_exists('DEVENGO_MONTO_NUM', $fila);
             if (!$tieneMetricas) {
-                $fechaIso = isset($fila['FECHA_CIERRE_ISO']) ? trim((string) $fila['FECHA_CIERRE_ISO']) : '';
-                if ($fechaIso !== '') {
-                    $fechasFaltantes[] = $fechaIso;
-                }
+                $fechasFaltantes[] = $fechaIso;
             }
         }
 
@@ -61,16 +69,22 @@ class CierreDiaService
             $mostrarMetricas = $enProceso || $exito === 1;
 
             if ($mostrarMetricas) {
-                $registros = array_key_exists('REGISTROS_PROCESADOS', $fila)
-                    ? (int) $fila['REGISTROS_PROCESADOS']
-                    : (isset($mapCierre[$fechaIso]) ? (int) $mapCierre[$fechaIso] : 0);
-                $creditos = array_key_exists('CREDITOS_DEVENGO', $fila)
-                    ? (int) $fila['CREDITOS_DEVENGO']
-                    : (int) ($mapDevengo[$fechaIso]['creditos'] ?? 0);
-                if (array_key_exists('DEVENGO_MONTO_NUM', $fila)) {
-                    $monto = (float) $fila['DEVENGO_MONTO_NUM'];
-                } else {
+                if ($exito === 1) {
+                    $registros = (int) ($mapCierre[$fechaIso] ?? 0);
+                    $creditos = (int) ($mapDevengo[$fechaIso]['creditos'] ?? 0);
                     $monto = (float) ($mapDevengo[$fechaIso]['monto'] ?? 0);
+                } else {
+                    $registros = array_key_exists('REGISTROS_PROCESADOS', $fila)
+                        ? (int) $fila['REGISTROS_PROCESADOS']
+                        : (int) ($mapCierre[$fechaIso] ?? 0);
+                    $creditos = array_key_exists('CREDITOS_DEVENGO', $fila)
+                        ? (int) $fila['CREDITOS_DEVENGO']
+                        : (int) ($mapDevengo[$fechaIso]['creditos'] ?? 0);
+                    if (array_key_exists('DEVENGO_MONTO_NUM', $fila)) {
+                        $monto = (float) $fila['DEVENGO_MONTO_NUM'];
+                    } else {
+                        $monto = (float) ($mapDevengo[$fechaIso]['monto'] ?? 0);
+                    }
                 }
             } else {
                 $registros = 0;
