@@ -10,6 +10,7 @@ use App\models\Operaciones as OperacionesDao;
 use App\services\PagosAplicacionService;
 use App\services\ConciliacionService;
 use App\services\CierreDiaService;
+use App\services\CierreDiaJobLock;
 
 class Operaciones extends Controller
 {
@@ -51,6 +52,8 @@ class Operaciones extends Controller
                 let inicioEjecucion = "$inicioEjecucion"
                 let usuarioEjecucion = "$usuarioEjecucion"
                 let segundosTranscurridos = $segundosTranscurridos
+                let esperaSpDesde = 0
+                const GRACIA_ARRANQUE_JOB_MS = 20000
                 let actualiza = null
                 let renueva = null
 
@@ -168,19 +171,20 @@ class Operaciones extends Controller
                         showError("Ya hay un proceso de cierre diario en ejecución.")
                         return
                     }
+                    ejecutando = true
+                    $("#procesar").attr("disabled", true)
                     var payload = { fecha: $("#fecha").val(), usuario: "{$this->__usuario}" }
                     if (regenerar) payload.regenerar = "1"
                     consultaServidor("/operaciones/ProcesaCierreDiario", payload, (respuesta) => {
                         if (!respuesta || !respuesta.success) {
+                            ejecutando = false
+                            $("#procesar").attr("disabled", false)
                             return showError((respuesta && respuesta.mensaje) ? respuesta.mensaje : "No fue posible iniciar el cierre.")
                         }
-                        const d = respuesta.datos || {}
-                        ejecutando = true
-                        inicioEjecucion = d.inicio || fechaActualFormateada()
-                        usuarioEjecucion = d.usuario || "{$this->__usuario}"
-                        segundosTranscurridos = parseInt(d.segundos, 10) || 0
-                        $("#procesar").attr("disabled", true)
-                        refrescarTablaUltimosCierres()
+                        inicioEjecucion = null
+                        usuarioEjecucion = null
+                        segundosTranscurridos = 0
+                        esperaSpDesde = Date.now()
                         const mensaje = respuesta.mensaje || "El proceso de cierre diario se ha iniciado. Se enviará un correo al finalizar."
                         showSuccess(mensaje).then(() => {
                             validaEjecucionActiva()
@@ -239,7 +243,11 @@ class Operaciones extends Controller
                         return
                     }
                     if (!inicioEjecucion) {
-                        inicioEjecucion = fechaActualFormateada()
+                        $("#procesar").attr("disabled", true)
+                        $("#tiempoEstimado").html("<p>El cierre se está iniciando. El aviso se mostrará cuando el procedimiento registre actividad en bitácora.</p>")
+                        $("#alertaEjecucion").show()
+                        renuevaEjecucionActiva()
+                        return
                     }
                     const diferencia = Math.max(0, parseInt(segundosTranscurridos, 10) || 0)
                     let mensaje = "<p>El proceso de cierre diario se encuentra en ejecución desde el " + escHtml(String(inicioEjecucion)) + " por el usuario <b>" + escHtml(String(usuarioEjecucion || "-")) + "</b>.</p>"
@@ -276,6 +284,7 @@ class Operaciones extends Controller
 
                 const renuevaEjecucionActiva = () => {
                     clearTimeout(renueva)
+                    const intervalo = esperaSpDesde ? 2000 : 5000
                     renueva = setTimeout(() => {
                         fetch("/operaciones/ValidaCierreEnEjecucion", {
                             method: "GET",
@@ -291,24 +300,56 @@ class Operaciones extends Controller
                                 }
                                 const ejecutabaAntes = ejecutando
                                 const datos = respuesta.datos || {}
-                                ejecutando = datos && Object.keys(datos).length > 0
-                                if (ejecutando) {
+                                const haySp = !!(datos && datos.INICIO)
+                                const jobActivo = !!respuesta.jobActivo
+                                if (haySp) {
+                                    esperaSpDesde = 0
+                                    ejecutando = true
                                     inicioEjecucion = datos.INICIO || inicioEjecucion
                                     usuarioEjecucion = datos.USUARIO || usuarioEjecucion
-                                    if (datos.SEGUNDOS != null && datos.SEGUNDOS !== "") {
-                                        segundosTranscurridos = Math.max(0, parseInt(datos.SEGUNDOS, 10) || 0)
-                                        clearTimeout(actualiza)
-                                        let mensajePoll = "<p>El proceso de cierre diario se encuentra en ejecución desde el " + escHtml(String(inicioEjecucion)) + " por el usuario <b>" + escHtml(String(usuarioEjecucion || "-")) + "</b>.</p>"
-                                        if (estimado > 0) {
-                                            mensajePoll += "<p>Tiempo estimado de finalización: <b>" + estimado + "</b> minutos.</p>"
-                                        }
-                                        mensajePoll += "<p>Tiempo transcurrido: <b id='transcurrido'>" + getTiempoTranscurrido(segundosTranscurridos) + "</b></p>"
-                                        $("#tiempoEstimado").html(mensajePoll)
-                                        actualizaTiempoEstimado(segundosTranscurridos)
+                                    segundosTranscurridos = Math.max(0, parseInt(datos.SEGUNDOS, 10) || 0)
+                                    clearTimeout(actualiza)
+                                    let mensajePoll = "<p>El proceso de cierre diario se encuentra en ejecución desde el " + escHtml(String(inicioEjecucion)) + " por el usuario <b>" + escHtml(String(usuarioEjecucion || "-")) + "</b>.</p>"
+                                    if (estimado > 0) {
+                                        mensajePoll += "<p>Tiempo estimado de finalización: <b>" + estimado + "</b> minutos.</p>"
+                                    }
+                                    mensajePoll += "<p>Tiempo transcurrido: <b id='transcurrido'>" + getTiempoTranscurrido(segundosTranscurridos) + "</b></p>"
+                                    $("#tiempoEstimado").html(mensajePoll)
+                                    $("#alertaEjecucion").show()
+                                    $("#procesar").attr("disabled", true)
+                                    actualizaTiempoEstimado(segundosTranscurridos)
+                                    refrescarTablaUltimosCierres()
+                                    renuevaEjecucionActiva()
+                                    return
+                                }
+                                const enGraciaArranque = esperaSpDesde && (Date.now() - esperaSpDesde) < GRACIA_ARRANQUE_JOB_MS
+                                if (jobActivo || enGraciaArranque) {
+                                    ejecutando = true
+                                    $("#procesar").attr("disabled", true)
+                                    if (!inicioEjecucion) {
+                                        $("#tiempoEstimado").html("<p>El cierre se está iniciando. El aviso se mostrará cuando el procedimiento registre actividad en bitácora.</p>")
+                                        $("#alertaEjecucion").show()
                                     }
                                     renuevaEjecucionActiva()
                                     return
                                 }
+                                if (esperaSpDesde) {
+                                    esperaSpDesde = 0
+                                    ejecutando = false
+                                    inicioEjecucion = null
+                                    usuarioEjecucion = null
+                                    segundosTranscurridos = 0
+                                    clearTimeout(actualiza)
+                                    clearTimeout(renueva)
+                                    $("#procesar").attr("disabled", false)
+                                    $("#alertaEjecucion").hide()
+                                    $("#tiempoEstimado").html("")
+                                    if (typeof showError === "function") {
+                                        showError("El proceso no quedó registrado en bitácora. El SP no se ejecutó. Intente de nuevo.")
+                                    }
+                                    return
+                                }
+                                ejecutando = false
                                 inicioEjecucion = null
                                 usuarioEjecucion = null
                                 segundosTranscurridos = 0
@@ -327,11 +368,14 @@ class Operaciones extends Controller
                             .catch(() => {
                                 renuevaEjecucionActiva()
                             })
-                    }, 5000)
+                    }, intervalo)
                 }
 
                 $(document).ready(() => {
                     $("#procesar").click(() => iniciaCierreDiario())
+                    if (ejecutando && !inicioEjecucion) {
+                        esperaSpDesde = Date.now()
+                    }
                     validaEjecucionActiva()
                 })
             </script>
@@ -439,8 +483,6 @@ class Operaciones extends Controller
     function ProcesaCierreDiario()
     {
         $this->limpiaSalidaParaJson();
-        $fechaCierre = '';
-        $candadoAdquirido = false;
         try {
             $fecha = isset($_POST['fecha']) ? trim((string) $_POST['fecha']) : '';
             $usuario = isset($this->__usuario) ? (string) $this->__usuario : '';
@@ -466,48 +508,55 @@ class Operaciones extends Controller
                 exit;
             }
 
-            $inicio = CierreDiaService::iniciarProcesoCierre($fechaCierre, $usuario, $perfil, $regenerar);
-            if (empty($inicio['success'])) {
+            $lanzamiento = CierreDiaJobLock::adquirirLanzamiento();
+            if ($lanzamiento === null) {
+                echo json_encode(\Core\Model::Responde(false, 'Ya hay un proceso de cierre diario en ejecución, no es posible iniciar otro.'));
+                exit;
+            }
+
+            try {
+                if (CierreDiaJobLock::jobActivo()) {
+                    echo json_encode(\Core\Model::Responde(false, 'Ya hay un proceso de cierre diario en ejecución, no es posible iniciar otro.'));
+                    exit;
+                }
+
+                $inicio = CierreDiaService::iniciarProcesoCierre($fechaCierre, $usuario, $perfil, $regenerar);
+                if (empty($inicio['success'])) {
+                    if (ob_get_level()) {
+                        ob_end_clean();
+                    }
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode($inicio);
+                    exit;
+                }
+
+                ignore_user_abort(true);
+                $lanzado = $this->lanzarJobCierreDia($phpBin, $jobScript, $fechaCierre, $usuario, $regenerar);
+                if (!$lanzado) {
+                    if (ob_get_level()) {
+                        ob_end_clean();
+                    }
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(\Core\Model::Responde(false, 'No fue posible iniciar el Job de cierre diario. Intente de nuevo.'));
+                    exit;
+                }
+
+                CierreDiaJobLock::esperarHastaActivo(5);
+
                 if (ob_get_level()) {
                     ob_end_clean();
                 }
                 header('Content-Type: application/json; charset=utf-8');
-                echo json_encode($inicio);
+                echo json_encode(\Core\Model::Responde(
+                    true,
+                    'El proceso de cierre diario se ha iniciado. Se enviará un correo con el resumen al finalizar.',
+                    isset($inicio['datos']) ? $inicio['datos'] : null
+                ));
                 exit;
+            } finally {
+                CierreDiaJobLock::liberarLanzamiento($lanzamiento);
             }
-            $candadoAdquirido = true;
-
-            ignore_user_abort(true);
-            $lanzado = $this->lanzarJobCierreDia($phpBin, $jobScript, $fechaCierre, $usuario, $regenerar);
-            if (!$lanzado) {
-                CierreDiaService::liberarCandadoInicio($fechaCierre, 0);
-                $candadoAdquirido = false;
-                if (ob_get_level()) {
-                    ob_end_clean();
-                }
-                header('Content-Type: application/json; charset=utf-8');
-                echo json_encode(\Core\Model::Responde(false, 'No fue posible iniciar el Job de cierre diario. Se liberó el candado; intente de nuevo.'));
-                exit;
-            }
-
-            if (ob_get_level()) {
-                ob_end_clean();
-            }
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode(\Core\Model::Responde(
-                true,
-                'El proceso de cierre diario se ha iniciado. Se enviará un correo con el resumen al finalizar.',
-                isset($inicio['datos']) ? $inicio['datos'] : null
-            ));
-            exit;
         } catch (\Throwable $e) {
-            if ($candadoAdquirido && $fechaCierre !== '') {
-                try {
-                    CierreDiaService::liberarCandadoInicio($fechaCierre, 0);
-                } catch (\Throwable $e2) {
-                    // no tapar el error original
-                }
-            }
             if (ob_get_level()) {
                 ob_end_clean();
             }

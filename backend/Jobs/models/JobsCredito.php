@@ -1694,6 +1694,16 @@ class JobsCredito extends Model
 
         try {
             $db = new Database();
+            $abierto = $db->queryOne("
+                SELECT COUNT(*) AS TOTAL
+                FROM BITACORA_CIERRE_DIARIO
+                WHERE FIN IS NULL
+                  AND ID_IMPORTACION IS NOT NULL
+            ");
+            if ($abierto && (int) ($abierto['TOTAL'] ?? 0) > 0) {
+                return self::Responde(false, 'Ya hay un cierre en ejecución.', null, 'Concurrencia SP');
+            }
+
             if ($regenerar) {
                 // Devengo del cierre X se guarda en FECHA_CALC = X+1. TBL_CIERRE_DIA usa la fecha de cierre.
                 $fechaDevengo = date('Y-m-d', strtotime($fecha . ' +1 day'));
@@ -1717,7 +1727,7 @@ PLSQL;
             return ((int) ($res['EXITO'] ?? 0) === 1) ?
                 self::Responde(true, 'Proceso exitoso', $res) :
                 self::Responde(false, 'Error en el proceso', $res);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return self::Responde(false, 'Error al ejecutar el SP de cierre de día.', null, $e->getMessage());
         }
     }
@@ -1736,13 +1746,12 @@ PLSQL;
             return false;
         }
 
-        // Al terminar el Job (éxito o error) cierra cualquier bitácora abierta de esa fecha:
-        // candado PHP y fila del SP si el procedimiento murió sin poner FIN.
         $qry = <<<SQL
             UPDATE BITACORA_CIERRE_DIARIO
             SET FIN = SYSDATE, EXITO = :exito
             WHERE TRUNC(FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
               AND FIN IS NULL
+              AND ID_IMPORTACION IS NULL
         SQL;
 
         try {

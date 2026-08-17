@@ -27,6 +27,12 @@ class CierreDiaService
         $ultimos5 = $repo->getUltimos7Cierres();
         $fechasFaltantes = [];
         foreach ($ultimos5 as $fila) {
+            $enProceso = !empty($fila['EN_PROCESO']) && (int) $fila['EN_PROCESO'] === 1;
+            $exito = isset($fila['EXITO']) ? (int) $fila['EXITO'] : 0;
+            // Un error no debe tomar cifras de TBL_CIERRE_DIA/DEVENGO de otro día (el SP reutiliza ID_IMPORTACION).
+            if (!$enProceso && $exito !== 1) {
+                continue;
+            }
             $tieneMetricas = array_key_exists('REGISTROS_PROCESADOS', $fila)
                 || array_key_exists('CREDITOS_DEVENGO', $fila)
                 || array_key_exists('DEVENGO_MONTO_NUM', $fila);
@@ -50,16 +56,26 @@ class CierreDiaService
             $fechaIso = isset($fila['FECHA_CIERRE_ISO']) ? (string) $fila['FECHA_CIERRE_ISO'] : '';
             unset($fila['FECHA_CIERRE_ISO']);
 
-            $registros = array_key_exists('REGISTROS_PROCESADOS', $fila)
-                ? (int) $fila['REGISTROS_PROCESADOS']
-                : (isset($mapCierre[$fechaIso]) ? (int) $mapCierre[$fechaIso] : 0);
-            $creditos = array_key_exists('CREDITOS_DEVENGO', $fila)
-                ? (int) $fila['CREDITOS_DEVENGO']
-                : (int) ($mapDevengo[$fechaIso]['creditos'] ?? 0);
-            if (array_key_exists('DEVENGO_MONTO_NUM', $fila)) {
-                $monto = (float) $fila['DEVENGO_MONTO_NUM'];
+            $enProceso = !empty($fila['EN_PROCESO']) && (int) $fila['EN_PROCESO'] === 1;
+            $exito = isset($fila['EXITO']) ? (int) $fila['EXITO'] : 0;
+            $mostrarMetricas = $enProceso || $exito === 1;
+
+            if ($mostrarMetricas) {
+                $registros = array_key_exists('REGISTROS_PROCESADOS', $fila)
+                    ? (int) $fila['REGISTROS_PROCESADOS']
+                    : (isset($mapCierre[$fechaIso]) ? (int) $mapCierre[$fechaIso] : 0);
+                $creditos = array_key_exists('CREDITOS_DEVENGO', $fila)
+                    ? (int) $fila['CREDITOS_DEVENGO']
+                    : (int) ($mapDevengo[$fechaIso]['creditos'] ?? 0);
+                if (array_key_exists('DEVENGO_MONTO_NUM', $fila)) {
+                    $monto = (float) $fila['DEVENGO_MONTO_NUM'];
+                } else {
+                    $monto = (float) ($mapDevengo[$fechaIso]['monto'] ?? 0);
+                }
             } else {
-                $monto = (float) ($mapDevengo[$fechaIso]['monto'] ?? 0);
+                $registros = 0;
+                $creditos = 0;
+                $monto = 0.0;
             }
             unset($fila['DEVENGO_MONTO_NUM']);
 
@@ -67,8 +83,6 @@ class CierreDiaService
             $fila['CREDITOS_DEVENGO'] = $creditos;
             $fila['MONTO_INTERESES_DEVENGADOS'] = '$ ' . number_format($monto, 2);
 
-            $enProceso = !empty($fila['EN_PROCESO']) && (int) $fila['EN_PROCESO'] === 1;
-            $exito = isset($fila['EXITO']) ? (int) $fila['EXITO'] : 0;
             unset($fila['EN_PROCESO']);
             if ($enProceso) {
                 $fila['ESTADO_TEXTO'] = 'Procesando';
@@ -80,16 +94,18 @@ class CierreDiaService
         }
         unset($fila);
         $enEjecucion = $repo->validaCierreEnEjecucion();
-        $ejecutando = !empty($enEjecucion);
+        $jobActivo = CierreDiaJobLock::jobActivo();
+        $ejecutando = !empty($enEjecucion) || $jobActivo;
         $tiempoEstimado = $repo->tiempoEstimado();
 
         return Model::Responde(true, 'OK', [
             'ultimos5' => $ultimos5,
             'ejecutando' => $ejecutando,
-            'inicio' => $ejecutando ? ($enEjecucion['INICIO'] ?? null) : null,
-            'usuario' => $ejecutando ? ($enEjecucion['USUARIO'] ?? null) : null,
-            'segundos' => $ejecutando ? (int) ($enEjecucion['SEGUNDOS'] ?? 0) : 0,
+            'inicio' => !empty($enEjecucion) ? ($enEjecucion['INICIO'] ?? null) : null,
+            'usuario' => !empty($enEjecucion) ? ($enEjecucion['USUARIO'] ?? null) : null,
+            'segundos' => !empty($enEjecucion) ? (int) ($enEjecucion['SEGUNDOS'] ?? 0) : 0,
             'tiempoEstimado' => $tiempoEstimado,
+            'jobActivo' => $jobActivo,
         ]);
     }
 
@@ -103,7 +119,9 @@ class CierreDiaService
         $repo = new CierreDiaRepository();
         $repo->liberarCandadosPhpHuerfanos();
         $r = $repo->validaCierreEnEjecucion();
-        return Model::Responde(true, 'OK', $r);
+        $resp = Model::Responde(true, 'OK', $r ?: []);
+        $resp['jobActivo'] = CierreDiaJobLock::jobActivo();
+        return $resp;
     }
 
     /**
@@ -120,6 +138,10 @@ class CierreDiaService
 
         if (trim($fecha) === '') {
             return Model::Responde(false, 'La fecha es obligatoria.', null, 'Fecha vacía');
+        }
+
+        if (CierreDiaJobLock::jobActivo()) {
+            return Model::Responde(false, 'Ya hay un proceso de cierre diario en ejecución, no es posible iniciar otro.', [], 'Concurrencia Job');
         }
 
         $enEjecucion = $repo->validaCierreEnEjecucion();
@@ -160,14 +182,14 @@ class CierreDiaService
     }
 
     /**
-     * Valida y adquiere el candado antes de lanzar el Job.
-     * Debe llamarse desde ProcesaCierreDiario (no confiar solo en la validación del cliente).
+     * Valida en servidor antes de lanzar el Job. No inserta bitácora:
+     * el SP crea y actualiza el registro; la vista solo consulta ese estatus.
      *
      * @param string $fecha Y-m-d
      * @param string $usuario
      * @param string $perfil
      * @param int|bool $regenerar
-     * @return array { success, mensaje, datos?: { inicio, usuario } }
+     * @return array { success, mensaje, datos?: { usuario, regenerar } }
      */
     public static function iniciarProcesoCierre($fecha, $usuario, $perfil = '', $regenerar = 0)
     {
@@ -180,8 +202,11 @@ class CierreDiaService
         }
 
         $repo = new CierreDiaRepository();
-        // Libera candados PHP huérfanos (Job no arrancó / murió sin finally) antes de validar.
         $repo->liberarCandadosPhpHuerfanos();
+
+        if (CierreDiaJobLock::jobActivo()) {
+            return Model::Responde(false, 'Ya hay un proceso de cierre diario en ejecución, no es posible iniciar otro.', [], 'Concurrencia Job');
+        }
 
         $previa = self::validacionPrevia($fecha, $perfil);
         if (empty($previa['success'])) {
@@ -200,19 +225,13 @@ class CierreDiaService
             return Model::Responde(false, 'No tiene permisos para regenerar el cierre de ese día.', $datosPrevia, 'Sin permiso regenerar');
         }
 
-        if (!$repo->registrarInicio($fecha, $usuario)) {
-            $enEjecucion = $repo->validaCierreEnEjecucion();
-            if (!empty($enEjecucion)) {
-                return Model::Responde(false, 'Ya hay un proceso de cierre diario en ejecución, no es posible iniciar otro.', $enEjecucion, 'Concurrencia');
-            }
-            return Model::Responde(false, 'No fue posible adquirir el candado del cierre. Intente de nuevo.', null, 'Candado');
+        $enEjecucion = $repo->validaCierreEnEjecucion();
+        if (!empty($enEjecucion)) {
+            return Model::Responde(false, 'Ya hay un proceso de cierre diario en ejecución, no es posible iniciar otro.', $enEjecucion, 'Concurrencia');
         }
 
-        $enEjecucion = $repo->validaCierreEnEjecucion();
         return Model::Responde(true, 'El proceso de cierre diario se ha iniciado correctamente.', [
-            'inicio' => $enEjecucion['INICIO'] ?? date('d/m/Y H:i:s'),
-            'usuario' => $enEjecucion['USUARIO'] ?? $usuario,
-            'segundos' => (int) ($enEjecucion['SEGUNDOS'] ?? 0),
+            'usuario' => $usuario,
             'regenerar' => $regenerar,
         ]);
     }

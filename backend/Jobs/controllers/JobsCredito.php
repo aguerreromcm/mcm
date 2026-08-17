@@ -6,10 +6,12 @@ include_once dirname(__DIR__) . '/../Core/Job.php';
 include_once dirname(__DIR__) . '/models/JobsCredito.php';
 include_once dirname(__DIR__) . '/../libs/PHPMailer/Mensajero.php';
 include_once dirname(__DIR__) . '/../libs/PhpSpreadsheet/PhpSpreadsheet.php';
+include_once dirname(__DIR__) . '/../App/services/CierreDiaJobLock.php';
 
 use Core\Job;
 use Jobs\models\JobsCredito as JobsDao;
 use Mensajero;
+use App\services\CierreDiaJobLock;
 
 define('APROBADA', 'Aprobada');
 define('RECHAZADA', 'Rechazada');
@@ -297,11 +299,14 @@ class JobsCredito extends Job
         self::SaveLog('Inicio');
         if (empty($fecha) || empty($usuario)) {
             self::SaveLog('Finalizado con error: Fecha y usuario son requeridos');
-            $this->cerrarCandadoCierreDia($fecha, 0);
             return;
         }
 
-        $dest = null;
+        if (!CierreDiaJobLock::adquirirJob()) {
+            self::SaveLog('Finalizado: ya hay un Job de cierre de día en ejecución');
+            return;
+        }
+
         $mensajeRes = null;
         $exito = 0;
         $datos = [
@@ -331,31 +336,35 @@ class JobsCredito extends Job
             $dest = $envio['destinatarios'];
             $copiaHistorico = $envio['copiaHistorico'];
 
-            if (!empty($dest)) {
+            if (!empty($dest) && !empty($resultado['datos'])) {
                 try {
                     $fechaFmt = new \DateTime($fecha);
                     $fechaFmt = $fechaFmt->format('d/m/Y');
-                    Mensajero::EnviarCorreo(
+                    $enviado = Mensajero::EnviarCorreo(
                         $dest,
                         "Cierre del día $fechaFmt",
-                        Mensajero::Notificaciones(self::PLantilla_mail_Cierre_Dia($resultado['datos'] ?? [])),
+                        Mensajero::Notificaciones(self::PLantilla_mail_Cierre_Dia($resultado['datos'])),
                         [],
                         $copiaHistorico
                     );
-
-                    $resCorreo = JobsDao::CorreoCierreDia($resultado['datos'] ?? []);
-                    self::SaveLog('Estatus del correo: ' . $resCorreo['mensaje'] . ' -> ' . ($resCorreo['error'] ?? ''));
-                } catch (\Exception $e) {
+                    if ($enviado) {
+                        $resCorreo = JobsDao::CorreoCierreDia($resultado['datos']);
+                        self::SaveLog('Estatus del correo: ' . $resCorreo['mensaje'] . ' -> ' . ($resCorreo['error'] ?? ''));
+                    } else {
+                        self::SaveLog('El correo de resumen no se pudo enviar (SMTP).');
+                    }
+                } catch (\Throwable $e) {
                     self::SaveLog('Error al enviar correo: ' . $e->getMessage());
                 }
+            } elseif (empty($dest)) {
+                self::SaveLog('Sin destinatarios: no se envió correo de cierre.');
             }
 
             self::SaveLog($mensaje);
         } catch (\Throwable $e) {
             self::SaveLog('Finalizado con error: ' . $e->getMessage());
-            $exito = 0;
         } finally {
-            $this->cerrarCandadoCierreDia($fecha, $exito);
+            CierreDiaJobLock::liberarJob();
         }
     }
 
@@ -412,21 +421,42 @@ class JobsCredito extends Job
 
     public function PLantilla_mail_Cierre_Dia($datos)
     {
-        $moneda = new \NumberFormatter('es_MX', \NumberFormatter::CURRENCY);
-        $fecha = new \IntlDateFormatter(
-            'es_ES',
-            \IntlDateFormatter::LONG,
-            \IntlDateFormatter::NONE,
-            'America/Mexico_City',
-            \IntlDateFormatter::GREGORIAN,
-            "d 'de' MMMM 'de' y" // Definimos el patrón manualmente
-        );
+        $fmtMoneda = function ($n) {
+            $n = (float) $n;
+            if (class_exists(\NumberFormatter::class)) {
+                $fmt = new \NumberFormatter('es_MX', \NumberFormatter::CURRENCY);
+                return $fmt->formatCurrency($n, 'MXN');
+            }
+            return '$ ' . number_format($n, 2);
+        };
+        $fmtFecha = function ($dmy) {
+            $dt = \DateTime::createFromFormat('d/m/Y', (string) $dmy);
+            if (!$dt) {
+                return $dmy ?: 'N/A';
+            }
+            if (class_exists(\IntlDateFormatter::class)) {
+                $fecha = new \IntlDateFormatter(
+                    'es_ES',
+                    \IntlDateFormatter::LONG,
+                    \IntlDateFormatter::NONE,
+                    'America/Mexico_City',
+                    \IntlDateFormatter::GREGORIAN,
+                    "d 'de' MMMM 'de' y"
+                );
+                $out = $fecha->format($dt);
+                return $out !== false ? $out : $dt->format('d/m/Y');
+            }
+            return $dt->format('d/m/Y');
+        };
+        $devengoFecha = isset($datos['DEVENGO_FECHA']) && trim((string) $datos['DEVENGO_FECHA']) !== ''
+            ? $datos['DEVENGO_FECHA']
+            : 'N/A';
         $resumen = JobsDao::GetResumenCierreDia($datos);
 
-        $fecha_calculo = isset($datos['FECHA_CALCULO']) ? $fecha->format(\DateTime::createFromFormat('d/m/Y', $datos['FECHA_CALCULO'])) : 'N/A';
+        $fecha_calculo = isset($datos['FECHA_CALCULO']) ? $fmtFecha($datos['FECHA_CALCULO']) : 'N/A';
 
         $devengo_registros = isset($datos['DEVENGO_REGISTROS']) ? $datos['DEVENGO_REGISTROS'] : '0';
-        $devengo_monto = isset($datos['DEVENGO_MONTO']) ? $moneda->formatCurrency(($datos['DEVENGO_MONTO'] ?? 0), 'MXN') : '$ 0.00';
+        $devengo_monto = isset($datos['DEVENGO_MONTO']) ? $fmtMoneda($datos['DEVENGO_MONTO'] ?? 0) : '$ 0.00';
 
         if ($resumen['success']) {
             $pagos = $resumen['datos']['pagos'] ?? [];
@@ -434,23 +464,23 @@ class JobsCredito extends Job
             $mp = $resumen['datos']['mp'] ?? [];
 
             $pagos_total_registros = $pagos['TOTAL_REGISTROS'] ?? 0;
-            $pagos_total_monto = $moneda->formatCurrency(($pagos['TOTAL_MONTO'] ?? 0), 'MXN');
+            $pagos_total_monto = $fmtMoneda($pagos['TOTAL_MONTO'] ?? 0);
             $pagos_pendiente_registros = $pagos['PENDIENTES_REGISTROS'] ?? 0;
-            $pagos_pendiente_monto = $moneda->formatCurrency(($pagos['PENDIENTES_MONTO'] ?? 0), 'MXN');
+            $pagos_pendiente_monto = $fmtMoneda($pagos['PENDIENTES_MONTO'] ?? 0);
             $pagos_aplicados_registros = $pagos['APLICADOS_REGISTROS'] ?? 0;
-            $pagos_aplicados_monto = $moneda->formatCurrency(($pagos['APLICADOS_MONTO'] ?? 0), 'MXN');
+            $pagos_aplicados_monto = $fmtMoneda($pagos['APLICADOS_MONTO'] ?? 0);
             $pagos_registros = $detalle['PAGOS_REGISTROS'] ?? 0;
-            $pagos_monto = $moneda->formatCurrency(($detalle['PAGOS_MONTO'] ?? 0), 'MXN');
+            $pagos_monto = $fmtMoneda($detalle['PAGOS_MONTO'] ?? 0);
             $garantias_registros = $detalle['GARANTIAS_REGISTROS'] ?? 0;
-            $garantias_monto = $moneda->formatCurrency(($detalle['GARANTIAS_MONTO'] ?? 0), 'MXN');
+            $garantias_monto = $fmtMoneda($detalle['GARANTIAS_MONTO'] ?? 0);
             $incidencias_registros = $detalle['INCIDENCIAS_REGISTROS'] ?? 0;
-            $incidencias_monto = $moneda->formatCurrency(($detalle['INCIDENCIAS_MONTO'] ?? 0), 'MXN');
+            $incidencias_monto = $fmtMoneda($detalle['INCIDENCIAS_MONTO'] ?? 0);
             $mp_total_registros = $mp['TOTAL_REGISTROS'] ?? 0;
-            $mp_total_monto = $moneda->formatCurrency(($mp['TOTAL_MONTO'] ?? 0), 'MXN');
+            $mp_total_monto = $fmtMoneda($mp['TOTAL_MONTO'] ?? 0);
             $mp_pendiente_registros = $mp['PENDIENTES_REGISTROS'] ?? 0;
-            $mp_pendiente_monto = $moneda->formatCurrency(($mp['PENDIENTES_MONTO'] ?? 0), 'MXN');
+            $mp_pendiente_monto = $fmtMoneda($mp['PENDIENTES_MONTO'] ?? 0);
             $mp_conciliados_registros = $mp['CONCILIADOS_REGISTROS'] ?? 0;
-            $mp_conciliados_monto = $moneda->formatCurrency(($mp['CONCILIADOS_MONTO'] ?? 0), 'MXN');
+            $mp_conciliados_monto = $fmtMoneda($mp['CONCILIADOS_MONTO'] ?? 0);
         }
 
         return <<<HTML
@@ -1094,7 +1124,7 @@ class JobsCredito extends Job
                                 margin-bottom: 10px;
                             "
                         >
-                            Devengo para el día {$datos['DEVENGO_FECHA']}
+                            Devengo para el día {$devengoFecha}
                         </div>
                     </td>
                 </tr>

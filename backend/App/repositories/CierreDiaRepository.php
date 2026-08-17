@@ -72,27 +72,29 @@ class CierreDiaRepository
     public function validaCierreEnEjecucion()
     {
         return $this->sinSalida(function () {
-            $db = new Database();
-            if ($db->db_activa === null) {
-                return [];
-            }
+            try {
+                $db = new Database();
+                if ($db->db_activa === null) {
+                    return [];
+                }
 
-            // Proceso activo: FIN IS NULL. No exigir EXITO IS NULL: un renglón abierto bloquea otro inicio.
-            $qryConCierrePendiente = <<<SQL
+                // Solo el renglón del SP (ID_IMPORTACION). Un INSERT de PHP sin actividad no cuenta como proceso.
+                $qryConCierrePendiente = <<<SQL
                 SELECT COUNT(*) AS TOTAL
                 FROM BITACORA_CIERRE_DIARIO
                 WHERE FIN IS NULL
                   AND INICIO IS NOT NULL
+                  AND ID_IMPORTACION IS NOT NULL
             SQL;
 
-            $cnt = $db->queryOne($qryConCierrePendiente);
-            $total = ($cnt !== false && isset($cnt['TOTAL'])) ? (int) $cnt['TOTAL'] : 0;
-            if ($total === 0) {
-                return [];
-            }
+                $cnt = $db->queryOne($qryConCierrePendiente);
+                $total = ($cnt !== false && isset($cnt['TOTAL'])) ? (int) $cnt['TOTAL'] : 0;
+                if ($total === 0) {
+                    return [];
+                }
 
-            $inicioMx = $this->sqlHoraMexico('INICIO', true);
-            $qry = <<<SQL
+                $inicioMx = $this->sqlHoraMexico('INICIO', true);
+                $qry = <<<SQL
                 SELECT
                     TO_CHAR(FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CIERRE,
                     {$inicioMx} AS INICIO,
@@ -101,12 +103,16 @@ class CierreDiaRepository
                 FROM BITACORA_CIERRE_DIARIO
                 WHERE FIN IS NULL
                   AND INICIO IS NOT NULL
+                  AND ID_IMPORTACION IS NOT NULL
                 ORDER BY INICIO ASC
                 FETCH FIRST 1 ROW ONLY
             SQL;
 
-            $r = $db->queryOne($qry);
-            return $r ?: [];
+                $r = $db->queryOne($qry);
+                return $r ?: [];
+            } catch (\Exception $e) {
+                return [];
+            }
         });
     }
 
@@ -162,22 +168,14 @@ class CierreDiaRepository
                     b.USUARIO,
                     NVL(b.EXITO, 0) AS EXITO,
                     CASE WHEN b.FIN IS NULL THEN 1 ELSE 0 END AS EN_PROCESO,
-                    NVL(b.CIERRE_REGISTROS, 0) AS REGISTROS_PROCESADOS,
-                    NVL(b.DEVENGO_REGISTROS, 0) AS CREDITOS_DEVENGO,
-                    NVL(b.DEVENGO_MONTO, 0) AS DEVENGO_MONTO_NUM
+                    CASE WHEN b.FIN IS NULL OR NVL(b.EXITO, 0) = 1
+                        THEN NVL(b.CIERRE_REGISTROS, 0) ELSE 0 END AS REGISTROS_PROCESADOS,
+                    CASE WHEN b.FIN IS NULL OR NVL(b.EXITO, 0) = 1
+                        THEN NVL(b.DEVENGO_REGISTROS, 0) ELSE 0 END AS CREDITOS_DEVENGO,
+                    CASE WHEN b.FIN IS NULL OR NVL(b.EXITO, 0) = 1
+                        THEN NVL(b.DEVENGO_MONTO, 0) ELSE 0 END AS DEVENGO_MONTO_NUM
                 FROM BITACORA_CIERRE_DIARIO b
                 WHERE b.ID_IMPORTACION IS NOT NULL
-                   OR (
-                        b.FIN IS NULL
-                        AND b.ID_IMPORTACION IS NULL
-                        AND NOT EXISTS (
-                            SELECT 1
-                            FROM BITACORA_CIERRE_DIARIO s
-                            WHERE s.FIN IS NULL
-                              AND s.ID_IMPORTACION IS NOT NULL
-                              AND TRUNC(s.FECHA_CALCULO) = TRUNC(b.FECHA_CALCULO)
-                        )
-                   )
                 ORDER BY b.INICIO DESC NULLS LAST, b.FECHA_CALCULO DESC
             ) WHERE ROWNUM <= 7
         SQL;
@@ -671,19 +669,19 @@ SQL;
     }
 
     /**
-     * Cierra bitácoras huérfanas (candado PHP o fila del SP) con FIN IS NULL y más de $minutosAntiguedad.
-     * Si el Job/SP muere, la pantalla no debe quedar en "Procesando" indefinidamente.
+     * Cierra solo candados PHP huérfanos (sin ID_IMPORTACION). No toca el renglón del SP.
      *
-     * @param int $minutosAntiguedad Por defecto 40 (cierre típico ~10 min)
+     * @param int $minutosAntiguedad Por defecto 15
      * @return int Filas actualizadas (0 si ninguna / error)
      */
-    public function liberarCandadosPhpHuerfanos($minutosAntiguedad = 40)
+    public function liberarCandadosPhpHuerfanos($minutosAntiguedad = 15)
     {
-        $minutos = max(15, (int) $minutosAntiguedad);
+        $minutos = max(5, (int) $minutosAntiguedad);
         $qry = <<<SQL
             UPDATE BITACORA_CIERRE_DIARIO b
             SET b.FIN = SYSDATE, b.EXITO = 0
             WHERE b.FIN IS NULL
+              AND b.ID_IMPORTACION IS NULL
               AND b.INICIO IS NOT NULL
               AND b.INICIO < SYSDATE - (:mins / 1440)
         SQL;
