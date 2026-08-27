@@ -464,6 +464,7 @@ class JobsCredito extends Job
             $pagos = $resumen['datos']['pagos'] ?? [];
             $detalle = $resumen['datos']['detalle'] ?? [];
             $mp = $resumen['datos']['mp'] ?? [];
+            $garantias = $resumen['datos']['garantias'] ?? [];
 
             $pagos_total_registros = $pagos['TOTAL_REGISTROS'] ?? 0;
             $pagos_total_monto = $fmtMoneda($pagos['TOTAL_MONTO'] ?? 0);
@@ -483,6 +484,10 @@ class JobsCredito extends Job
             $mp_pendiente_monto = $fmtMoneda($mp['PENDIENTES_MONTO'] ?? 0);
             $mp_conciliados_registros = $mp['CONCILIADOS_REGISTROS'] ?? 0;
             $mp_conciliados_monto = $fmtMoneda($mp['CONCILIADOS_MONTO'] ?? 0);
+            $garantias_por_saldo = $garantias['POR_SALDO'] ?? 0;
+            $garantias_por_saldo_monto = $fmtMoneda($garantias['POR_SALDO_MONTO'] ?? 0);
+            $garantias_por_fecha_fin = $garantias['POR_FECHA'] ?? 0;
+            $garantias_por_fecha_fin_monto = $fmtMoneda($garantias['POR_FECHA_MONTO'] ?? 0);
         }
 
         return <<<HTML
@@ -952,6 +957,118 @@ class JobsCredito extends Job
                             </div>
                         </div>
                     </td>
+                </tr>
+                <tr>
+                    <td colspan="3" style="padding: 6px 0 18px">
+                        <div style="height: 1px; background: #dbe3ef"></div>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="3">
+                        <div
+                            style="
+                                font-size: 13px;
+                                font-weight: 700;
+                                color: #475569;
+                                text-transform: uppercase;
+                                letter-spacing: 0.06em;
+                                margin-bottom: 10px;
+                            "
+                        >
+                            Garantias
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="width: 33.33%; padding: 0 6px 12px 0">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 14px;
+                                padding: 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 6px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Aplicadas por saldo restante
+                            </div>
+                            <div
+                                style="
+                                    font-size: 28px;
+                                    text-align: end;
+                                    line-height: 1;
+                                    color: #0f172a;
+                                    font-weight: 800;
+                                    letter-spacing: -0.02em;
+                                "
+                            >
+                                $garantias_por_saldo
+                            </div>
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    text-align: end;
+                                    color: #334155;
+                                    margin-top: 8px;
+                                    font-weight: 600;
+                                "
+                            >
+                                $garantias_por_saldo_monto
+                            </div>
+                        </div>
+                    </td>
+                    <td style="width: 33.33%; padding: 0 6px 12px 0">
+                        <div
+                            style="
+                                background: #f8fafc;
+                                border: 1px solid #dbe3ef;
+                                border-radius: 14px;
+                                padding: 14px;
+                            "
+                        >
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    color: #64748b;
+                                    margin-bottom: 6px;
+                                    font-weight: 600;
+                                "
+                            >
+                                Aplicadas por fecha fin
+                            </div>
+                            <div
+                                style="
+                                    font-size: 28px;
+                                    text-align: end;
+                                    line-height: 1;
+                                    color: #0f172a;
+                                    font-weight: 800;
+                                    letter-spacing: -0.02em;
+                                "
+                            >
+                                $garantias_por_fecha_fin
+                            </div>
+                            <div
+                                style="
+                                    font-size: 12px;
+                                    text-align: end;
+                                    color: #334155;
+                                    margin-top: 8px;
+                                    font-weight: 600;
+                                "
+                            >
+                                $garantias_por_fecha_fin_monto
+                            </div>
+                        </div>
+                    </td>
+                    <td style="width: 33.33%; padding: 0 0 12px 6px"></td>
                 </tr>
                 <tr>
                     <td colspan="3" style="padding: 6px 0 18px">

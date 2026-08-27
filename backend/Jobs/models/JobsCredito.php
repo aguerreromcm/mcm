@@ -1708,13 +1708,13 @@ class JobsCredito extends Model
                 // Devengo del cierre X se guarda en FECHA_CALC = X+1. TBL_CIERRE_DIA usa la fecha de cierre.
                 $fechaDevengo = date('Y-m-d', strtotime($fecha . ' +1 day'));
                 $sqlRegen = <<<PLSQL
-BEGIN
-  DELETE FROM DEVENGO_DIARIO d
-  WHERE TRUNC(d.FECHA_CALC) = TO_DATE(:f1, 'YYYY-MM-DD');
-  DELETE FROM TBL_CIERRE_DIA t
-  WHERE TRUNC(t.FECHA_CALC) = TO_DATE(:f2, 'YYYY-MM-DD');
-END;
-PLSQL;
+                    BEGIN
+                    DELETE FROM DEVENGO_DIARIO d
+                    WHERE TRUNC(d.FECHA_CALC) = TO_DATE(:f1, 'YYYY-MM-DD');
+                    DELETE FROM TBL_CIERRE_DIA t
+                    WHERE TRUNC(t.FECHA_CALC) = TO_DATE(:f2, 'YYYY-MM-DD');
+                    END;
+                PLSQL;
                 $db->db_activa->prepare($sqlRegen)->execute(['f1' => $fechaDevengo, 'f2' => $fecha]);
             }
 
@@ -1777,7 +1777,7 @@ PLSQL;
             WHERE
                 ESTATUS = 'A'
                 AND TIPO IN ('P', 'G', 'X')
-                AND MONTO!= 0
+                AND MONTO != 0
                 AND TRUNC(FECHA) = TO_DATE(:fecha, 'DD/MM/YYYY')
         SQL;
 
@@ -1805,16 +1805,29 @@ PLSQL;
             AND MODO = 'I'
         SQL;
 
+        $garantias = <<<SQL
+            SELECT SUM(DECODE(RENEXCEL, 1, 1, 0)) AS POR_SALDO
+                , SUM(DECODE(RENEXCEL, 1, MONTO, 0)) AS POR_SALDO_MONTO
+                , SUM(DECODE(RENEXCEL, 2, 1, 0)) AS POR_FECHA
+                , SUM(DECODE(RENEXCEL, 2, MONTO, 0)) AS POR_FECHA_MONTO
+            FROM RES_IMPOR
+            WHERE IDENTIFICADOR = :id_proceso
+            AND CTABANCARIA = '12'
+            AND VALIDACION = 0
+        SQL;
+
         try {
             $db = new Database();
             $res_pagos = $db->queryOne($pagos, ['fecha' => $datos['FECHA_CALCULO']]);
             $res_det = $db->queryOne($det, ['id_importacion' => $datos['ID_IMPORTACION']]);
             $res_mp = $db->queryOne($mp, ['fecha' => $datos['FECHA_CALCULO']]);
+            $res_garantias = $db->queryOne($garantias, ['id_proceso' => $datos['ID_PROCESO']]);
 
             return self::Responde(true, 'Consulta exitosa', [
                 'pagos' => $res_pagos,
                 'detalle' => $res_det,
-                'mp' => $res_mp
+                'mp' => $res_mp,
+                'garantias' => $res_garantias
             ]);
         } catch (\Exception $e) {
             return self::Responde(false, 'Error al consultar el resultado del cierre', null, $e->getMessage());
