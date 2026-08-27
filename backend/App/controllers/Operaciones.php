@@ -53,6 +53,7 @@ class Operaciones extends Controller
                 let usuarioEjecucion = "$usuarioEjecucion"
                 let segundosTranscurridos = $segundosTranscurridos
                 let esperaSpDesde = 0
+                let fechaEnProceso = ""
                 const GRACIA_ARRANQUE_JOB_MS = 20000
                 let actualiza = null
                 let renueva = null
@@ -172,6 +173,7 @@ class Operaciones extends Controller
                         return
                     }
                     ejecutando = true
+                    fechaEnProceso = $("#fecha").val()
                     $("#procesar").attr("disabled", true)
                     var payload = { fecha: $("#fecha").val(), usuario: "{$this->__usuario}" }
                     if (regenerar) payload.regenerar = "1"
@@ -282,6 +284,58 @@ class Operaciones extends Controller
                     }, 1000)
                 }
 
+                const detenerSeguimientoCierre = () => {
+                    ejecutando = false
+                    inicioEjecucion = null
+                    usuarioEjecucion = null
+                    segundosTranscurridos = 0
+                    clearTimeout(actualiza)
+                    clearTimeout(renueva)
+                    $("#procesar").attr("disabled", false)
+                    $("#alertaEjecucion").hide()
+                    $("#tiempoEstimado").html("")
+                }
+
+                // El candado del Job puede soltarse mientras el aviso de inicio sigue abierto: el
+                // veredicto lo da el renglón que el SP deja en bitácora, no el temporizador del navegador.
+                const resuelveEstatusFinalCierre = (lanzadoAqui) => {
+                    const fecha = fechaEnProceso || $("#fecha").val()
+                    fetch("/operaciones/EstatusCierreDia?fecha=" + encodeURIComponent(fecha), {
+                        method: "GET",
+                        headers: { Accept: "application/json" }
+                    })
+                        .then((r) => r.json())
+                        .then((resp) => {
+                            const d = (resp && resp.datos) || {}
+                            if (d.registrado && d.enProceso) {
+                                ejecutando = true
+                                inicioEjecucion = d.inicio || inicioEjecucion
+                                usuarioEjecucion = d.usuario || usuarioEjecucion
+                                validaEjecucionActiva()
+                                return
+                            }
+                            fechaEnProceso = ""
+                            detenerSeguimientoCierre()
+                            refrescarPantallaTrasCierre()
+                            if (!d.registrado) {
+                                if (lanzadoAqui) {
+                                    showError("El proceso no quedó registrado en bitácora: el procedimiento no se ejecutó. Intente de nuevo.")
+                                }
+                                return
+                            }
+                            if (d.exito) {
+                                showSuccess("El proceso de cierre diario ha finalizado.")
+                            } else {
+                                showError("El cierre diario terminó con error. Revise la bitácora antes de reintentarlo.")
+                            }
+                        })
+                        .catch(() => {
+                            fechaEnProceso = ""
+                            detenerSeguimientoCierre()
+                            refrescarPantallaTrasCierre()
+                        })
+                }
+
                 const renuevaEjecucionActiva = () => {
                     clearTimeout(renueva)
                     const intervalo = esperaSpDesde ? 2000 : 5000
@@ -333,37 +387,13 @@ class Operaciones extends Controller
                                     renuevaEjecucionActiva()
                                     return
                                 }
-                                if (esperaSpDesde) {
+                                const lanzadoAqui = !!esperaSpDesde
+                                if (lanzadoAqui || ejecutabaAntes) {
                                     esperaSpDesde = 0
-                                    ejecutando = false
-                                    inicioEjecucion = null
-                                    usuarioEjecucion = null
-                                    segundosTranscurridos = 0
-                                    clearTimeout(actualiza)
-                                    clearTimeout(renueva)
-                                    $("#procesar").attr("disabled", false)
-                                    $("#alertaEjecucion").hide()
-                                    $("#tiempoEstimado").html("")
-                                    if (typeof showError === "function") {
-                                        showError("El proceso no quedó registrado en bitácora. El SP no se ejecutó. Intente de nuevo.")
-                                    }
+                                    resuelveEstatusFinalCierre(lanzadoAqui)
                                     return
                                 }
-                                ejecutando = false
-                                inicioEjecucion = null
-                                usuarioEjecucion = null
-                                segundosTranscurridos = 0
-                                clearTimeout(actualiza)
-                                clearTimeout(renueva)
-                                $("#procesar").attr("disabled", false)
-                                $("#alertaEjecucion").hide()
-                                $("#tiempoEstimado").html("")
-                                if (ejecutabaAntes) {
-                                    refrescarPantallaTrasCierre()
-                                    if (typeof showSuccess === "function") {
-                                        showSuccess("El proceso de cierre diario ha finalizado.")
-                                    }
-                                }
+                                detenerSeguimientoCierre()
                             })
                             .catch(() => {
                                 renuevaEjecucionActiva()
@@ -416,6 +446,23 @@ class Operaciones extends Controller
         }
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode($out);
+        exit;
+    }
+
+    /**
+     * GET/POST: fecha (Y-m-d). JSON: estatus que el SP dejó en bitácora para esa fecha.
+     */
+    function EstatusCierreDia()
+    {
+        $this->limpiaSalidaParaJson();
+        $fecha = isset($_POST['fecha']) ? trim((string) $_POST['fecha']) : (isset($_GET['fecha']) ? trim((string) $_GET['fecha']) : '');
+        $resp = CierreDiaService::estatusCierrePorFecha($fecha);
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        echo json_encode($resp);
         exit;
     }
 
@@ -541,7 +588,21 @@ class Operaciones extends Controller
                     exit;
                 }
 
-                CierreDiaJobLock::esperarHastaActivo(5);
+                // El Job toma el candado antes de invocar el SP: si no lo hace, murió al arrancar
+                // y hay que decirlo aquí, no dejar que la vista lo deduzca minutos después.
+                if (!CierreDiaJobLock::esperarHastaActivo(15)) {
+                    if (ob_get_level()) {
+                        ob_end_clean();
+                    }
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(\Core\Model::Responde(
+                        false,
+                        'El proceso de cierre no arrancó, el procedimiento no se ejecutó y no hay registro en bitácora. Intente de nuevo; si persiste, avise a sistemas.',
+                        null,
+                        $this->salidaArranqueJobCierreDia() ?: null
+                    ));
+                    exit;
+                }
 
                 if (ob_get_level()) {
                     ob_end_clean();
@@ -569,34 +630,82 @@ class Operaciones extends Controller
     /**
      * Resuelve la ruta del php.exe / php CLI para lanzar Jobs en segundo plano.
      *
+     * PHP_BINARY solo apunta al CLI cuando la petición corre bajo SAPI cli; con mod_php
+     * devuelve el binario del servidor (httpd.exe) y con CGI devuelve php-cgi. Lanzar
+     * cualquiera de esos deja el Job sin ejecutarse y el cierre sin registro en bitácora.
+     *
      * @return string Ruta absoluta o vacía si no se encuentra
      */
     private function resolverBinarioPhpCierreDia()
     {
+        $nombre = PHP_OS_FAMILY === 'Windows' ? 'php.exe' : 'php';
         $candidatos = [];
-        if (defined('PHP_BINARY') && PHP_BINARY) {
+
+        if (PHP_SAPI === 'cli' && defined('PHP_BINARY') && PHP_BINARY !== '') {
             $candidatos[] = PHP_BINARY;
         }
+
+        // Directorios donde suele convivir el CLI con lo que sí conoce el SAPI actual.
+        $pistas = [];
+        $iniCargado = php_ini_loaded_file();
+        if ($iniCargado !== false && $iniCargado !== '') {
+            $pistas[] = dirname($iniCargado);
+        }
+        if (defined('PHP_BINARY') && PHP_BINARY !== '') {
+            $pistas[] = dirname(PHP_BINARY);
+        }
+        if (defined('PHP_BINDIR') && PHP_BINDIR !== '') {
+            $pistas[] = PHP_BINDIR;
+        }
+        foreach ($pistas as $dir) {
+            $candidatos[] = $dir . DIRECTORY_SEPARATOR . $nombre;
+            // XAMPP/WAMP: el CLI vive en <raíz>\php y el servidor en <raíz>\apache\bin
+            $candidatos[] = dirname($dir) . DIRECTORY_SEPARATOR . 'php' . DIRECTORY_SEPARATOR . $nombre;
+            $candidatos[] = dirname($dir, 2) . DIRECTORY_SEPARATOR . 'php' . DIRECTORY_SEPARATOR . $nombre;
+        }
+
         if (PHP_OS_FAMILY === 'Windows') {
             $candidatos[] = 'C:\\xampp\\php\\php.exe';
         } else {
             $candidatos[] = '/usr/bin/php';
             $candidatos[] = '/usr/local/bin/php';
         }
+
+        foreach (explode(PATH_SEPARATOR, (string) getenv('PATH')) as $dir) {
+            $dir = trim($dir);
+            if ($dir !== '') {
+                $candidatos[] = rtrim($dir, '\\/') . DIRECTORY_SEPARATOR . $nombre;
+            }
+        }
+
         foreach ($candidatos as $bin) {
-            $bin = trim((string) $bin);
-            if ($bin === '') {
-                continue;
-            }
-            // php-cgi / php-fpm no sirven para CLI de Jobs
-            if (stripos($bin, 'php-cgi') !== false || stripos($bin, 'php-fpm') !== false) {
-                continue;
-            }
-            if (is_file($bin)) {
+            if ($this->esInterpretePhpCli($bin)) {
                 return $bin;
             }
         }
+
         return '';
+    }
+
+    /**
+     * Acepta únicamente el ejecutable CLI (php / php.exe): httpd, php-cgi y php-fpm
+     * arrancan sin error visible pero no ejecutan el Job.
+     *
+     * @param string $bin
+     * @return bool
+     */
+    private function esInterpretePhpCli($bin)
+    {
+        $bin = trim((string) $bin);
+        if ($bin === '' || !is_file($bin)) {
+            return false;
+        }
+        $nombre = strtolower(basename($bin));
+        if (substr($nombre, -4) === '.exe') {
+            $nombre = substr($nombre, 0, -4);
+        }
+
+        return $nombre === 'php';
     }
 
     /**
@@ -612,14 +721,18 @@ class Operaciones extends Controller
     private function lanzarJobCierreDia($phpBin, $jobScript, $fechaCierre, $usuario, $regenerar)
     {
         $regenerarArg = $regenerar ? '1' : '0';
+        $salida = CierreDiaJobLock::archivoSalidaJob();
+        @unlink($salida);
+
+        $argumentos = escapeshellarg($phpBin) . ' '
+            . escapeshellarg($jobScript) . ' '
+            . escapeshellarg('CierreDia') . ' '
+            . escapeshellarg($fechaCierre) . ' '
+            . escapeshellarg($usuario) . ' '
+            . escapeshellarg($regenerarArg);
+
         if (PHP_OS_FAMILY === 'Windows') {
-            $cmd = 'start /B "" '
-                . escapeshellarg($phpBin) . ' '
-                . escapeshellarg($jobScript) . ' '
-                . escapeshellarg('CierreDia') . ' '
-                . escapeshellarg($fechaCierre) . ' '
-                . escapeshellarg($usuario) . ' '
-                . escapeshellarg($regenerarArg);
+            $cmd = 'start /B "" ' . $argumentos . ' > ' . escapeshellarg($salida) . ' 2>&1';
             $handle = @popen($cmd, 'r');
             if (!is_resource($handle)) {
                 return false;
@@ -628,18 +741,28 @@ class Operaciones extends Controller
             return true;
         }
 
-        $cmd = 'nohup ' . escapeshellarg($phpBin) . ' '
-            . escapeshellarg($jobScript) . ' '
-            . escapeshellarg('CierreDia') . ' '
-            . escapeshellarg($fechaCierre) . ' '
-            . escapeshellarg($usuario) . ' '
-            . escapeshellarg($regenerarArg)
-            . ' > /dev/null 2>&1 & echo $!';
+        $cmd = 'nohup ' . $argumentos . ' > ' . escapeshellarg($salida) . ' 2>&1 & echo $!';
         $out = [];
         $code = 1;
         @exec($cmd, $out, $code);
         $pid = isset($out[0]) ? trim((string) $out[0]) : '';
         return $code === 0 && $pid !== '' && ctype_digit($pid);
+    }
+
+    /**
+     * Últimas líneas que dejó el proceso del Job al morir (fatal error, intérprete inválido, etc.).
+     *
+     * @return string
+     */
+    private function salidaArranqueJobCierreDia()
+    {
+        $archivo = CierreDiaJobLock::archivoSalidaJob();
+        if (!is_file($archivo)) {
+            return '';
+        }
+        $contenido = @file_get_contents($archivo, false, null, -2048);
+
+        return is_string($contenido) ? trim($contenido) : '';
     }
 
     ////////////////////////////////////////////////////////////////////

@@ -139,6 +139,36 @@ class CierreDiaService
     }
 
     /**
+     * Estatus del cierre de una fecha según el renglón que el SP deja en bitácora.
+     * Permite a la vista distinguir «el SP nunca corrió» de «ya terminó» sin depender de temporizadores.
+     *
+     * @param string $fecha Y-m-d
+     * @return array { success, mensaje, datos: { registrado, enProceso?, exito?, inicio?, fin?, usuario? } }
+     */
+    public static function estatusCierrePorFecha($fecha)
+    {
+        $fecha = trim((string) $fecha);
+        if ($fecha === '') {
+            return Model::Responde(false, 'Indique la fecha de cierre.');
+        }
+
+        $repo = new CierreDiaRepository();
+        $fila = $repo->getEstatusSpPorFecha($fecha);
+        if ($fila === null) {
+            return Model::Responde(true, 'OK', ['registrado' => false]);
+        }
+
+        return Model::Responde(true, 'OK', [
+            'registrado' => true,
+            'enProceso' => (int) ($fila['EN_PROCESO'] ?? 0) === 1,
+            'exito' => (int) ($fila['EXITO'] ?? 0) === 1,
+            'inicio' => $fila['INICIO'] ?? null,
+            'fin' => $fila['FIN'] ?? null,
+            'usuario' => $fila['USUARIO'] ?? null,
+        ]);
+    }
+
+    /**
      * Validación previa antes de ejecutar: concurrencia, cierre ya ejecutado, o si puede regenerar (admin).
      * Nota: límite de 3 días para regenerar está deshabilitado temporalmente (ver bloque comentado abajo).
      *

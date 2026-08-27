@@ -303,7 +303,8 @@ class JobsCredito extends Job
         }
 
         if (!CierreDiaJobLock::adquirirJob()) {
-            self::SaveLog('Finalizado: ya hay un Job de cierre de día en ejecución');
+            $motivo = CierreDiaJobLock::ultimoError();
+            self::SaveLog('Finalizado sin ejecutar el SP: ' . ($motivo !== '' ? $motivo : 'ya hay un Job de cierre de día en ejecución'));
             return;
         }
 

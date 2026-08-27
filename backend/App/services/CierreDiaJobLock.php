@@ -9,6 +9,18 @@ namespace App\services;
 class CierreDiaJobLock
 {
     private static $jobHandle = null;
+    private static $ultimoError = '';
+
+    /**
+     * Motivo del último adquirirJob() fallido: no poder crear el candado y encontrarlo
+     * tomado por otro proceso tienen consecuencias muy distintas para el operador.
+     *
+     * @return string
+     */
+    public static function ultimoError()
+    {
+        return self::$ultimoError;
+    }
 
     /**
      * @return string
@@ -39,21 +51,35 @@ class CierreDiaJobLock
     }
 
     /**
+     * Salida (stdout/stderr) del proceso del Job: única evidencia si muere antes de poder loguear.
+     *
+     * @return string
+     */
+    public static function archivoSalidaJob()
+    {
+        return self::dirLogs() . DIRECTORY_SEPARATOR . 'cierre_dia.job.out';
+    }
+
+    /**
      * Exclusivo no bloqueante. El Job debe conservar el handle hasta terminar.
      *
      * @return bool
      */
     public static function adquirirJob()
     {
+        self::$ultimoError = '';
         if (is_resource(self::$jobHandle)) {
             return true;
         }
-        $fp = @fopen(self::archivoJob(), 'c+');
+        $archivo = self::archivoJob();
+        $fp = @fopen($archivo, 'c+');
         if (!is_resource($fp)) {
+            self::$ultimoError = 'No se pudo abrir el archivo de candado (revise permisos de escritura): ' . $archivo;
             return false;
         }
         if (!flock($fp, LOCK_EX | LOCK_NB)) {
             fclose($fp);
+            self::$ultimoError = 'Otro proceso mantiene el candado del Job de cierre de día.';
             return false;
         }
         ftruncate($fp, 0);

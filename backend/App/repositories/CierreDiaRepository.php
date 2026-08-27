@@ -238,18 +238,62 @@ class CierreDiaRepository
             return null;
         }
 
-        $inicioMx = $this->sqlHoraMexico('INICIO');
-        $finMx = $this->sqlHoraMexico('FIN');
+        $inicioMx = $this->sqlHoraMexico('b.INICIO');
+        $finMx = $this->sqlHoraMexico('b.FIN');
         $qry = <<<SQL
             SELECT
-                USUARIO,
+                b.USUARIO,
                 {$inicioMx} AS INICIO,
                 {$finMx} AS FIN,
-                NVL(EXITO, 0) AS EXITO,
-                CASE WHEN FIN IS NULL THEN 1 ELSE 0 END AS EN_PROCESO
-            FROM BITACORA_CIERRE_DIARIO
-            WHERE TRUNC(FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
-            ORDER BY INICIO DESC
+                NVL(b.EXITO, 0) AS EXITO,
+                CASE WHEN b.FIN IS NULL THEN 1 ELSE 0 END AS EN_PROCESO
+            FROM BITACORA_CIERRE_DIARIO b
+            WHERE TRUNC(b.FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
+            ORDER BY b.INICIO DESC NULLS LAST
+            FETCH FIRST 1 ROW ONLY
+        SQL;
+
+        return $this->sinSalida(function () use ($qry, $fechaCierre) {
+            try {
+                $db = new Database();
+                $r = $db->queryOne($qry, ['fecha' => $fechaCierre]);
+
+                return is_array($r) && !empty($r) ? $r : null;
+            } catch (\Exception $e) {
+                return null;
+            }
+        });
+    }
+
+    /**
+     * Estatus del renglón que el SP escribe en bitácora para la fecha; el candado PHP
+     * (sin ID_IMPORTACION) no cuenta como ejecución del procedimiento.
+     *
+     * @param string $fechaCierre Y-m-d
+     * @return array|null { USUARIO, INICIO, FIN, EXITO, EN_PROCESO } o null si el SP no dejó registro
+     */
+    public function getEstatusSpPorFecha($fechaCierre)
+    {
+        $fechaCierre = trim((string) $fechaCierre);
+        if ($fechaCierre === '') {
+            return null;
+        }
+
+        // ORDER BY debe usar la columna DATE (b.INICIO), nunca el alias TO_CHAR DD/MM:
+        // ordenar el texto deja fuera fechas recientes (p. ej. 20/08 detrás de 24/07).
+        $inicioMx = $this->sqlHoraMexico('b.INICIO', true);
+        $finMx = $this->sqlHoraMexico('b.FIN', true);
+        $qry = <<<SQL
+            SELECT
+                b.USUARIO,
+                {$inicioMx} AS INICIO,
+                {$finMx} AS FIN,
+                NVL(b.EXITO, 0) AS EXITO,
+                CASE WHEN b.FIN IS NULL THEN 1 ELSE 0 END AS EN_PROCESO
+            FROM BITACORA_CIERRE_DIARIO b
+            WHERE TRUNC(b.FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
+              AND b.ID_IMPORTACION IS NOT NULL
+            ORDER BY b.INICIO DESC NULLS LAST
             FETCH FIRST 1 ROW ONLY
         SQL;
 
