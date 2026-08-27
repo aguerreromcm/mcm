@@ -427,7 +427,7 @@ class JobsCredito extends Job
             $n = (float) $n;
             if (class_exists(\NumberFormatter::class)) {
                 $fmt = new \NumberFormatter('es_MX', \NumberFormatter::CURRENCY);
-                return $fmt->formatCurrency($n, 'MXN');
+                return $fmt->formatCurrency($n, 'MXN') ?? '$0.00';
             }
             return '$ ' . number_format($n, 2);
         };
@@ -975,7 +975,7 @@ class JobsCredito extends Job
                                 margin-bottom: 10px;
                             "
                         >
-                            Garantias
+                            Garantías aplicadas
                         </div>
                     </td>
                 </tr>
@@ -997,7 +997,7 @@ class JobsCredito extends Job
                                     font-weight: 600;
                                 "
                             >
-                                Aplicadas por saldo restante
+                                por saldo
                             </div>
                             <div
                                 style="
@@ -1041,7 +1041,7 @@ class JobsCredito extends Job
                                     font-weight: 600;
                                 "
                             >
-                                Aplicadas por fecha fin
+                                por fecha fin
                             </div>
                             <div
                                 style="
