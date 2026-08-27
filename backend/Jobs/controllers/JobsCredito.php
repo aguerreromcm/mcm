@@ -319,7 +319,8 @@ class JobsCredito extends Job
             $resultado = JobsDao::CierreDia($datos);
 
             if (isset($resultado['datos']) && isset($resultado['datos']['MENSAJE'])) {
-                $lineas = explode(PHP_EOL, trim($resultado['datos']['MENSAJE']));
+                $texto = trim($resultado['datos']['MENSAJE']);
+                $lineas = preg_split('/\r\n|\r|\n/', $texto);
                 $mensajeRes = end($lineas);
                 $resultado['datos']['MENSAJE'] = $mensajeRes;
             }
