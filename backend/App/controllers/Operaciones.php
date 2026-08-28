@@ -1045,6 +1045,8 @@ class Operaciones extends Controller
                 {$this->formatoMoneda}
 
                 const idTablaDevengo = "reporteDevengo"
+                let datosDevengoCompletos = []
+                let filtroActivoDevengo = null
 
                 const obtenerParametrosDevengo = () => {
                     const fechaCorte = $("#fechaCorte").val()
@@ -1068,32 +1070,98 @@ class Operaciones extends Controller
 
                 const resultadoErrorDevengo = (mensaje) => {
                     $(".resultadoDevengo").toggleClass("conDatos", false)
+                    datosDevengoCompletos = []
+                    filtroActivoDevengo = null
+                    actualizarEstadoBotonesFiltroDevengo()
                     showError(mensaje || "No fue posible obtener el reporte.").then(() => {
                         actualizaDatosTabla(idTablaDevengo, [])
                     })
                 }
 
-                const resultadoOKDevengo = (datos) => {
-                    datos = datos.map((item) => {
-                        if (item.INTERES_TOTAL != null) {
-                            item.INTERES_TOTAL = "$ " + formatoMoneda(item.INTERES_TOTAL)
-                        }
-                        if (item.DEVENGO_DIARIO != null) {
-                            item.DEVENGO_DIARIO = "$ " + formatoMoneda(item.DEVENGO_DIARIO)
-                        }
-                        if (item.DEVENGO_TRANSCURRIDO != null) {
-                            item.DEVENGO_TRANSCURRIDO = "$ " + formatoMoneda(item.DEVENGO_TRANSCURRIDO)
-                        }
-                        if (item.DEVENGO_REGISTRADO != null) {
-                            item.DEVENGO_REGISTRADO = "$ " + formatoMoneda(item.DEVENGO_REGISTRADO)
-                        }
-                        if (item.DEVENGO_DIF != null) {
-                            item.DEVENGO_DIF = "$ " + formatoMoneda(item.DEVENGO_DIF)
-                        }
-                        return item
-                    })
+                const parseFechaInicioDevengo = (fecha) => {
+                    if (!fecha) return null
+                    const partes = String(fecha).split("/")
+                    if (partes.length !== 3) return null
+                    const dia = parseInt(partes[0], 10)
+                    const mes = parseInt(partes[1], 10)
+                    const anio = parseInt(partes[2], 10)
+                    if (!dia || !mes || !anio) return null
+                    return new Date(anio, mes - 1, dia)
+                }
 
-                    actualizaDatosTabla(idTablaDevengo, datos)
+                const formatearDatosDevengo = (datos) => {
+                    return (datos || []).map((item) => {
+                        const fila = Object.assign({}, item)
+                        if (fila.INTERES_TOTAL != null) {
+                            fila.INTERES_TOTAL = "$ " + formatoMoneda(fila.INTERES_TOTAL)
+                        }
+                        if (fila.DEVENGO_DIARIO != null) {
+                            fila.DEVENGO_DIARIO = "$ " + formatoMoneda(fila.DEVENGO_DIARIO)
+                        }
+                        if (fila.DEVENGO_TRANSCURRIDO != null) {
+                            fila.DEVENGO_TRANSCURRIDO = "$ " + formatoMoneda(fila.DEVENGO_TRANSCURRIDO)
+                        }
+                        if (fila.DEVENGO_REGISTRADO != null) {
+                            fila.DEVENGO_REGISTRADO = "$ " + formatoMoneda(fila.DEVENGO_REGISTRADO)
+                        }
+                        if (fila.DEVENGO_DIF != null) {
+                            fila.DEVENGO_DIF = "$ " + formatoMoneda(fila.DEVENGO_DIF)
+                        }
+                        return fila
+                    })
+                }
+
+                const actualizarEstadoBotonesFiltroDevengo = () => {
+                    $("#btnFiltroDifMayor").toggleClass("btn-info active", filtroActivoDevengo === "mayor")
+                        .toggleClass("btn-default", filtroActivoDevengo !== "mayor")
+                    $("#btnFiltroDifMenor").toggleClass("btn-info active", filtroActivoDevengo === "menor")
+                        .toggleClass("btn-default", filtroActivoDevengo !== "menor")
+                }
+
+                const aplicarFiltroDevengo = () => {
+                    let filas = datosDevengoCompletos
+
+                    if (filtroActivoDevengo === "mayor") {
+                        filas = filas.filter((item) => {
+                            const diasDif = Number(item.DIAS_DIF)
+                            const devengoDif = Number(item.DEVENGO_DIF)
+                            return diasDif > 0 && devengoDif > 0
+                        })
+                    } else if (filtroActivoDevengo === "menor") {
+                        const hoy = new Date()
+                        hoy.setHours(0, 0, 0, 0)
+                        filas = filas.filter((item) => {
+                            const diasDif = Number(item.DIAS_DIF)
+                            const devengoDif = Number(item.DEVENGO_DIF)
+                            const inicio = parseFechaInicioDevengo(item.INICIO)
+                            return diasDif < 0 && devengoDif < 0 && inicio !== null && inicio < hoy
+                        })
+                    }
+
+                    actualizaDatosTabla(idTablaDevengo, formatearDatosDevengo(filas))
+                    actualizarEstadoBotonesFiltroDevengo()
+                }
+
+                const toggleFiltroDevengo = (tipo) => {
+                    if (!datosDevengoCompletos.length) return
+                    filtroActivoDevengo = filtroActivoDevengo === tipo ? null : tipo
+                    swal({
+                        text: "Procesando la solicitud, espere un momento...",
+                        icon: "/img/wait.gif",
+                        button: false,
+                        closeOnClickOutside: false,
+                        closeOnEsc: false
+                    })
+                    setTimeout(() => {
+                        aplicarFiltroDevengo()
+                        try { swal.close() } catch (e) {}
+                    }, 50)
+                }
+
+                const resultadoOKDevengo = (datos) => {
+                    datosDevengoCompletos = datos || []
+                    filtroActivoDevengo = null
+                    aplicarFiltroDevengo()
                     $(".resultadoDevengo").toggleClass("conDatos", true)
                 }
 
@@ -1105,6 +1173,8 @@ class Operaciones extends Controller
                 $(document).ready(() => {
                     $("#btnConsultarDevengo").click(consultarDevengo)
                     $("#btnExcelDevengo").click(descargarExcelDevengo)
+                    $("#btnFiltroDifMayor").click(() => toggleFiltroDevengo("mayor"))
+                    $("#btnFiltroDifMenor").click(() => toggleFiltroDevengo("menor"))
 
                     configuraTabla(idTablaDevengo)
                 })

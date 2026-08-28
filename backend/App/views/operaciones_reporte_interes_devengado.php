@@ -43,10 +43,20 @@ $fechaCorte = date('Y-m-d');
             </div>
         </div>
         <div class="panel-body resultadoDevengo">
-            <div class="botones">
-                <button type="button" class="btn btn-success" id="btnExcelDevengo">
-                    <span class="fa fa-file-excel-o">&nbsp;</span>Exportar a Excel
-                </button>
+            <div class="botones" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                <div>
+                    <button type="button" class="btn btn-success" id="btnExcelDevengo">
+                        <span class="fa fa-file-excel-o">&nbsp;</span>Exportar a Excel
+                    </button>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-default" id="btnFiltroDifMayor" title="Solo filas con Días diferencia y Devengo diferencia mayores a 0">
+                        <span class="fa fa-filter">&nbsp;</span>Diferencia &gt; 0
+                    </button>
+                    <button type="button" class="btn btn-default" id="btnFiltroDifMenor" title="Días y Devengo diferencia menores a 0, con Fecha de inicio anterior a hoy">
+                        <span class="fa fa-filter">&nbsp;</span>Diferencia &lt; 0
+                    </button>
+                </div>
             </div>
             <hr>
             <div class="row">

@@ -192,6 +192,18 @@ sql;
         return $noCredito;
     }
 
+    /**
+     * TIMESTAMP de Oracle (SYSTIMESTAMP en UTC en respaldo) a hora de México.
+     */
+    private static function sqlHoraMexico(string $columna, bool $conSegundos = true): string
+    {
+        $fmt = $conSegundos ? 'DD/MM/YYYY HH24:MI:SS' : 'DD/MM/YYYY HH24:MI';
+
+        return "CASE WHEN {$columna} IS NULL THEN NULL ELSE TO_CHAR("
+            . "FROM_TZ(CAST({$columna} AS TIMESTAMP), TO_CHAR(SYSTIMESTAMP, 'TZH:TZM')) "
+            . "AT TIME ZONE 'America/Mexico_City', '{$fmt}') END";
+    }
+
     public static function ListaSucursalesReasignacion()
     {
         //////cambiar el parametro CDGPE
@@ -658,6 +670,333 @@ sql;
             return self::Responde(true, 'Grupo eliminado correctamente');
         } catch (\Exception $e) {
             return self::Responde(false, 'Error al eliminar grupo', null, $e->getMessage());
+        }
+    }
+
+    public static function ConsultaFoliosTarjeta($credito)
+    {
+        $credito = self::normalizarNumeroCredito($credito);
+        if ($credito === '') {
+            return self::Responde(false, 'Debe ingresar un número de crédito.');
+        }
+
+        $qryVal = <<<SQL
+            SELECT
+                TRIM(SN.CDGNS) NO_CREDITO,
+                (
+                    SELECT GET_NOMBRE_CLIENTE(SC.CDGCL)
+                    FROM SC
+                    WHERE SC.CDGNS = SN.CDGNS
+                      AND SC.CANTSOLIC <> '9999'
+                      AND ROWNUM = 1
+                ) CLIENTE
+            FROM SN
+            WHERE SN.CDGEM = 'EMPFIN'
+              AND SN.CDGNS = :credito
+              AND ROWNUM = 1
+        SQL;
+
+        $qryCiclos = <<<SQL
+            SELECT
+                TRIM(SN.CDGNS) NO_CREDITO,
+                TRIM(SN.CICLO) CICLO,
+                NVL(PRN.SITUACION, SN.SITUACION) SITUACION,
+                DECODE(NVL(PRN.SITUACION, SN.SITUACION), 'E', 'ENTREGADO', 'L', 'LIQUIDADO', 'A', 'AUTORIZADO', 'T', 'TRANSITO', NVL(PRN.SITUACION, SN.SITUACION)) SITUACION_DESC,
+                TRIM(NVL(PRN.CDGCO, SN.CDGCO)) ID_SUCURSAL,
+                GET_NOMBRE_SUCURSAL(NVL(PRN.CDGCO, SN.CDGCO)) SUCURSAL,
+                TRIM(NVL(PRN.CDGOCPE, SN.CDGOCPE)) ID_ASESOR,
+                GET_NOMBRE_EMPLEADO(NVL(PRN.CDGOCPE, SN.CDGOCPE)) ASESOR,
+                TO_CHAR(NVL(PRN.INICIO, SN.INICIO), 'DD/MM/YYYY') INICIO,
+                NVL(SN.CANTAUTOR, SN.CANTSOLIC) MONTO,
+                NVL(PRN.PLAZO, SN.PLAZOSOL) PLAZO,
+                DECODE(
+                    NVL(PRN.PERIODICIDAD, SN.PERIODICIDAD),
+                    'S', 'Semanal',
+                    'C', 'Catorcenal',
+                    'Q', 'Quincenal',
+                    'M', 'Mensual',
+                    NVL(PRN.PERIODICIDAD, SN.PERIODICIDAD)
+                ) PERIODICIDAD_DESC
+            FROM SN
+            LEFT JOIN PRN ON PRN.CDGEM = SN.CDGEM AND PRN.CDGNS = SN.CDGNS AND PRN.CICLO = SN.CICLO
+            WHERE SN.CDGEM = 'EMPFIN'
+              AND SN.CDGNS = :credito
+              AND SN.CICLO NOT LIKE 'R%'
+            ORDER BY NVL(PRN.INICIO, SN.INICIO) DESC NULLS LAST, SN.CICLO DESC
+        SQL;
+
+        $qryUltimoEntregado = <<<SQL
+            SELECT
+                TRIM(PRN.CDGNS) NO_CREDITO,
+                TRIM(PRN.CICLO) CICLO,
+                PRN.SITUACION SITUACION,
+                'ENTREGADO' SITUACION_DESC,
+                TRIM(PRN.CDGCO) ID_SUCURSAL,
+                GET_NOMBRE_SUCURSAL(PRN.CDGCO) SUCURSAL,
+                TRIM(PRN.CDGOCPE) ID_ASESOR,
+                GET_NOMBRE_EMPLEADO(PRN.CDGOCPE) ASESOR,
+                TO_CHAR(PRN.INICIO, 'DD/MM/YYYY') INICIO
+            FROM PRN
+            WHERE PRN.CDGEM = 'EMPFIN'
+              AND PRN.CDGNS = :credito
+              AND PRN.SITUACION = 'E'
+              AND PRN.CICLO NOT LIKE 'R%'
+            ORDER BY PRN.INICIO DESC NULLS LAST, PRN.CICLO DESC
+            FETCH FIRST 1 ROW ONLY
+        SQL;
+
+        // FECHA ya se almacena en hora de México (default de la tabla); no aplicar conversión TZ.
+        $fechaMx = "TO_CHAR(T.FECHA, 'DD/MM/YYYY HH24:MI:SS')";
+
+        $qryHistorico = <<<SQL
+            SELECT
+                T.ID,
+                TRIM(T.CDGNS) NO_CREDITO,
+                TRIM(T.CICLO) CICLO,
+                TRIM(T.FOLIO) FOLIO,
+                TRIM(T.CDGCO) ID_SUCURSAL,
+                GET_NOMBRE_SUCURSAL(T.CDGCO) SUCURSAL,
+                TRIM(T.CDGOCPE) ID_ASESOR,
+                GET_NOMBRE_EMPLEADO(T.CDGOCPE) ASESOR,
+                TRIM(T.CDGPE) ID_USUARIO,
+                GET_NOMBRE_EMPLEADO(T.CDGPE) USUARIO,
+                T.TIPO_MOV,
+                T.MOTIVO,
+                T.ACTIVO,
+                {$fechaMx} FECHA
+            FROM FOLIO_TARJETA T
+            WHERE T.CDGEM = 'EMPFIN'
+              AND T.CDGNS = :credito
+            ORDER BY T.FECHA DESC, T.ID DESC
+        SQL;
+
+        try {
+            $db = new Database();
+            $val = $db->queryOne($qryVal, ['credito' => $credito]);
+            if (!$val) {
+                return self::Responde(false, 'Crédito no encontrado.');
+            }
+
+            $ciclos = $db->queryAll($qryCiclos, ['credito' => $credito]) ?: [];
+            $historico = $db->queryAll($qryHistorico, ['credito' => $credito]) ?: [];
+            $cicloGestion = $db->queryOne($qryUltimoEntregado, ['credito' => $credito]) ?: null;
+
+            $foliosActivos = [];
+            if ($cicloGestion) {
+                $cicloGest = trim((string) $cicloGestion['CICLO']);
+                foreach ($historico as $fila) {
+                    if (trim((string) ($fila['CICLO'] ?? '')) === $cicloGest
+                        && trim((string) ($fila['ACTIVO'] ?? '')) === 'S') {
+                        $foliosActivos[] = $fila;
+                    }
+                }
+            }
+
+            return self::Responde(true, 'Consulta correcta', [
+                'credito' => $credito,
+                'cliente' => trim((string) ($val['CLIENTE'] ?? '')),
+                'ciclos' => $ciclos,
+                'historico' => $historico,
+                'ciclo_gestion' => $cicloGestion,
+                'folios_activos' => $foliosActivos,
+                'puede_gestionar' => $cicloGestion !== null,
+                'puede_adicional' => $cicloGestion !== null && count($foliosActivos) < 2,
+                'puede_cambiar' => $cicloGestion !== null && count($foliosActivos) > 0
+            ]);
+        } catch (\Exception $e) {
+            return self::Responde(false, 'Error al consultar folios de tarjeta', null, $e->getMessage());
+        }
+    }
+
+    public static function RegistrarFolioTarjeta($datos)
+    {
+        $credito = self::normalizarNumeroCredito($datos['credito'] ?? '');
+        $ciclo = trim((string) ($datos['ciclo'] ?? ''));
+        $folio = trim((string) ($datos['folio'] ?? ''));
+        $motivo = trim((string) ($datos['motivo'] ?? ''));
+        $tipoMov = strtoupper(trim((string) ($datos['tipo_mov'] ?? '')));
+        $idReemplazo = trim((string) ($datos['id_reemplazo'] ?? ''));
+        $usuario = trim((string) ($datos['usuario'] ?? ''));
+
+        if ($credito === '' || $ciclo === '') {
+            return self::Responde(false, 'Crédito y ciclo son obligatorios.');
+        }
+        if ($folio === '') {
+            return self::Responde(false, 'Capture el número de folio de la tarjeta.');
+        }
+        if ($motivo === '') {
+            return self::Responde(false, 'Capture el motivo del movimiento.');
+        }
+        if (!in_array($tipoMov, ['CAMBIO', 'ADICIONAL', 'ALTA'], true)) {
+            return self::Responde(false, 'Tipo de movimiento no válido.');
+        }
+        if ($usuario === '') {
+            return self::Responde(false, 'Usuario no válido.');
+        }
+
+        $qryCiclo = <<<SQL
+            SELECT
+                TRIM(PRN.CDGNS) NO_CREDITO,
+                TRIM(PRN.CICLO) CICLO,
+                PRN.SITUACION SITUACION,
+                TRIM(PRN.CDGCO) CDGCO,
+                TRIM(PRN.CDGOCPE) CDGOCPE,
+                PRN.INICIO INICIO
+            FROM PRN
+            WHERE PRN.CDGEM = 'EMPFIN'
+              AND PRN.CDGNS = :credito
+              AND TRIM(PRN.CICLO) = :ciclo
+              AND PRN.SITUACION = 'E'
+        SQL;
+
+        $qryUltimoEntregado = <<<SQL
+            SELECT TRIM(PRN.CICLO) CICLO
+            FROM PRN
+            WHERE PRN.CDGEM = 'EMPFIN'
+              AND PRN.CDGNS = :credito
+              AND PRN.SITUACION = 'E'
+              AND PRN.CICLO NOT LIKE 'R%'
+            ORDER BY PRN.INICIO DESC NULLS LAST, PRN.CICLO DESC
+            FETCH FIRST 1 ROW ONLY
+        SQL;
+
+        $qryActivos = <<<SQL
+            SELECT ID, TRIM(FOLIO) FOLIO
+            FROM FOLIO_TARJETA
+            WHERE CDGEM = 'EMPFIN'
+              AND CDGNS = :credito
+              AND CICLO = :ciclo
+              AND ACTIVO = 'S'
+            ORDER BY FECHA DESC, ID DESC
+        SQL;
+
+        $qryDup = <<<SQL
+            SELECT COUNT(*) TOTAL
+            FROM FOLIO_TARJETA
+            WHERE CDGEM = 'EMPFIN'
+              AND CDGCO = :sucursal
+              AND FOLIO = :folio
+        SQL;
+
+        $qryInsert = <<<SQL
+            INSERT INTO FOLIO_TARJETA
+                (CDGEM, CDGNS, CICLO, FOLIO, CDGCO, CDGOCPE, CDGPE, TIPO_MOV, MOTIVO, ACTIVO)
+            VALUES
+                ('EMPFIN', :credito, :ciclo, :folio, :sucursal, :asesor, :usuario, :tipo_mov, :motivo, 'S')
+        SQL;
+
+        $qryDesactiva = <<<SQL
+            UPDATE FOLIO_TARJETA
+            SET ACTIVO = 'N'
+            WHERE ID = :id
+              AND CDGEM = 'EMPFIN'
+              AND CDGNS = :credito
+              AND CICLO = :ciclo
+              AND ACTIVO = 'S'
+        SQL;
+
+        try {
+            $db = new Database();
+            $infoCiclo = $db->queryOne($qryCiclo, [
+                'credito' => $credito,
+                'ciclo' => $ciclo
+            ]);
+            if (!$infoCiclo) {
+                return self::Responde(false, 'No se encontró el ciclo del crédito.');
+            }
+            if (trim((string) ($infoCiclo['SITUACION'] ?? '')) !== 'E') {
+                return self::Responde(false, 'Solo se puede gestionar el último ciclo con situación Entregado.');
+            }
+
+            $ultimo = $db->queryOne($qryUltimoEntregado, ['credito' => $credito]);
+            if (!$ultimo || trim((string) ($ultimo['CICLO'] ?? '')) !== $ciclo) {
+                return self::Responde(false, 'Solo se puede gestionar el último ciclo con situación Entregado.');
+            }
+
+            $sucursal = trim((string) ($infoCiclo['CDGCO'] ?? ''));
+            $asesor = trim((string) ($infoCiclo['CDGOCPE'] ?? ''));
+            if ($sucursal === '') {
+                return self::Responde(false, 'El crédito no tiene sucursal asignada.');
+            }
+
+            $dup = $db->queryOne($qryDup, [
+                'sucursal' => $sucursal,
+                'folio' => $folio
+            ]);
+            if ($dup && (int) ($dup['TOTAL'] ?? 0) > 0) {
+                return self::Responde(false, 'El folio ya existe en la sucursal del crédito.');
+            }
+
+            $activos = $db->queryAll($qryActivos, [
+                'credito' => $credito,
+                'ciclo' => $ciclo
+            ]) ?: [];
+
+            if ($tipoMov === 'ADICIONAL') {
+                if (count($activos) === 0) {
+                    $tipoMov = 'ALTA';
+                } elseif (count($activos) >= 2) {
+                    return self::Responde(false, 'El ciclo ya tiene el máximo de 2 tarjetas activas.');
+                }
+            }
+
+            if ($tipoMov === 'CAMBIO') {
+                if (count($activos) === 0) {
+                    return self::Responde(false, 'No hay tarjeta activa para cambiar; use agregar.');
+                }
+                if ($idReemplazo === '') {
+                    $idReemplazo = (string) ($activos[0]['ID'] ?? '');
+                }
+                $existe = false;
+                foreach ($activos as $activo) {
+                    if ((string) ($activo['ID'] ?? '') === $idReemplazo) {
+                        $existe = true;
+                        break;
+                    }
+                }
+                if (!$existe) {
+                    return self::Responde(false, 'La tarjeta a reemplazar no está activa en el ciclo.');
+                }
+            }
+
+            if ($tipoMov === 'ALTA' && count($activos) > 0) {
+                return self::Responde(false, 'El ciclo ya tiene tarjeta registrada; use cambio o adicional.');
+            }
+
+            $db->IniciaTransaccion();
+            try {
+                if ($tipoMov === 'CAMBIO') {
+                    $db->insertar($qryDesactiva, [
+                        'id' => $idReemplazo,
+                        'credito' => $credito,
+                        'ciclo' => $ciclo
+                    ]);
+                }
+
+                $db->insertar($qryInsert, [
+                    'credito' => $credito,
+                    'ciclo' => $ciclo,
+                    'folio' => $folio,
+                    'sucursal' => $sucursal,
+                    'asesor' => $asesor,
+                    'usuario' => $usuario,
+                    'tipo_mov' => $tipoMov,
+                    'motivo' => $motivo
+                ]);
+
+                $db->ConfirmaTransaccion();
+            } catch (\Exception $tx) {
+                $db->CancelaTransaccion();
+                throw $tx;
+            }
+
+            return self::Responde(true, 'Movimiento registrado correctamente.');
+        } catch (\Exception $e) {
+            $msg = $e->getMessage();
+            if (stripos($msg, 'UK_FT_SUC_FOLIO') !== false || stripos($msg, 'unique') !== false) {
+                return self::Responde(false, 'El folio ya existe en la sucursal del crédito.');
+            }
+            return self::Responde(false, 'Error al registrar el folio', null, $msg);
         }
     }
 }

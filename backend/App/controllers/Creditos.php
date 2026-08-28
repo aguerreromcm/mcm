@@ -482,6 +482,49 @@ html;
         View::render('reasignacion');
     }
 
+    public function FoliosTarjeta()
+    {
+        $credito = trim((string) ($_GET['Credito'] ?? ''));
+
+        $extraFooter = <<<HTML
+            <script>
+                {$this->mensajes}
+                {$this->consultaServidor}
+                {$this->confirmarMovimiento}
+            </script>
+HTML;
+
+        $extraHeader = '<title>Folios de Tarjeta</title>'
+            . '<link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">'
+            . '<link href="/css/folios-tarjeta.css" rel="stylesheet">';
+        View::set('header', $this->_contenedor->header($extraHeader));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::set('credito', $credito);
+        View::render('folios_tarjeta');
+    }
+
+    public function ConsultaFoliosTarjeta()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        $credito = trim((string) ($_POST['credito'] ?? ''));
+        echo json_encode(CreditosDao::ConsultaFoliosTarjeta($credito));
+    }
+
+    public function RegistrarFolioTarjeta()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        $datos = [
+            'credito' => $_POST['credito'] ?? '',
+            'ciclo' => $_POST['ciclo'] ?? '',
+            'folio' => $_POST['folio'] ?? '',
+            'motivo' => $_POST['motivo'] ?? '',
+            'tipo_mov' => $_POST['tipo_mov'] ?? '',
+            'id_reemplazo' => $_POST['id_reemplazo'] ?? '',
+            'usuario' => $this->__usuario
+        ];
+        echo json_encode(CreditosDao::RegistrarFolioTarjeta($datos));
+    }
+
     public function UpdateReasignacion()
     {
         header('Content-Type: application/json; charset=utf-8');
