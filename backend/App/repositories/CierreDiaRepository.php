@@ -51,16 +51,14 @@ class CierreDiaRepository
     }
 
     /**
-     * Formatea un DATE de bitácora a hora de México (el respaldo guarda SYSDATE en UTC;
-     * producción suele coincidir con México). Usa el offset de SYSTIMESTAMP.
+     * Formatea columna DATE de bitácora sin conversión de zona (hora tal como la guardó Oracle).
+     * La sesión se fija a -06:00 en Core\Database al conectar.
      */
-    private function sqlHoraMexico($columna, $conSegundos = false)
+    private function sqlFechaHora($columna, $conSegundos = false)
     {
         $fmt = $conSegundos ? 'DD/MM/YYYY HH24:MI:SS' : 'DD/MM/YYYY HH24:MI';
 
-        return "CASE WHEN {$columna} IS NULL THEN NULL ELSE TO_CHAR("
-            . "FROM_TZ(CAST({$columna} AS TIMESTAMP), TO_CHAR(SYSTIMESTAMP, 'TZH:TZM')) "
-            . "AT TIME ZONE 'America/Mexico_City', '{$fmt}') END";
+        return "TO_CHAR({$columna}, '{$fmt}')";
     }
 
     /**
@@ -93,22 +91,31 @@ class CierreDiaRepository
                     return [];
                 }
 
-                $inicioMx = $this->sqlHoraMexico('INICIO', true);
+                $inicioMx = $this->sqlFechaHora('INICIO', true);
                 $qry = <<<SQL
                 SELECT
                     TO_CHAR(FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CIERRE,
+                    TO_CHAR(FECHA_CALCULO, 'YYYY-MM-DD') AS FECHA_CIERRE_ISO,
                     {$inicioMx} AS INICIO,
                     USUARIO,
+                    NVL(EXITO, 0) AS EXITO,
                     GREATEST(0, ROUND((SYSDATE - INICIO) * 86400)) AS SEGUNDOS
                 FROM BITACORA_CIERRE_DIARIO
                 WHERE FIN IS NULL
                   AND INICIO IS NOT NULL
                   AND ID_IMPORTACION IS NOT NULL
-                ORDER BY INICIO ASC
+                ORDER BY INICIO DESC
                 FETCH FIRST 1 ROW ONLY
             SQL;
 
                 $r = $db->queryOne($qry);
+                if (is_array($r) && (int) ($r['EXITO'] ?? 0) === 1) {
+                    $iso = isset($r['FECHA_CIERRE_ISO']) ? trim((string) $r['FECHA_CIERRE_ISO']) : '';
+                    if ($iso !== '') {
+                        $this->sincronizarFinBitacoraSp($iso, 1);
+                    }
+                    return [];
+                }
                 return $r ?: [];
             } catch (\Exception $e) {
                 return [];
@@ -156,8 +163,8 @@ class CierreDiaRepository
     public function getUltimos7Cierres()
     {
         // Producción (SP): columnas de métricas e ID_IMPORTACION.
-        $inicioMx = $this->sqlHoraMexico('b.INICIO');
-        $finMx = $this->sqlHoraMexico('b.FIN');
+        $inicioMx = $this->sqlFechaHora('b.INICIO');
+        $finMx = $this->sqlFechaHora('b.FIN');
         $qryConMetricas = <<<SQL
             SELECT * FROM (
                 SELECT
@@ -168,12 +175,9 @@ class CierreDiaRepository
                     b.USUARIO,
                     NVL(b.EXITO, 0) AS EXITO,
                     CASE WHEN b.FIN IS NULL THEN 1 ELSE 0 END AS EN_PROCESO,
-                    CASE WHEN b.FIN IS NULL OR NVL(b.EXITO, 0) = 1
-                        THEN NVL(b.CIERRE_REGISTROS, 0) ELSE 0 END AS REGISTROS_PROCESADOS,
-                    CASE WHEN b.FIN IS NULL OR NVL(b.EXITO, 0) = 1
-                        THEN NVL(b.DEVENGO_REGISTROS, 0) ELSE 0 END AS CREDITOS_DEVENGO,
-                    CASE WHEN b.FIN IS NULL OR NVL(b.EXITO, 0) = 1
-                        THEN NVL(b.DEVENGO_MONTO, 0) ELSE 0 END AS DEVENGO_MONTO_NUM
+                    CASE WHEN b.FIN IS NULL THEN NULL ELSE NVL(b.CIERRE_REGISTROS, 0) END AS REGISTROS_PROCESADOS,
+                    CASE WHEN b.FIN IS NULL THEN NULL ELSE NVL(b.DEVENGO_REGISTROS, 0) END AS CREDITOS_DEVENGO,
+                    CASE WHEN b.FIN IS NULL THEN NULL ELSE NVL(b.DEVENGO_MONTO, 0) END AS DEVENGO_MONTO_NUM
                 FROM BITACORA_CIERRE_DIARIO b
                 WHERE b.ID_IMPORTACION IS NOT NULL
                 ORDER BY b.INICIO DESC NULLS LAST, b.FECHA_CALCULO DESC
@@ -238,8 +242,8 @@ class CierreDiaRepository
             return null;
         }
 
-        $inicioMx = $this->sqlHoraMexico('b.INICIO');
-        $finMx = $this->sqlHoraMexico('b.FIN');
+        $inicioMx = $this->sqlFechaHora('b.INICIO');
+        $finMx = $this->sqlFechaHora('b.FIN');
         $qry = <<<SQL
             SELECT
                 b.USUARIO,
@@ -281,8 +285,8 @@ class CierreDiaRepository
 
         // ORDER BY debe usar la columna DATE (b.INICIO), nunca el alias TO_CHAR DD/MM:
         // ordenar el texto deja fuera fechas recientes (p. ej. 20/08 detrás de 24/07).
-        $inicioMx = $this->sqlHoraMexico('b.INICIO', true);
-        $finMx = $this->sqlHoraMexico('b.FIN', true);
+        $inicioMx = $this->sqlFechaHora('b.INICIO', true);
+        $finMx = $this->sqlFechaHora('b.FIN', true);
         $qry = <<<SQL
             SELECT
                 b.USUARIO,
@@ -658,6 +662,42 @@ SQL;
     }
 
     /**
+     * Cierra el renglón del SP si terminó (EXITO definido) pero FIN quedó NULL.
+     * Respaldo cuando el SP concluye la lógica pero no actualiza FIN en bitácora.
+     *
+     * @return bool true si se actualizó al menos una fila
+     */
+    public function sincronizarFinBitacoraSp($fecha, $exito = 1)
+    {
+        $fecha = trim((string) $fecha);
+        if ($fecha === '') {
+            return false;
+        }
+
+        $qry = <<<SQL
+            UPDATE BITACORA_CIERRE_DIARIO b
+            SET b.FIN = SYSDATE, b.EXITO = :exito
+            WHERE TRUNC(b.FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
+              AND b.ID_IMPORTACION IS NOT NULL
+              AND b.FIN IS NULL
+              AND b.INICIO IS NOT NULL
+        SQL;
+
+        try {
+            $db = new Database();
+            if ($db->db_activa === null) {
+                return false;
+            }
+            $stmt = $db->db_activa->prepare($qry);
+            $stmt->execute(['fecha' => $fecha, 'exito' => (int) $exito]);
+
+            return $stmt->rowCount() > 0;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    /**
      * Marca el cierre como finalizado (FIN = SYSDATE, EXITO = 0|1).
      *
      * @param string $fecha Y-m-d
@@ -666,7 +706,8 @@ SQL;
      */
     public function registrarFin($fecha, $exito = 1)
     {
-        $qry = "UPDATE BITACORA_CIERRE_DIARIO SET FIN = SYSDATE, EXITO = :exito WHERE FECHA_CALCULO = TO_DATE(:fecha, 'YYYY-MM-DD') AND FIN IS NULL";
+        $qry = "UPDATE BITACORA_CIERRE_DIARIO SET FIN = SYSDATE, EXITO = :exito "
+            . "WHERE TRUNC(FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD') AND FIN IS NULL";
         try {
             $db = new Database();
             $db->db_activa->prepare($qry)->execute(['fecha' => $fecha, 'exito' => (int) $exito]);

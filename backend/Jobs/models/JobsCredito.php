@@ -1640,19 +1640,6 @@ class JobsCredito extends Model
         }
     }
 
-    /**
-     * Misma conversión que la pantalla: DATE de bitácora a hora de México
-     * (respaldo en UTC; en producción el offset de sesión suele ser México y no altera la hora).
-     */
-    private static function sqlHoraMexico($columna, $conSegundos = false)
-    {
-        $fmt = $conSegundos ? 'DD/MM/YYYY HH24:MI:SS' : 'DD/MM/YYYY HH24:MI';
-
-        return "CASE WHEN {$columna} IS NULL THEN NULL ELSE TO_CHAR("
-            . "FROM_TZ(CAST({$columna} AS TIMESTAMP), TO_CHAR(SYSTIMESTAMP, 'TZH:TZM')) "
-            . "AT TIME ZONE 'America/Mexico_City', '{$fmt}') END";
-    }
-
     public static function CierreDia($datos)
     {
         $fecha = isset($datos['fecha']) ? trim((string) $datos['fecha']) : '';
@@ -1661,16 +1648,14 @@ class JobsCredito extends Model
 
         $sp = "CALL SP_PAGOS_CIERRE_DEVENGO(TO_DATE(:fecha, 'YYYY-MM-DD'), :usuario, :output)";
 
-        $inicioMx = self::sqlHoraMexico('b.INICIO');
-        $finMx = self::sqlHoraMexico('b.FIN');
         // ID_IMPORTACION se reutiliza entre intentos. ORDER BY la columna DATE (b.INICIO),
         // nunca el alias TO_CHAR DD/MM (ordenaría 24/07 encima de 11/08).
         $qry = <<<SQL
             SELECT
                 TO_CHAR(b.FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CALCULO
                 ,b.USUARIO
-                ,{$inicioMx} AS INICIO
-                ,{$finMx} AS FIN
+                ,TO_CHAR(b.INICIO, 'DD/MM/YYYY HH24:MI') AS INICIO
+                ,TO_CHAR(b.FIN, 'DD/MM/YYYY HH24:MI') AS FIN
                 ,b.EXITO
                 ,b.ID_IMPORTACION
                 ,b.ID_PROCESO
@@ -1722,6 +1707,18 @@ class JobsCredito extends Model
             $res = $db->queryOne($qry, ['fecha' => $fecha]);
             if (!$res) {
                 return self::Responde(false, 'Error en el proceso', null, 'No se encontró bitácora del SP para la fecha.');
+            }
+
+            $finTxt = trim((string) ($res['FIN'] ?? ''));
+            if ($finTxt === '' && (int) ($res['EXITO'] ?? 0) === 1) {
+                $db->db_activa->prepare(<<<SQL
+                    UPDATE BITACORA_CIERRE_DIARIO b
+                    SET b.FIN = SYSDATE
+                    WHERE TRUNC(b.FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
+                      AND b.ID_IMPORTACION IS NOT NULL
+                      AND b.FIN IS NULL
+                SQL)->execute(['fecha' => $fecha]);
+                $res = $db->queryOne($qry, ['fecha' => $fecha]);
             }
 
             return ((int) ($res['EXITO'] ?? 0) === 1) ?

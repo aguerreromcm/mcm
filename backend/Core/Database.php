@@ -31,7 +31,8 @@ class Database
         $usuario = $u ?? $this->configuracion['USUARIO'];
         $password = $p ?? $this->configuracion['PASSWORD'];
         try {
-            $this->db_activa =  new PDO($cadena, $usuario, $password);
+            $this->db_activa = new PDO($cadena, $usuario, $password);
+            $this->db_activa->exec("ALTER SESSION SET TIME_ZONE = '-06:00'");
         } catch (\PDOException $e) {
             self::baseNoDisponible("{$e->getMessage()}\nDatos de conexión: $cadena\nUsuario: $usuario\nPassword: $password");
             $this->db_activa =  null;

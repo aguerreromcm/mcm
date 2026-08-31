@@ -231,7 +231,10 @@
                     <div class="cierre-grupo-fecha-buscar">
                         <div class="cierre-bloque-fecha">
                             <label for="fecha">Fecha operativa</label>
-                            <input type="date" id="fecha" class="form-control input-fecha-operativa" min="<?= date('Y-m-d', strtotime('-30 days')) ?>" max="<?= date('Y-m-d', strtotime('1 days')) ?>" value="<?= date('Y-m-d', strtotime('-1 day')) ?>">
+                            <input type="date" id="fecha" class="form-control input-fecha-operativa"
+                                min="<?= date('Y-m-d', strtotime('-30 days')) ?>"
+                                max="<?= date('Y-m-d', strtotime('1 days')) ?>"
+                                value="<?= date('Y-m-d', strtotime('-1 day')) ?>">
                         </div>
                         <div class="cierre-bloque-botones">
                             <button type="button" class="btn btn-default" id="btnBuscarFecha">Buscar</button>
@@ -807,54 +810,57 @@
         const buscarPorFecha = (opciones) => {
             const silencioso = !!(opciones && opciones.silencioso);
             const fecha = (document.getElementById("fecha").value || "").trim();
-            if (!fecha) return;
+            if (!fecha) return Promise.resolve();
 
             if (!silencioso) mostrarEsperaBuscar();
 
-            $.ajax({
-                url: "/Operaciones/ProcesarAplicarPagos/",
-                type: "POST",
-                dataType: "json",
-                data: { fecha: fecha, ejecutar: 0 }
-            }).done((resp) => {
-                if (resp && resp.success) {
-                    const datos = resp.datos || {};
-                    renderPagos(datos.filas || [], datos.resumen || {}, datos);
-                } else {
-                    const datos = (resp && resp.datos) ? resp.datos : {};
-                    const filas = Array.isArray(datos.filas) ? datos.filas : [];
-                    const msg = (resp && resp.mensaje) ? resp.mensaje : "";
-                    if (filas.length === 0 && msg.indexOf("No hay datos para la fecha") !== -1) {
-                        renderPagos([], { totalRegistros: 0, totalImporte: 0, totalPendientes: 0, totalAplicados: 0, importePendientes: 0, importeAplicados: 0, estado: "Sin movimientos", fechaEjecucion: "-" }, { yaProcesado: true });
-                    } else if (typeof showError === "function") {
-                        showError(msg || "No fue posible cargar pagos para la fecha.");
-                    } else {
-                        renderPagos([], {}, {});
-                    }
-                }
-            }).fail(() => {
-                if (typeof showError === "function") showError("Error de conexión al consultar pagos.");
-            }).always(() => {
+            return new Promise((resolve) => {
                 $.ajax({
-                    url: "/Operaciones/ConsultarConciliacion/",
+                    url: "/Operaciones/ProcesarAplicarPagos/",
                     type: "POST",
                     dataType: "json",
-                    data: { fecha: fecha, codigo: "", ciclo: "", ctaBancaria: "", modoConciliado: "importados" }
+                    data: { fecha: fecha, ejecutar: 0 }
                 }).done((resp) => {
                     if (resp && resp.success) {
                         const datos = resp.datos || {};
-                        renderConciliacion(datos.filas || [], datos.resumen || {});
+                        renderPagos(datos.filas || [], datos.resumen || {}, datos);
                     } else {
-                        renderConciliacion([], { totalNoConciliados: 0, importeNoConciliados: 0, totalConciliados: 0, importeConciliados: 0 });
+                        const datos = (resp && resp.datos) ? resp.datos : {};
+                        const filas = Array.isArray(datos.filas) ? datos.filas : [];
                         const msg = (resp && resp.mensaje) ? resp.mensaje : "";
-                        if (msg && typeof showError === "function" && msg.indexOf("No hay pagos pendientes") === -1 && msg.indexOf("Se encontraron") === -1) {
-                            showError(msg);
+                        if (filas.length === 0 && msg.indexOf("No hay datos para la fecha") !== -1) {
+                            renderPagos([], { totalRegistros: 0, totalImporte: 0, totalPendientes: 0, totalAplicados: 0, importePendientes: 0, importeAplicados: 0, estado: "Sin movimientos", fechaEjecucion: "-" }, { yaProcesado: true });
+                        } else if (typeof showError === "function") {
+                            showError(msg || "No fue posible cargar pagos para la fecha.");
+                        } else {
+                            renderPagos([], {}, {});
                         }
                     }
                 }).fail(() => {
-                    if (typeof showError === "function") showError("Error de conexión al consultar conciliación.");
+                    if (typeof showError === "function") showError("Error de conexión al consultar pagos.");
                 }).always(() => {
-                    if (!silencioso) cerrarEsperaBuscar();
+                    $.ajax({
+                        url: "/Operaciones/ConsultarConciliacion/",
+                        type: "POST",
+                        dataType: "json",
+                        data: { fecha: fecha, codigo: "", ciclo: "", ctaBancaria: "", modoConciliado: "importados" }
+                    }).done((resp) => {
+                        if (resp && resp.success) {
+                            const datos = resp.datos || {};
+                            renderConciliacion(datos.filas || [], datos.resumen || {});
+                        } else {
+                            renderConciliacion([], { totalNoConciliados: 0, importeNoConciliados: 0, totalConciliados: 0, importeConciliados: 0 });
+                            const msg = (resp && resp.mensaje) ? resp.mensaje : "";
+                            if (msg && typeof showError === "function" && msg.indexOf("No hay pagos pendientes") === -1 && msg.indexOf("Se encontraron") === -1) {
+                                showError(msg);
+                            }
+                        }
+                    }).fail(() => {
+                        if (typeof showError === "function") showError("Error de conexión al consultar conciliación.");
+                    }).always(() => {
+                        if (!silencioso) cerrarEsperaBuscar();
+                        resolve();
+                    });
                 });
             });
         };

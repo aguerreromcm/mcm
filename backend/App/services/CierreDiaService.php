@@ -33,6 +33,9 @@ class CierreDiaService
             if ($fechaIso === '') {
                 continue;
             }
+            if ($enProceso) {
+                continue;
+            }
             // Errores: ceros en pantalla; no consultar tablas operativas.
             if (!$enProceso && $exito !== 1) {
                 continue;
@@ -66,30 +69,32 @@ class CierreDiaService
 
             $enProceso = !empty($fila['EN_PROCESO']) && (int) $fila['EN_PROCESO'] === 1;
             $exito = isset($fila['EXITO']) ? (int) $fila['EXITO'] : 0;
-            $mostrarMetricas = $enProceso || $exito === 1;
+
+            if ($enProceso) {
+                $fila['REGISTROS_PROCESADOS'] = '-';
+                $fila['CREDITOS_DEVENGO'] = '-';
+                $fila['MONTO_INTERESES_DEVENGADOS'] = '-';
+                unset($fila['DEVENGO_MONTO_NUM'], $fila['EN_PROCESO']);
+                $fila['ESTADO_TEXTO'] = 'Procesando';
+                continue;
+            }
+
+            $mostrarMetricas = $exito === 1;
 
             if ($mostrarMetricas) {
-                if ($exito === 1) {
-                    $registros = (int) ($mapCierre[$fechaIso] ?? 0);
-                    $creditos = (int) ($mapDevengo[$fechaIso]['creditos'] ?? 0);
-                    $monto = (float) ($mapDevengo[$fechaIso]['monto'] ?? 0);
-                } else {
-                    $registros = array_key_exists('REGISTROS_PROCESADOS', $fila)
-                        ? (int) $fila['REGISTROS_PROCESADOS']
-                        : (int) ($mapCierre[$fechaIso] ?? 0);
-                    $creditos = array_key_exists('CREDITOS_DEVENGO', $fila)
-                        ? (int) $fila['CREDITOS_DEVENGO']
-                        : (int) ($mapDevengo[$fechaIso]['creditos'] ?? 0);
-                    if (array_key_exists('DEVENGO_MONTO_NUM', $fila)) {
-                        $monto = (float) $fila['DEVENGO_MONTO_NUM'];
-                    } else {
-                        $monto = (float) ($mapDevengo[$fechaIso]['monto'] ?? 0);
-                    }
-                }
+                $registros = (int) ($mapCierre[$fechaIso] ?? 0);
+                $creditos = (int) ($mapDevengo[$fechaIso]['creditos'] ?? 0);
+                $monto = (float) ($mapDevengo[$fechaIso]['monto'] ?? 0);
             } else {
-                $registros = 0;
-                $creditos = 0;
-                $monto = 0.0;
+                $registros = array_key_exists('REGISTROS_PROCESADOS', $fila)
+                    ? (int) $fila['REGISTROS_PROCESADOS']
+                    : 0;
+                $creditos = array_key_exists('CREDITOS_DEVENGO', $fila)
+                    ? (int) $fila['CREDITOS_DEVENGO']
+                    : 0;
+                $monto = array_key_exists('DEVENGO_MONTO_NUM', $fila)
+                    ? (float) $fila['DEVENGO_MONTO_NUM']
+                    : 0.0;
             }
             unset($fila['DEVENGO_MONTO_NUM']);
 
@@ -98,9 +103,7 @@ class CierreDiaService
             $fila['MONTO_INTERESES_DEVENGADOS'] = '$ ' . number_format($monto, 2);
 
             unset($fila['EN_PROCESO']);
-            if ($enProceso) {
-                $fila['ESTADO_TEXTO'] = 'Procesando';
-            } elseif ($exito === 1) {
+            if ($exito === 1) {
                 $fila['ESTADO_TEXTO'] = 'Finalizado';
             } else {
                 $fila['ESTADO_TEXTO'] = 'Error';
@@ -118,6 +121,7 @@ class CierreDiaService
             'inicio' => !empty($enEjecucion) ? ($enEjecucion['INICIO'] ?? null) : null,
             'usuario' => !empty($enEjecucion) ? ($enEjecucion['USUARIO'] ?? null) : null,
             'segundos' => !empty($enEjecucion) ? (int) ($enEjecucion['SEGUNDOS'] ?? 0) : 0,
+            'fechaCierre' => !empty($enEjecucion) ? ($enEjecucion['FECHA_CIERRE_ISO'] ?? null) : null,
             'tiempoEstimado' => $tiempoEstimado,
             'jobActivo' => $jobActivo,
         ]);
@@ -154,6 +158,13 @@ class CierreDiaService
 
         $repo = new CierreDiaRepository();
         $fila = $repo->getEstatusSpPorFecha($fecha);
+        if ($fila !== null
+            && (int) ($fila['EN_PROCESO'] ?? 0) === 1
+            && (int) ($fila['EXITO'] ?? 0) === 1
+        ) {
+            $repo->sincronizarFinBitacoraSp($fecha, 1);
+            $fila = $repo->getEstatusSpPorFecha($fecha);
+        }
         if ($fila === null) {
             return Model::Responde(true, 'OK', ['registrado' => false]);
         }

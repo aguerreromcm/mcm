@@ -33,6 +33,7 @@ class Operaciones extends Controller
         $inicioEjecucion = isset($datos['inicio']) ? $datos['inicio'] : '';
         $usuarioEjecucion = isset($datos['usuario']) ? $datos['usuario'] : '';
         $segundosTranscurridos = isset($datos['segundos']) ? (int) $datos['segundos'] : 0;
+        $fechaCierreEnCurso = isset($datos['fechaCierre']) ? (string) $datos['fechaCierre'] : '';
         $estimado = isset($datos['tiempoEstimado']) ? (int) $datos['tiempoEstimado'] : 0;
         $perfil = isset($this->__perfil) ? (string) $this->__perfil : '';
 
@@ -53,10 +54,12 @@ class Operaciones extends Controller
                 let usuarioEjecucion = "$usuarioEjecucion"
                 let segundosTranscurridos = $segundosTranscurridos
                 let esperaSpDesde = 0
-                let fechaEnProceso = ""
+                let fechaEnProceso = "$fechaCierreEnCurso"
                 const GRACIA_ARRANQUE_JOB_MS = 20000
                 let actualiza = null
                 let renueva = null
+                let actualizandoPostCierre = false
+                let tablaProcesoActualizada = false
 
                 const escHtml = (s) => {
                     const d = document.createElement("div")
@@ -65,14 +68,15 @@ class Operaciones extends Controller
                 }
 
                 const refrescarPantallaTrasCierre = () => {
-                    refrescarTablaUltimosCierres()
+                    const tareas = [refrescarTablaUltimosCierres()]
                     if (typeof window.refrescarDatosOperativosCierreDia === "function") {
-                        window.refrescarDatosOperativosCierreDia(true)
+                        tareas.push(window.refrescarDatosOperativosCierreDia(true))
                     }
+                    return Promise.all(tareas)
                 }
 
                 const refrescarTablaUltimosCierres = () => {
-                    fetch("/operaciones/UltimosCierresCierreDia", {
+                    return fetch("/operaciones/UltimosCierresCierreDia", {
                         method: "GET",
                         headers: { Accept: "application/json" }
                     })
@@ -93,6 +97,8 @@ class Operaciones extends Controller
                                         : (c.EN_PROCESO === 1 || c.EN_PROCESO === "1" || !c.FIN || String(c.FIN).trim() === ""
                                             ? "Procesando"
                                             : (Number(c.EXITO) === 1 ? "Finalizado" : "Error"))
+                                    const enProceso = estado === "Procesando"
+                                    const metrica = (v, fallback) => enProceso ? "-" : escHtml(String(v ?? fallback))
                                     const inicio = escHtml(String(c.INICIO ?? "-"))
                                     const fin = escHtml(String(c.FIN ?? "-"))
                                     return (
@@ -102,15 +108,48 @@ class Operaciones extends Controller
                                         "<td>" + fin + "</td>" +
                                         "<td>" + escHtml(String(c.USUARIO ?? "-")) + "</td>" +
                                         "<td>" + escHtml(estado) + "</td>" +
-                                        "<td>" + escHtml(String(c.REGISTROS_PROCESADOS ?? "0")) + "</td>" +
-                                        "<td>" + escHtml(String(c.CREDITOS_DEVENGO ?? "0")) + "</td>" +
-                                        "<td>" + escHtml(String(c.MONTO_INTERESES_DEVENGADOS ?? "$ 0.00")) + "</td>" +
+                                        "<td>" + metrica(c.REGISTROS_PROCESADOS, "0") + "</td>" +
+                                        "<td>" + metrica(c.CREDITOS_DEVENGO, "0") + "</td>" +
+                                        "<td>" + metrica(c.MONTO_INTERESES_DEVENGADOS, "$ 0.00") + "</td>" +
                                         "</tr>"
                                     )
                                 })
                                 .join("")
                         })
                         .catch(() => {})
+                }
+
+                const cerrarSeguimientoTrasActualizar = (lanzadoAqui, d) => {
+                    clearTimeout(renueva)
+                    clearTimeout(actualiza)
+                    actualizandoPostCierre = true
+                    ejecutando = true
+                    $("#procesar").attr("disabled", true)
+                    $("#alertaEjecucion").show()
+                    $("#tiempoEstimado").html(
+                        "<p>El cierre ha finalizado. <b>Actualizando histórico…</b></p>"
+                    )
+                    // El aviso se quita al actualizar el histórico. Pagos/conciliación van en segundo plano
+                    // (pueden tardar ~30s) y no deben retener la alerta.
+                    refrescarTablaUltimosCierres().finally(() => {
+                        actualizandoPostCierre = false
+                        fechaEnProceso = ""
+                        detenerSeguimientoCierre()
+                        if (typeof window.refrescarDatosOperativosCierreDia === "function") {
+                            window.refrescarDatosOperativosCierreDia(true)
+                        }
+                        if (!d.registrado) {
+                            if (lanzadoAqui) {
+                                showError("El proceso no quedó registrado en bitácora: el procedimiento no se ejecutó. Intente de nuevo.")
+                            }
+                            return
+                        }
+                        if (d.exito) {
+                            showSuccess("El proceso de cierre diario ha finalizado.")
+                        } else {
+                            showError("El cierre diario terminó con error. Revise la bitácora antes de reintentarlo.")
+                        }
+                    })
                 }
 
                 const iniciaCierreDiario = () => {
@@ -174,6 +213,7 @@ class Operaciones extends Controller
                     }
                     ejecutando = true
                     fechaEnProceso = $("#fecha").val()
+                    tablaProcesoActualizada = false
                     $("#procesar").attr("disabled", true)
                     var payload = { fecha: $("#fecha").val(), usuario: "{$this->__usuario}" }
                     if (regenerar) payload.regenerar = "1"
@@ -238,6 +278,9 @@ class Operaciones extends Controller
                 const validaEjecucionActiva = () => {
                     clearTimeout(actualiza)
                     clearTimeout(renueva)
+                    if (actualizandoPostCierre) {
+                        return
+                    }
                     if (!ejecutando) {
                         $("#procesar").attr("disabled", false)
                         $("#alertaEjecucion").hide()
@@ -289,6 +332,7 @@ class Operaciones extends Controller
                     inicioEjecucion = null
                     usuarioEjecucion = null
                     segundosTranscurridos = 0
+                    tablaProcesoActualizada = false
                     clearTimeout(actualiza)
                     clearTimeout(renueva)
                     $("#procesar").attr("disabled", false)
@@ -314,25 +358,13 @@ class Operaciones extends Controller
                                 validaEjecucionActiva()
                                 return
                             }
-                            fechaEnProceso = ""
-                            detenerSeguimientoCierre()
-                            refrescarPantallaTrasCierre()
-                            if (!d.registrado) {
-                                if (lanzadoAqui) {
-                                    showError("El proceso no quedó registrado en bitácora: el procedimiento no se ejecutó. Intente de nuevo.")
-                                }
-                                return
-                            }
-                            if (d.exito) {
-                                showSuccess("El proceso de cierre diario ha finalizado.")
-                            } else {
-                                showError("El cierre diario terminó con error. Revise la bitácora antes de reintentarlo.")
-                            }
+                            cerrarSeguimientoTrasActualizar(lanzadoAqui, d)
                         })
                         .catch(() => {
-                            fechaEnProceso = ""
-                            detenerSeguimientoCierre()
-                            refrescarPantallaTrasCierre()
+                            refrescarPantallaTrasCierre().finally(() => {
+                                fechaEnProceso = ""
+                                detenerSeguimientoCierre()
+                            })
                         })
                 }
 
@@ -359,6 +391,9 @@ class Operaciones extends Controller
                                 if (haySp) {
                                     esperaSpDesde = 0
                                     ejecutando = true
+                                    if (datos.FECHA_CIERRE_ISO) {
+                                        fechaEnProceso = datos.FECHA_CIERRE_ISO
+                                    }
                                     inicioEjecucion = datos.INICIO || inicioEjecucion
                                     usuarioEjecucion = datos.USUARIO || usuarioEjecucion
                                     segundosTranscurridos = Math.max(0, parseInt(datos.SEGUNDOS, 10) || 0)
@@ -371,8 +406,12 @@ class Operaciones extends Controller
                                     $("#tiempoEstimado").html(mensajePoll)
                                     $("#alertaEjecucion").show()
                                     $("#procesar").attr("disabled", true)
+                                    // Una sola vez: mostrar fila "Procesando" (métricas en "-"). No refrescar en cada poll.
+                                    if (!tablaProcesoActualizada) {
+                                        tablaProcesoActualizada = true
+                                        refrescarTablaUltimosCierres()
+                                    }
                                     actualizaTiempoEstimado(segundosTranscurridos)
-                                    refrescarTablaUltimosCierres()
                                     renuevaEjecucionActiva()
                                     return
                                 }
