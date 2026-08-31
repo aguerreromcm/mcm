@@ -7,12 +7,12 @@ echo $header;
     <div class="panel panel-default folios-tarjeta-page">
         <div class="panel-body">
             <div class="x_title">
-                <h3>Folios de Tarjeta</h3>
+                <h3>Tarjeta de Pagos</h3>
                 <div class="clearfix"></div>
             </div>
 
             <p class="text-muted ft-descripcion">
-                Consulte el histórico de folios y asesores por ciclo. Solo el último ciclo con situación
+                Consulte el histórico de folios de Tarjeta de Pagos y asesores por ciclo. Solo el último ciclo con situación
                 <strong>Entregado</strong> permite cambiar o agregar una segunda tarjeta (máximo 2),
                 justificando el motivo. Los movimientos no se editan ni eliminan.
             </p>
@@ -38,14 +38,14 @@ echo $header;
                     </div>
                     <div class="ft-toolbar-sep" aria-hidden="true"></div>
                     <div class="ft-toolbar-hint">
-                        <p>Ingrese el crédito para consultar el histórico de folios y gestionar el ciclo entregado vigente.</p>
+                        <p>Ingrese el crédito para consultar el histórico de Tarjeta de Pagos y gestionar el ciclo entregado vigente.</p>
                     </div>
                 </div>
             </div>
 
             <div id="estadoInicial" class="ft-vacio panel-card">
                 <i class="fa fa-credit-card"></i>
-                <p>Busque un crédito para consultar el histórico de tarjetas de pago.</p>
+                <p>Busque un crédito para consultar el histórico de Tarjeta de Pagos.</p>
             </div>
 
             <div class="resultado">
@@ -81,7 +81,7 @@ echo $header;
                         <div id="bloqueFoliosActivos" class="ft-bloque-folios" style="display:none;">
                             <div class="ft-bloque-folios-head">
                                 <i class="fa fa-credit-card"></i>
-                                <span>Tarjetas vigentes del ciclo</span>
+                                <span>Tarjetas de Pagos vigentes del ciclo</span>
                             </div>
                             <div class="ft-folios-activos" id="listaFoliosActivos"></div>
                         </div>
@@ -104,13 +104,13 @@ echo $header;
                 <div class="panel-card">
                     <div class="body">
                         <div class="ft-encabezado-tabla">
-                            <h4 class="titulo"><i class="fa fa-history"></i> Histórico de folios</h4>
+                            <h4 class="titulo"><i class="fa fa-history"></i> Histórico de Tarjeta de Pagos</h4>
                         </div>
                         <table class="table table-striped table-bordered table-hover" id="tablaHistorico">
                             <thead>
                                 <tr>
                                     <th>Ciclo</th>
-                                    <th>Folio</th>
+                                    <th>Folio Tarjeta de Pagos</th>
                                     <th>Asesor</th>
                                     <th>Sucursal</th>
                                     <th>Movimiento</th>
@@ -118,29 +118,6 @@ echo $header;
                                     <th>Usuario</th>
                                     <th>Fecha</th>
                                     <th>Estado</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="panel-card">
-                    <div class="body">
-                        <div class="ft-encabezado-tabla">
-                            <h4 class="titulo"><i class="fa fa-list-ol"></i> Ciclos del crédito</h4>
-                        </div>
-                        <table class="table table-striped table-bordered table-hover" id="tablaCiclos">
-                            <thead>
-                                <tr>
-                                    <th>Ciclo</th>
-                                    <th>Situación</th>
-                                    <th>Monto</th>
-                                    <th>Plazo</th>
-                                    <th>Periodicidad</th>
-                                    <th>Asesor</th>
-                                    <th>Sucursal</th>
-                                    <th>Inicio</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -157,19 +134,19 @@ echo $header;
         <div class="modal-content">
             <div class="modal-header">
                 <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">&times;</button>
-                <h4 class="modal-title" id="modalFolioTarjetaTitle">Registrar folio</h4>
+                <h4 class="modal-title" id="modalFolioTarjetaTitle">Registrar Tarjeta de Pagos</h4>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="tipoMov" value="">
                 <div class="ft-credito-modal" id="resumenModalFolio"></div>
 
                 <div class="form-group" id="grupoReemplazo" style="display:none;">
-                    <label for="idReemplazo">Tarjeta a reemplazar *</label>
+                    <label for="idReemplazo">Tarjeta de Pagos a reemplazar *</label>
                     <select class="form-control" id="idReemplazo"></select>
                 </div>
                 <div class="form-group">
-                    <label for="folioNuevo">Número de folio *</label>
-                    <input type="text" class="form-control" id="folioNuevo" maxlength="30" autocomplete="off" placeholder="Folio de la tarjeta física">
+                    <label for="folioNuevo">Número de folio de Tarjeta de Pagos *</label>
+                    <input type="text" class="form-control" id="folioNuevo" maxlength="30" autocomplete="off" placeholder="Folio de la Tarjeta de Pagos">
                 </div>
                 <div class="form-group">
                     <label for="motivoMov">Motivo *</label>
@@ -254,15 +231,6 @@ function celdaUsuario(idUsuario, nombreUsuario) {
         + '<span class="celda-secundaria">' + escHtml(nombre) + '</span>';
 }
 
-function formatoMonto(valor) {
-    var num = parseFloat(valor);
-    if (isNaN(num)) return '—';
-    return num.toLocaleString('es-MX', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    });
-}
-
 function buscarFolios(cr) {
     creditoActual = String(cr != null ? cr : $('#creditoBuscar').val()).trim();
     if (creditoActual === '') {
@@ -319,13 +287,13 @@ function pintarResultado(datos) {
         $('#btnAdicional').toggle(!!datos.puede_adicional);
 
         if (foliosActivos.length === 0) {
-            $('#btnAdicional').html('<i class="fa fa-plus"></i> Registrar tarjeta');
+            $('#btnAdicional').html('<i class="fa fa-plus"></i> Registrar Tarjeta de Pagos');
         } else {
-            $('#btnAdicional').html('<i class="fa fa-plus"></i> Agregar segunda tarjeta');
+            $('#btnAdicional').html('<i class="fa fa-plus"></i> Agregar segunda Tarjeta de Pagos');
         }
 
         if (!datos.puede_cambiar && !datos.puede_adicional && foliosActivos.length >= 2) {
-            $('#sinAcciones').text('El ciclo ya tiene 2 tarjetas activas.').show();
+            $('#sinAcciones').text('El ciclo ya tiene 2 Tarjetas de Pagos activas.').show();
         } else {
             $('#sinAcciones').hide();
         }
@@ -348,7 +316,6 @@ function pintarResultado(datos) {
     pintarFoliosActivos();
 
     destruirTabla('#tablaHistorico');
-    destruirTabla('#tablaCiclos');
 
     var bodyHist = $('#tablaHistorico tbody');
     bodyHist.empty();
@@ -371,28 +338,9 @@ function pintarResultado(datos) {
         );
     });
 
-    var bodyCiclos = $('#tablaCiclos tbody');
-    bodyCiclos.empty();
-    (datos.ciclos || []).forEach(function (c) {
-        var esGestion = cicloGestion && String(c.CICLO) === String(cicloGestion.CICLO);
-        bodyCiclos.append(
-            '<tr' + (esGestion ? ' class="fila-gestion"' : '') + '>'
-            + '<td class="celda-principal">' + escHtml(c.CICLO) + '</td>'
-            + '<td>' + escHtml(c.SITUACION_DESC || c.SITUACION) + '</td>'
-            + '<td class="celda-principal">' + formatoMonto(c.MONTO) + '</td>'
-            + '<td class="celda-principal">' + escHtml(c.PLAZO || '—') + '</td>'
-            + '<td>' + escHtml(c.PERIODICIDAD_DESC || '—') + '</td>'
-            + '<td>' + celdaUsuario(c.ID_ASESOR, c.ASESOR) + '</td>'
-            + '<td>' + escHtml(c.SUCURSAL) + '</td>'
-            + '<td>' + escHtml(c.INICIO) + '</td>'
-            + '</tr>'
-        );
-    });
-
     window.setTimeout(function () {
         try {
             initTablaFolios('#tablaHistorico');
-            initTablaFolios('#tablaCiclos');
         } catch (e) {
             console.error('DataTables folios tarjeta:', e);
         }
@@ -409,8 +357,8 @@ function abrirModal(tipo) {
     $('#idReemplazo').empty();
 
     var titulo = tipo === 'CAMBIO'
-        ? 'Cambiar tarjeta'
-        : (foliosActivos.length === 0 ? 'Registrar tarjeta' : 'Agregar segunda tarjeta');
+        ? 'Cambiar Tarjeta de Pagos'
+        : (foliosActivos.length === 0 ? 'Registrar Tarjeta de Pagos' : 'Agregar segunda Tarjeta de Pagos');
 
     $('#modalFolioTarjetaTitle').text(titulo);
     $('#resumenModalFolio').html(
@@ -440,10 +388,10 @@ function guardarFolio() {
     var motivo = $('#motivoMov').val().trim();
     var tipo = $('#tipoMov').val();
 
-    if (folio === '') return showWarning('Capture el número de folio.');
+    if (folio === '') return showWarning('Capture el número de folio de la Tarjeta de Pagos.');
     if (motivo === '') return showWarning('Capture el motivo del movimiento.');
     if (tipo === 'CAMBIO' && !$('#idReemplazo').val()) {
-        return showWarning('Seleccione la tarjeta a reemplazar.');
+        return showWarning('Seleccione la Tarjeta de Pagos a reemplazar.');
     }
 
     var payload = {
@@ -455,7 +403,7 @@ function guardarFolio() {
         id_reemplazo: tipo === 'CAMBIO' ? $('#idReemplazo').val() : ''
     };
 
-    confirmarMovimiento('Registrar folio de tarjeta', '¿Confirma registrar el movimiento?')
+    confirmarMovimiento('Registrar Tarjeta de Pagos', '¿Confirma registrar el movimiento?')
     .then(function (continuar) {
         if (!continuar) return;
         consultaServidor('/Creditos/RegistrarFolioTarjeta/', payload, function (resultado) {

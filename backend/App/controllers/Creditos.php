@@ -494,7 +494,7 @@ html;
             </script>
 HTML;
 
-        $extraHeader = '<title>Folios de Tarjeta</title>'
+        $extraHeader = '<title>Tarjeta de Pagos</title>'
             . '<link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">'
             . '<link href="/css/folios-tarjeta.css" rel="stylesheet">';
         View::set('header', $this->_contenedor->header($extraHeader));

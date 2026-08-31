@@ -682,47 +682,18 @@ sql;
 
         $qryVal = <<<SQL
             SELECT
-                TRIM(SN.CDGNS) NO_CREDITO,
+                TRIM(PRN.CDGNS) NO_CREDITO,
                 (
                     SELECT GET_NOMBRE_CLIENTE(SC.CDGCL)
                     FROM SC
-                    WHERE SC.CDGNS = SN.CDGNS
+                    WHERE SC.CDGNS = PRN.CDGNS
                       AND SC.CANTSOLIC <> '9999'
                       AND ROWNUM = 1
                 ) CLIENTE
-            FROM SN
-            WHERE SN.CDGEM = 'EMPFIN'
-              AND SN.CDGNS = :credito
+            FROM PRN
+            WHERE PRN.CDGEM = 'EMPFIN'
+              AND PRN.CDGNS = :credito
               AND ROWNUM = 1
-        SQL;
-
-        $qryCiclos = <<<SQL
-            SELECT
-                TRIM(SN.CDGNS) NO_CREDITO,
-                TRIM(SN.CICLO) CICLO,
-                NVL(PRN.SITUACION, SN.SITUACION) SITUACION,
-                DECODE(NVL(PRN.SITUACION, SN.SITUACION), 'E', 'ENTREGADO', 'L', 'LIQUIDADO', 'A', 'AUTORIZADO', 'T', 'TRANSITO', NVL(PRN.SITUACION, SN.SITUACION)) SITUACION_DESC,
-                TRIM(NVL(PRN.CDGCO, SN.CDGCO)) ID_SUCURSAL,
-                GET_NOMBRE_SUCURSAL(NVL(PRN.CDGCO, SN.CDGCO)) SUCURSAL,
-                TRIM(NVL(PRN.CDGOCPE, SN.CDGOCPE)) ID_ASESOR,
-                GET_NOMBRE_EMPLEADO(NVL(PRN.CDGOCPE, SN.CDGOCPE)) ASESOR,
-                TO_CHAR(NVL(PRN.INICIO, SN.INICIO), 'DD/MM/YYYY') INICIO,
-                NVL(SN.CANTAUTOR, SN.CANTSOLIC) MONTO,
-                NVL(PRN.PLAZO, SN.PLAZOSOL) PLAZO,
-                DECODE(
-                    NVL(PRN.PERIODICIDAD, SN.PERIODICIDAD),
-                    'S', 'Semanal',
-                    'C', 'Catorcenal',
-                    'Q', 'Quincenal',
-                    'M', 'Mensual',
-                    NVL(PRN.PERIODICIDAD, SN.PERIODICIDAD)
-                ) PERIODICIDAD_DESC
-            FROM SN
-            LEFT JOIN PRN ON PRN.CDGEM = SN.CDGEM AND PRN.CDGNS = SN.CDGNS AND PRN.CICLO = SN.CICLO
-            WHERE SN.CDGEM = 'EMPFIN'
-              AND SN.CDGNS = :credito
-              AND SN.CICLO NOT LIKE 'R%'
-            ORDER BY NVL(PRN.INICIO, SN.INICIO) DESC NULLS LAST, SN.CICLO DESC
         SQL;
 
         $qryUltimoEntregado = <<<SQL
@@ -774,10 +745,9 @@ sql;
             $db = new Database();
             $val = $db->queryOne($qryVal, ['credito' => $credito]);
             if (!$val) {
-                return self::Responde(false, 'Crédito no encontrado.');
+                return self::Responde(false, 'Crédito no encontrado en PRN.');
             }
 
-            $ciclos = $db->queryAll($qryCiclos, ['credito' => $credito]) ?: [];
             $historico = $db->queryAll($qryHistorico, ['credito' => $credito]) ?: [];
             $cicloGestion = $db->queryOne($qryUltimoEntregado, ['credito' => $credito]) ?: null;
 
@@ -795,7 +765,6 @@ sql;
             return self::Responde(true, 'Consulta correcta', [
                 'credito' => $credito,
                 'cliente' => trim((string) ($val['CLIENTE'] ?? '')),
-                'ciclos' => $ciclos,
                 'historico' => $historico,
                 'ciclo_gestion' => $cicloGestion,
                 'folios_activos' => $foliosActivos,
@@ -822,7 +791,7 @@ sql;
             return self::Responde(false, 'Crédito y ciclo son obligatorios.');
         }
         if ($folio === '') {
-            return self::Responde(false, 'Capture el número de folio de la tarjeta.');
+            return self::Responde(false, 'Capture el número de folio de la Tarjeta de Pagos.');
         }
         if ($motivo === '') {
             return self::Responde(false, 'Capture el motivo del movimiento.');
@@ -902,7 +871,7 @@ sql;
                 'ciclo' => $ciclo
             ]);
             if (!$infoCiclo) {
-                return self::Responde(false, 'No se encontró el ciclo del crédito.');
+                return self::Responde(false, 'El crédito/ciclo no existe en PRN o no está en situación Entregado.');
             }
             if (trim((string) ($infoCiclo['SITUACION'] ?? '')) !== 'E') {
                 return self::Responde(false, 'Solo se puede gestionar el último ciclo con situación Entregado.');

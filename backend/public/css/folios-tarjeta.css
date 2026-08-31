@@ -387,10 +387,6 @@
     opacity: 0.7;
 }
 
-.folios-tarjeta-page .table tr.fila-gestion > td {
-    background: rgba(26, 111, 181, 0.08);
-}
-
 .folios-tarjeta-page .badge-vigente {
     display: inline-block;
     padding: 3px 10px;
