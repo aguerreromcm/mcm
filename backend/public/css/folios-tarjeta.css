@@ -136,6 +136,68 @@
     align-items: center;
 }
 
+.folios-tarjeta-page .ft-toolbar-actions {
+    flex: 0 0 auto;
+    margin-left: auto;
+    padding-left: 16px;
+    display: flex;
+    align-items: center;
+}
+
+.folios-tarjeta-page .ft-btn-report {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 42px;
+    padding: 6px 14px 6px 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(26, 111, 181, 0.35);
+    background: linear-gradient(180deg, rgba(26, 111, 181, 0.08) 0%, rgba(26, 111, 181, 0.02) 100%);
+    color: var(--ft-dark);
+    box-shadow: none;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.folios-tarjeta-page .ft-btn-report:hover,
+.folios-tarjeta-page .ft-btn-report:focus {
+    border-color: var(--ft-accent);
+    background: linear-gradient(180deg, rgba(26, 111, 181, 0.14) 0%, rgba(26, 111, 181, 0.05) 100%);
+    box-shadow: 0 2px 10px rgba(26, 111, 181, 0.18);
+    color: var(--ft-dark);
+    outline: none;
+}
+
+.folios-tarjeta-page .ft-btn-report-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #2480cc 0%, var(--ft-accent) 100%);
+    color: #fff;
+    flex: 0 0 auto;
+}
+
+.folios-tarjeta-page .ft-btn-report-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.15;
+    text-align: left;
+}
+
+.folios-tarjeta-page .ft-btn-report-text strong {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.folios-tarjeta-page .ft-btn-report-text small {
+    font-size: 11px;
+    color: var(--ft-muted);
+    font-weight: 500;
+}
+
 .folios-tarjeta-page .ft-toolbar-hint p {
     margin: 0;
     font-size: 13px;
@@ -578,5 +640,199 @@
     .folios-tarjeta-page .ft-acciones .btn {
         flex: 1 1 auto;
         justify-content: center;
+    }
+
+    .folios-tarjeta-page .ft-toolbar-actions {
+        margin-left: 0;
+        padding-left: 0;
+        width: 100%;
+    }
+
+    .folios-tarjeta-page .ft-btn-report {
+        width: 100%;
+    }
+
+    .folios-tarjeta-page .ft-filtro-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .folios-tarjeta-page .ft-reporte-head-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
+/* Modal filtros histórico */
+.ft-modal .modal-content {
+    border: 1px solid var(--ft-border-soft, #dde3ea);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(16, 24, 40, 0.18);
+}
+
+.ft-modal .ft-modal-header {
+    border-bottom: 1px solid var(--ft-border-soft, #dde3ea);
+    background: linear-gradient(180deg, #fbfcfe 0%, #f3f7fb 100%);
+    padding: 16px 18px;
+}
+
+.ft-modal .ft-modal-title-wrap {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding-right: 24px;
+}
+
+.ft-modal .ft-modal-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #2480cc 0%, #1a6fb5 100%);
+    color: #fff;
+    flex: 0 0 auto;
+    font-size: 16px;
+}
+
+.ft-modal .modal-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.ft-modal .ft-modal-sub {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: #738091;
+}
+
+.ft-modal .modal-body {
+    padding: 18px;
+}
+
+.ft-modal .ft-filtro-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 12px;
+}
+
+.ft-modal .ft-filtro-full {
+    grid-column: 1 / -1;
+}
+
+.ft-modal .form-group {
+    margin: 0;
+}
+
+.ft-modal .ft-tb-lbl {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #738091;
+    margin: 0 0 6px;
+}
+
+.ft-modal .ft-tb-lbl i {
+    margin-right: 4px;
+    color: #1a6fb5;
+}
+
+.ft-modal .form-control {
+    height: 36px;
+    border-radius: 8px;
+}
+
+.ft-modal .ft-modal-footer {
+    border-top: 1px solid var(--ft-border-soft, #dde3ea);
+    background: rgba(127, 143, 166, 0.04);
+    padding: 12px 18px;
+}
+
+/* Panel resultado histórico general */
+.folios-tarjeta-page .ft-reporte-panel .ft-reporte-head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.folios-tarjeta-page .ft-btn-excel {
+    border-radius: 8px;
+    background: linear-gradient(180deg, #2ea44f 0%, #238636 100%);
+    border-color: #238636;
+    color: #fff;
+}
+
+.folios-tarjeta-page .ft-btn-excel:hover {
+    background: linear-gradient(180deg, #3fb950 0%, #2ea44f 100%);
+    border-color: #2ea44f;
+    color: #fff;
+}
+
+.folios-tarjeta-page .ft-reporte-filtros {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.folios-tarjeta-page .ft-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ft-dark);
+    background: var(--ft-bloque-bg);
+    border: 1px solid var(--ft-border-soft);
+}
+
+.folios-tarjeta-page .ft-chip i {
+    color: var(--ft-accent);
+}
+
+@media (prefers-color-scheme: dark) {
+    .ft-modal .ft-modal-header {
+        background: linear-gradient(180deg, #2a3038 0%, #252930 100%);
+        border-bottom-color: #3d444d;
+    }
+
+    .ft-modal .modal-content {
+        background: #22272e;
+        border-color: #3d444d;
+        color: #e6edf3;
+    }
+
+    .ft-modal .ft-modal-sub,
+    .ft-modal .ft-tb-lbl {
+        color: #8b949e;
+    }
+
+    .ft-modal .ft-modal-footer {
+        background: rgba(255, 255, 255, 0.03);
+        border-top-color: #3d444d;
+    }
+
+    .folios-tarjeta-page .ft-btn-report {
+        border-color: rgba(88, 166, 255, 0.35);
+        background: linear-gradient(180deg, rgba(88, 166, 255, 0.12) 0%, rgba(88, 166, 255, 0.04) 100%);
+        color: #e6edf3;
+    }
+
+    .folios-tarjeta-page .ft-btn-report:hover,
+    .folios-tarjeta-page .ft-btn-report:focus {
+        border-color: #58a6ff;
+        color: #e6edf3;
+    }
+
+    .folios-tarjeta-page .ft-btn-report-icon {
+        background: linear-gradient(180deg, #388bfd 0%, #1f6feb 100%);
     }
 }

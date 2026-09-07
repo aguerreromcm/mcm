@@ -968,4 +968,81 @@ sql;
             return self::Responde(false, 'Error al registrar el folio', null, $msg);
         }
     }
+
+    /**
+     * Histórico general de Tarjeta de Pagos por rango de fecha de registro,
+     * región y/o sucursal.
+     */
+    public static function ConsultaHistoricoGeneralFoliosTarjeta($datos)
+    {
+        $fechaInicio = trim((string) ($datos['fecha_inicio'] ?? ''));
+        $fechaFin = trim((string) ($datos['fecha_fin'] ?? ''));
+        $region = trim((string) ($datos['region'] ?? ''));
+        $sucursal = trim((string) ($datos['sucursal'] ?? ''));
+
+        if ($fechaInicio === '' || $fechaFin === '') {
+            return self::Responde(false, 'Capture fecha inicio y fecha fin.');
+        }
+
+        $tsInicio = strtotime($fechaInicio);
+        $tsFin = strtotime($fechaFin);
+        if ($tsInicio === false || $tsFin === false) {
+            return self::Responde(false, 'Las fechas capturadas no son válidas.');
+        }
+        if ($tsInicio > $tsFin) {
+            return self::Responde(false, 'La fecha inicio no puede ser mayor que la fecha fin.');
+        }
+
+        $fechaMx = "TO_CHAR(T.FECHA, 'DD/MM/YYYY HH24:MI:SS')";
+        $params = [
+            'fecha_inicio' => date('Y-m-d', $tsInicio),
+            'fecha_fin' => date('Y-m-d', $tsFin),
+        ];
+
+        $filtroGeo = '';
+        if ($sucursal !== '' && $sucursal !== '*') {
+            $filtroGeo = ' AND TRIM(T.CDGCO) = :sucursal';
+            $params['sucursal'] = $sucursal;
+        } elseif ($region !== '' && $region !== '*') {
+            $filtroGeo = ' AND TRIM(T.CDGCO) IN (
+                SELECT TRIM(CO.CODIGO)
+                FROM CO
+                WHERE TRIM(CO.CDGRG) = :region
+            )';
+            $params['region'] = $region;
+        }
+
+        $qry = <<<SQL
+            SELECT
+                TRIM(T.CDGNS) NO_CREDITO,
+                TRIM(T.CICLO) CICLO,
+                TRIM(T.FOLIO) FOLIO,
+                TRIM(T.CDGOCPE) ID_ASESOR,
+                GET_NOMBRE_EMPLEADO(T.CDGOCPE) ASESOR,
+                TRIM(T.CDGCO) ID_SUCURSAL,
+                GET_NOMBRE_SUCURSAL(T.CDGCO) SUCURSAL,
+                T.TIPO_MOV,
+                DECODE(T.TIPO_MOV, 'ALTA', 'Alta', 'CAMBIO', 'Cambio', 'ADICIONAL', 'Adicional', T.TIPO_MOV) MOVIMIENTO,
+                T.MOTIVO,
+                TRIM(T.CDGPE) ID_USUARIO,
+                GET_NOMBRE_EMPLEADO(T.CDGPE) USUARIO,
+                {$fechaMx} FECHA,
+                T.ACTIVO,
+                DECODE(T.ACTIVO, 'S', 'Vigente', 'Histórico') ESTADO
+            FROM FOLIO_TARJETA T
+            WHERE T.CDGEM = 'EMPFIN'
+              AND TRUNC(T.FECHA) BETWEEN TO_DATE(:fecha_inicio, 'YYYY-MM-DD')
+                                     AND TO_DATE(:fecha_fin, 'YYYY-MM-DD')
+              {$filtroGeo}
+            ORDER BY T.FECHA DESC, T.ID DESC
+        SQL;
+
+        try {
+            $db = new Database();
+            $filas = $db->queryAll($qry, $params) ?: [];
+            return self::Responde(true, 'Consulta correcta', $filas);
+        } catch (\Exception $e) {
+            return self::Responde(false, 'Error al consultar el histórico general', null, $e->getMessage());
+        }
+    }
 }

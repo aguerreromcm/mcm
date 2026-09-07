@@ -491,15 +491,36 @@ html;
                 {$this->mensajes}
                 {$this->consultaServidor}
                 {$this->confirmarMovimiento}
+                {$this->descargaExcel}
+                {$this->validaFIF}
             </script>
 HTML;
 
         $extraHeader = '<title>Tarjeta de Pagos</title>'
             . '<link rel="shortcut icon" href="/img/logo.svg" type="image/x-icon">'
             . '<link href="/css/folios-tarjeta.css" rel="stylesheet">';
+
+        $catalogoSucursales = [];
+        foreach (CreditosDao::ListaSucursalesReasignacion() ?: [] as $suc) {
+            $idSuc = trim((string) ($suc['ID_SUCURSAL'] ?? ''));
+            $idReg = trim((string) ($suc['ID_REGION'] ?? ''));
+            if ($idSuc === '') {
+                continue;
+            }
+            $catalogoSucursales[] = [
+                'ID_SUCURSAL' => $idSuc,
+                'SUCURSAL' => trim((string) ($suc['SUCURSAL'] ?? '')),
+                'ID_REGION' => $idReg,
+                'REGION' => trim((string) ($suc['REGION'] ?? '')),
+            ];
+        }
+
         View::set('header', $this->_contenedor->header($extraHeader));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::set('credito', $credito);
+        View::set('catalogoSucursalesJson', json_encode($catalogoSucursales, JSON_UNESCAPED_UNICODE));
+        View::set('fechaHoy', date('Y-m-d'));
+        View::set('fechaMes', date('Y-m-01'));
         View::render('folios_tarjeta');
     }
 
@@ -523,6 +544,57 @@ HTML;
             'usuario' => $this->__usuario
         ];
         echo json_encode(CreditosDao::RegistrarFolioTarjeta($datos));
+    }
+
+    public function ConsultaHistoricoFoliosTarjeta()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        $datos = [
+            'fecha_inicio' => $_POST['fecha_inicio'] ?? '',
+            'fecha_fin' => $_POST['fecha_fin'] ?? '',
+            'region' => $_POST['region'] ?? '',
+            'sucursal' => $_POST['sucursal'] ?? ''
+        ];
+        echo json_encode(CreditosDao::ConsultaHistoricoGeneralFoliosTarjeta($datos));
+    }
+
+    public function ExcelHistoricoFoliosTarjeta()
+    {
+        $datos = [
+            'fecha_inicio' => $_GET['fecha_inicio'] ?? '',
+            'fecha_fin' => $_GET['fecha_fin'] ?? '',
+            'region' => $_GET['region'] ?? '',
+            'sucursal' => $_GET['sucursal'] ?? ''
+        ];
+        $resultado = CreditosDao::ConsultaHistoricoGeneralFoliosTarjeta($datos);
+        $filas = ($resultado['success'] ?? false) ? ($resultado['datos'] ?? []) : [];
+
+        $estilos = \PHPSpreadsheet::GetEstilosExcel();
+        $texto = ['estilo' => $estilos['texto_centrado']];
+        $centrado = ['estilo' => $estilos['centrado']];
+
+        $columnas = [
+            \PHPSpreadsheet::ColumnaExcel('NO_CREDITO', 'Crédito', $texto),
+            \PHPSpreadsheet::ColumnaExcel('CICLO', 'Ciclo', $centrado),
+            \PHPSpreadsheet::ColumnaExcel('FOLIO', 'Folio Tarjeta de Pagos', $texto),
+            \PHPSpreadsheet::ColumnaExcel('ID_ASESOR', 'ID Asesor', $texto),
+            \PHPSpreadsheet::ColumnaExcel('ASESOR', 'Nombre Asesor'),
+            \PHPSpreadsheet::ColumnaExcel('SUCURSAL', 'Sucursal'),
+            \PHPSpreadsheet::ColumnaExcel('MOVIMIENTO', 'Movimiento', $centrado),
+            \PHPSpreadsheet::ColumnaExcel('MOTIVO', 'Motivo'),
+            \PHPSpreadsheet::ColumnaExcel('ID_USUARIO', 'ID Usuario', $texto),
+            \PHPSpreadsheet::ColumnaExcel('USUARIO', 'Nombre Usuario'),
+            \PHPSpreadsheet::ColumnaExcel('FECHA', 'Fecha', $centrado),
+            \PHPSpreadsheet::ColumnaExcel('ESTADO', 'Estado', $centrado),
+        ];
+
+        \PHPSpreadsheet::DescargaExcel(
+            'Historico_Tarjeta_de_Pagos',
+            'Reporte',
+            'Histórico general de Tarjeta de Pagos',
+            $columnas,
+            $filas
+        );
     }
 
     public function UpdateReasignacion()

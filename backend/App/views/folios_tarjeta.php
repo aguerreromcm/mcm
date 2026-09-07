@@ -1,5 +1,8 @@
 <?php
 $creditoInicial = isset($credito) ? (string) $credito : '';
+$catalogoSucursalesJson = isset($catalogoSucursalesJson) ? (string) $catalogoSucursalesJson : '[]';
+$fechaMesHtml = isset($fechaMes) ? (string) $fechaMes : date('Y-m-01');
+$fechaHoyHtml = isset($fechaHoy) ? (string) $fechaHoy : date('Y-m-d');
 echo $header;
 ?>
 
@@ -40,12 +43,56 @@ echo $header;
                     <div class="ft-toolbar-hint">
                         <p>Ingrese el crédito para consultar el histórico de Tarjeta de Pagos y gestionar el ciclo entregado vigente.</p>
                     </div>
+                    <div class="ft-toolbar-actions">
+                        <button type="button" class="ft-btn-report" id="btnHistoricoGeneral" title="Consultar histórico general por fechas y sucursal">
+                            <span class="ft-btn-report-icon"><i class="fa fa-calendar"></i></span>
+                            <span class="ft-btn-report-text">
+                                <strong>Histórico general</strong>
+                            </span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
             <div id="estadoInicial" class="ft-vacio panel-card">
                 <i class="fa fa-credit-card"></i>
                 <p>Busque un crédito para consultar el histórico de Tarjeta de Pagos.</p>
+            </div>
+
+            <div id="bloqueHistoricoGeneral" class="panel-card ft-reporte-panel" style="display:none;">
+                <div class="head">
+                    <h4><i class="fa fa-list-alt"></i> Histórico general</h4>
+                    <div class="ft-reporte-head-actions">
+                        <button type="button" class="btn btn-sm ft-btn-excel" id="btnExcelHistoricoGeneral">
+                            <i class="fa fa-file-excel-o"></i> Excel
+                        </button>
+                        <button type="button" class="btn btn-sm btn-default" id="btnCerrarHistoricoGeneral" title="Cerrar reporte">
+                            <i class="fa fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="body">
+                    <div class="ft-reporte-filtros" id="lblFiltrosHistoricoGeneral"></div>
+                    <table class="table table-striped table-bordered table-hover" id="tablaHistoricoGeneral">
+                        <thead>
+                            <tr>
+                                <th>Crédito</th>
+                                <th>Ciclo</th>
+                                <th>Folio Tarjeta de Pagos</th>
+                                <th>ID Asesor</th>
+                                <th>Nombre Asesor</th>
+                                <th>Sucursal</th>
+                                <th>Movimiento</th>
+                                <th>Motivo</th>
+                                <th>ID Usuario</th>
+                                <th>Nombre Usuario</th>
+                                <th>Fecha</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
             </div>
 
             <div class="resultado">
@@ -163,11 +210,60 @@ echo $header;
     </div>
 </div>
 
+<div class="modal fade ft-modal" id="modal_filtros_historico" tabindex="-1" role="dialog" aria-labelledby="modalFiltrosHistoricoTitle">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header ft-modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">&times;</button>
+                <div class="ft-modal-title-wrap">
+                    <span class="ft-modal-icon"><i class="fa fa-calendar"></i></span>
+                    <div>
+                        <h4 class="modal-title" id="modalFiltrosHistoricoTitle">Histórico general</h4>
+                        <p class="ft-modal-sub">Filtre por fecha de registro, región y sucursal</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="ft-filtro-grid">
+                    <div class="form-group">
+                        <label class="ft-tb-lbl" for="repFechaInicio"><i class="fa fa-calendar-o"></i> Fecha inicio</label>
+                        <input type="date" class="form-control" id="repFechaInicio" value="<?php echo htmlspecialchars($fechaMesHtml, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="form-group">
+                        <label class="ft-tb-lbl" for="repFechaFin"><i class="fa fa-calendar-o"></i> Fecha fin</label>
+                        <input type="date" class="form-control" id="repFechaFin" value="<?php echo htmlspecialchars($fechaHoyHtml, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
+                    <div class="form-group">
+                        <label class="ft-tb-lbl" for="repRegion"><i class="fa fa-map-marker"></i> Región</label>
+                        <select class="form-control" id="repRegion">
+                            <option value="*">Todas</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="ft-tb-lbl" for="repSucursal"><i class="fa fa-building-o"></i> Sucursal</label>
+                        <select class="form-control" id="repSucursal">
+                            <option value="*">Todas</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer ft-modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnConsultarHistoricoGeneral">
+                    <i class="fa fa-search"></i> Consultar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 var creditoInicial = <?php echo json_encode($creditoInicial, JSON_UNESCAPED_UNICODE); ?>;
+var catalogoSucursales = <?php echo $catalogoSucursalesJson; ?>;
 var creditoActual = '';
 var cicloGestion = null;
 var foliosActivos = [];
+var paramsHistoricoGeneral = null;
 
 var ETIQUETA_MOV = {
     ALTA: 'Alta',
@@ -416,7 +512,174 @@ function guardarFolio() {
     });
 }
 
-// jQuery se carga en el footer; DOMContentLoaded corre despues de esas librerias.
+function abrirModalHistoricoGeneral() {
+    $('#modal_filtros_historico').modal('show');
+}
+
+function formatoFechaUi(iso) {
+    if (!iso) return '—';
+    var p = String(iso).split('-');
+    if (p.length !== 3) return iso;
+    return p[2] + '/' + p[1] + '/' + p[0];
+}
+
+function regionesUnicas() {
+    var mapa = {};
+    (catalogoSucursales || []).forEach(function (s) {
+        var id = String(s.ID_REGION || '').trim();
+        if (!id || mapa[id]) return;
+        mapa[id] = String(s.REGION || id).trim();
+    });
+    return Object.keys(mapa).sort(function (a, b) {
+        return mapa[a].localeCompare(mapa[b], 'es');
+    }).map(function (id) {
+        return { id: id, nombre: mapa[id] };
+    });
+}
+
+function llenarRegiones() {
+    var $region = $('#repRegion');
+    var actual = $region.val() || '*';
+    $region.empty().append($('<option>').val('*').text('Todas'));
+    regionesUnicas().forEach(function (r) {
+        $region.append($('<option>').val(r.id).text(r.nombre));
+    });
+    if ($region.find('option[value="' + actual + '"]').length) {
+        $region.val(actual);
+    } else {
+        $region.val('*');
+    }
+}
+
+function llenarSucursalesPorRegion(mantenerSeleccion) {
+    var region = $('#repRegion').val() || '*';
+    var $suc = $('#repSucursal');
+    var actual = mantenerSeleccion ? ($suc.val() || '*') : '*';
+    $suc.empty().append($('<option>').val('*').text('Todas'));
+
+    (catalogoSucursales || [])
+        .filter(function (s) {
+            return region === '*' || String(s.ID_REGION || '') === String(region);
+        })
+        .sort(function (a, b) {
+            return String(a.SUCURSAL || '').localeCompare(String(b.SUCURSAL || ''), 'es');
+        })
+        .forEach(function (s) {
+            $suc.append($('<option>').val(s.ID_SUCURSAL).text(s.SUCURSAL || s.ID_SUCURSAL));
+        });
+
+    if ($suc.find('option[value="' + actual + '"]').length) {
+        $suc.val(actual);
+    } else {
+        $suc.val('*');
+    }
+}
+
+function consultarHistoricoGeneral() {
+    var fechaInicio = $('#repFechaInicio').val();
+    var fechaFin = $('#repFechaFin').val();
+    var region = $('#repRegion').val() || '*';
+    var sucursal = $('#repSucursal').val() || '*';
+    var regionTexto = ($('#repRegion option:selected').text() || 'Todas').trim();
+    var sucursalTexto = ($('#repSucursal option:selected').text() || 'Todas').trim();
+
+    if (!fechaInicio || !fechaFin) {
+        return showWarning('Capture fecha inicio y fecha fin.');
+    }
+    if (fechaInicio > fechaFin) {
+        return showWarning('La fecha inicio no puede ser mayor que la fecha fin.');
+    }
+
+    paramsHistoricoGeneral = {
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin,
+        region: region,
+        sucursal: sucursal
+    };
+
+    consultaServidor('/Creditos/ConsultaHistoricoFoliosTarjeta/', paramsHistoricoGeneral, function (resultado) {
+        if (!resultado.success) {
+            return showError(resultado.mensaje);
+        }
+        pintarHistoricoGeneral(resultado.datos || [], {
+            fechaInicio: fechaInicio,
+            fechaFin: fechaFin,
+            regionTexto: regionTexto,
+            sucursalTexto: sucursalTexto
+        });
+        $('#modal_filtros_historico').modal('hide');
+    });
+}
+
+function pintarHistoricoGeneral(filas, filtros) {
+    destruirTabla('#tablaHistoricoGeneral');
+    var $body = $('#tablaHistoricoGeneral tbody');
+    $body.empty();
+
+    (filas || []).forEach(function (f) {
+        var estado = (f.ACTIVO === 'S' || f.ESTADO === 'Vigente')
+            ? '<span class="badge-vigente">Vigente</span>'
+            : '<span class="badge-historico">Histórico</span>';
+        $body.append(
+            '<tr>'
+            + '<td class="celda-principal">' + escHtml(f.NO_CREDITO) + '</td>'
+            + '<td class="celda-principal">' + escHtml(f.CICLO) + '</td>'
+            + '<td class="celda-principal">' + escHtml(f.FOLIO) + '</td>'
+            + '<td class="celda-principal">' + escHtml(f.ID_ASESOR || '—') + '</td>'
+            + '<td style="text-align:left;">' + escHtml(f.ASESOR || '—') + '</td>'
+            + '<td>' + escHtml(f.SUCURSAL) + '</td>'
+            + '<td>' + etiquetaMovimiento(f.TIPO_MOV || f.MOVIMIENTO) + '</td>'
+            + '<td style="text-align:left;max-width:220px;">' + escHtml(f.MOTIVO) + '</td>'
+            + '<td class="celda-principal">' + escHtml(f.ID_USUARIO || '—') + '</td>'
+            + '<td style="text-align:left;">' + escHtml(f.USUARIO || '—') + '</td>'
+            + '<td>' + escHtml(f.FECHA) + '</td>'
+            + '<td>' + estado + '</td>'
+            + '</tr>'
+        );
+    });
+
+    $('#lblFiltrosHistoricoGeneral').html(
+        '<span class="ft-chip"><i class="fa fa-calendar"></i> '
+        + escHtml(formatoFechaUi(filtros.fechaInicio)) + ' — ' + escHtml(formatoFechaUi(filtros.fechaFin))
+        + '</span>'
+        + '<span class="ft-chip"><i class="fa fa-map-marker"></i> ' + escHtml(filtros.regionTexto) + '</span>'
+        + '<span class="ft-chip"><i class="fa fa-building-o"></i> ' + escHtml(filtros.sucursalTexto) + '</span>'
+    );
+
+    $('#bloqueHistoricoGeneral').show();
+    $('#estadoInicial').hide();
+    window.setTimeout(function () {
+        try {
+            initTablaFolios('#tablaHistoricoGeneral');
+        } catch (e) {
+            console.error('DataTables histórico general:', e);
+        }
+        var el = document.getElementById('bloqueHistoricoGeneral');
+        if (el && el.scrollIntoView) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, 0);
+}
+
+function cerrarHistoricoGeneral() {
+    destruirTabla('#tablaHistoricoGeneral');
+    $('#bloqueHistoricoGeneral').hide();
+    paramsHistoricoGeneral = null;
+    if (!$('.resultado').hasClass('conDatos')) {
+        $('#estadoInicial').show();
+    }
+}
+
+function excelHistoricoGeneral() {
+    if (!paramsHistoricoGeneral) {
+        return showWarning('Primero consulte el histórico general.');
+    }
+    if (typeof descargaExcel !== 'function') {
+        return showError('No está disponible la descarga de Excel.');
+    }
+    descargaExcel('/Creditos/ExcelHistoricoFoliosTarjeta/?' + $.param(paramsHistoricoGeneral));
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     $('.resultado').toggleClass('conDatos', false);
 
@@ -430,6 +693,16 @@ document.addEventListener('DOMContentLoaded', function () {
     $('#btnCambiar').on('click', function () { abrirModal('CAMBIO'); });
     $('#btnAdicional').on('click', function () { abrirModal('ADICIONAL'); });
     $('#btnGuardarFolio').on('click', guardarFolio);
+    $('#btnHistoricoGeneral').on('click', abrirModalHistoricoGeneral);
+    $('#btnConsultarHistoricoGeneral').on('click', consultarHistoricoGeneral);
+    $('#btnExcelHistoricoGeneral').on('click', excelHistoricoGeneral);
+    $('#btnCerrarHistoricoGeneral').on('click', cerrarHistoricoGeneral);
+    $('#repRegion').on('change', function () {
+        llenarSucursalesPorRegion(false);
+    });
+
+    llenarRegiones();
+    llenarSucursalesPorRegion(false);
 
     if (creditoInicial) {
         $('#creditoBuscar').val(creditoInicial);
