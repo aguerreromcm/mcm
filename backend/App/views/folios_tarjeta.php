@@ -59,42 +59,6 @@ echo $header;
                 <p>Busque un crédito para consultar el histórico de Tarjeta de Pagos.</p>
             </div>
 
-            <div id="bloqueHistoricoGeneral" class="panel-card ft-reporte-panel" style="display:none;">
-                <div class="head">
-                    <h4><i class="fa fa-list-alt"></i> Histórico general</h4>
-                    <div class="ft-reporte-head-actions">
-                        <button type="button" class="btn btn-sm ft-btn-excel" id="btnExcelHistoricoGeneral">
-                            <i class="fa fa-file-excel-o"></i> Excel
-                        </button>
-                        <button type="button" class="btn btn-sm btn-default" id="btnCerrarHistoricoGeneral" title="Cerrar reporte">
-                            <i class="fa fa-times"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="body">
-                    <div class="ft-reporte-filtros" id="lblFiltrosHistoricoGeneral"></div>
-                    <table class="table table-striped table-bordered table-hover" id="tablaHistoricoGeneral">
-                        <thead>
-                            <tr>
-                                <th>Crédito</th>
-                                <th>Ciclo</th>
-                                <th>Folio Tarjeta de Pagos</th>
-                                <th>ID Asesor</th>
-                                <th>Nombre Asesor</th>
-                                <th>Sucursal</th>
-                                <th>Movimiento</th>
-                                <th>Motivo</th>
-                                <th>ID Usuario</th>
-                                <th>Nombre Usuario</th>
-                                <th>Fecha</th>
-                                <th>Estado</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
-
             <div class="resultado">
                 <div class="panel-card ft-resumen">
                     <div class="head">
@@ -257,6 +221,52 @@ echo $header;
     </div>
 </div>
 
+<div class="modal fade ft-modal" id="modal_resultado_historico" tabindex="-1" role="dialog" aria-labelledby="modalResultadoHistoricoTitle">
+    <div class="modal-dialog ft-modal-reporte" role="document">
+        <div class="modal-content">
+            <div class="modal-header ft-modal-header ft-modal-header-reporte">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">&times;</button>
+                <div class="ft-modal-title-wrap">
+                    <span class="ft-modal-icon"><i class="fa fa-list-alt"></i></span>
+                    <div>
+                        <h4 class="modal-title" id="modalResultadoHistoricoTitle">Histórico general</h4>
+                        <p class="ft-modal-sub">Resultado de la consulta</p>
+                    </div>
+                </div>
+                <div class="ft-reporte-filtros" id="lblFiltrosHistoricoGeneral"></div>
+            </div>
+            <div class="modal-body ft-modal-body-reporte">
+                <div class="ft-tabla-wrap">
+                    <table class="table table-striped table-bordered table-hover" id="tablaHistoricoGeneral" width="100%">
+                        <thead>
+                            <tr>
+                                <th>Crédito</th>
+                                <th>Ciclo</th>
+                                <th>Folio Tarjeta de Pagos</th>
+                                <th>ID Asesor</th>
+                                <th>Asesor</th>
+                                <th>Sucursal</th>
+                                <th>Movimiento</th>
+                                <th>Motivo</th>
+                                <th>ID Usuario</th>
+                                <th>Usuario</th>
+                                <th>Fecha</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer ft-modal-footer">
+                <button type="button" class="btn ft-btn-excel" id="btnExcelHistoricoGeneral">
+                    <i class="fa fa-file-excel-o"></i> Descargar Excel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 var creditoInicial = <?php echo json_encode($creditoInicial, JSON_UNESCAPED_UNICODE); ?>;
 var catalogoSucursales = <?php echo $catalogoSucursalesJson; ?>;
@@ -305,6 +315,26 @@ function initTablaFolios(selector) {
     }
     destruirTabla(selector);
     $(selector).DataTable(opcionesTablaFolios());
+}
+
+function initTablaHistoricoGeneral() {
+    if (!$.fn.DataTable || !$('#tablaHistoricoGeneral').length) {
+        return;
+    }
+    destruirTabla('#tablaHistoricoGeneral');
+    $('#tablaHistoricoGeneral').DataTable($.extend(true, {}, opcionesTablaFolios(), {
+        pageLength: 10,
+        lengthMenu: [[10, 20, 40, -1], [10, 20, 40, 'Todos']],
+        ordering: false,
+        columnDefs: [
+            { targets: [0, 1, 3, 8], className: 'ft-col-num' },
+            { targets: [2], className: 'ft-col-folio' },
+            { targets: [4, 9], className: 'ft-col-nombre' },
+            { targets: [6, 11], className: 'ft-col-badge' },
+            { targets: [7], className: 'ft-col-motivo', width: '160px' },
+            { targets: [10], className: 'ft-col-fecha', width: '78px' }
+        ]
+    }));
 }
 
 function etiquetaMovimiento(tipo) {
@@ -523,6 +553,15 @@ function formatoFechaUi(iso) {
     return p[2] + '/' + p[1] + '/' + p[0];
 }
 
+function celdaFechaHora(fechaCompleta) {
+    var texto = String(fechaCompleta == null ? '' : fechaCompleta).trim();
+    if (!texto) return '—';
+    var partes = texto.split(/\s+/);
+    if (partes.length < 2) return escHtml(texto);
+    return '<span class="celda-fecha-dia">' + escHtml(partes[0]) + '</span>'
+        + '<span class="celda-fecha-hora">' + escHtml(partes.slice(1).join(' ')) + '</span>';
+}
+
 function regionesUnicas() {
     var mapa = {};
     (catalogoSucursales || []).forEach(function (s) {
@@ -625,14 +664,14 @@ function pintarHistoricoGeneral(filas, filtros) {
             + '<td class="celda-principal">' + escHtml(f.NO_CREDITO) + '</td>'
             + '<td class="celda-principal">' + escHtml(f.CICLO) + '</td>'
             + '<td class="celda-principal">' + escHtml(f.FOLIO) + '</td>'
-            + '<td class="celda-principal">' + escHtml(f.ID_ASESOR || '—') + '</td>'
-            + '<td style="text-align:left;">' + escHtml(f.ASESOR || '—') + '</td>'
+            + '<td class="celda-principal">' + escHtml(f.ID_ASESOR) + '</td>'
+            + '<td>' + escHtml(f.ASESOR) + '</td>'
             + '<td>' + escHtml(f.SUCURSAL) + '</td>'
             + '<td>' + etiquetaMovimiento(f.TIPO_MOV || f.MOVIMIENTO) + '</td>'
-            + '<td style="text-align:left;max-width:220px;">' + escHtml(f.MOTIVO) + '</td>'
-            + '<td class="celda-principal">' + escHtml(f.ID_USUARIO || '—') + '</td>'
-            + '<td style="text-align:left;">' + escHtml(f.USUARIO || '—') + '</td>'
-            + '<td>' + escHtml(f.FECHA) + '</td>'
+            + '<td class="celda-motivo">' + escHtml(f.MOTIVO) + '</td>'
+            + '<td class="celda-principal">' + escHtml(f.ID_USUARIO) + '</td>'
+            + '<td>' + escHtml(f.USUARIO) + '</td>'
+            + '<td>' + celdaFechaHora(f.FECHA) + '</td>'
             + '<td>' + estado + '</td>'
             + '</tr>'
         );
@@ -646,28 +685,22 @@ function pintarHistoricoGeneral(filas, filtros) {
         + '<span class="ft-chip"><i class="fa fa-building-o"></i> ' + escHtml(filtros.sucursalTexto) + '</span>'
     );
 
-    $('#bloqueHistoricoGeneral').show();
-    $('#estadoInicial').hide();
+    $('#modal_resultado_historico').modal('show');
     window.setTimeout(function () {
         try {
-            initTablaFolios('#tablaHistoricoGeneral');
+            initTablaHistoricoGeneral();
+            if ($.fn.DataTable.isDataTable('#tablaHistoricoGeneral')) {
+                $('#tablaHistoricoGeneral').DataTable().columns.adjust();
+            }
         } catch (e) {
             console.error('DataTables histórico general:', e);
         }
-        var el = document.getElementById('bloqueHistoricoGeneral');
-        if (el && el.scrollIntoView) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-    }, 0);
+    }, 250);
 }
 
 function cerrarHistoricoGeneral() {
     destruirTabla('#tablaHistoricoGeneral');
-    $('#bloqueHistoricoGeneral').hide();
     paramsHistoricoGeneral = null;
-    if (!$('.resultado').hasClass('conDatos')) {
-        $('#estadoInicial').show();
-    }
 }
 
 function excelHistoricoGeneral() {
@@ -696,7 +729,7 @@ document.addEventListener('DOMContentLoaded', function () {
     $('#btnHistoricoGeneral').on('click', abrirModalHistoricoGeneral);
     $('#btnConsultarHistoricoGeneral').on('click', consultarHistoricoGeneral);
     $('#btnExcelHistoricoGeneral').on('click', excelHistoricoGeneral);
-    $('#btnCerrarHistoricoGeneral').on('click', cerrarHistoricoGeneral);
+    $('#modal_resultado_historico').on('hidden.bs.modal', cerrarHistoricoGeneral);
     $('#repRegion').on('change', function () {
         llenarSucursalesPorRegion(false);
     });

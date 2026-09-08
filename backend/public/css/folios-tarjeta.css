@@ -753,49 +753,294 @@
     padding: 12px 18px;
 }
 
-/* Panel resultado histórico general */
-.folios-tarjeta-page .ft-reporte-panel .ft-reporte-head-actions {
+/* Modal resultado histórico general */
+.ft-modal-reporte {
+    width: 98%;
+    max-width: 1380px;
+    margin: 24px auto;
+}
+
+#modal_resultado_historico .modal-content {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 48px);
+}
+
+#modal_resultado_historico .ft-modal-header-reporte {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    position: relative;
+}
+
+#modal_resultado_historico .ft-modal-header-reporte .close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    z-index: 2;
+}
+
+#modal_resultado_historico .ft-modal-header-reporte .ft-modal-title-wrap {
+    flex-direction: row;
+    align-items: center;
+    padding-right: 36px;
+}
+
+#modal_resultado_historico .modal-title {
+    margin: 0;
+}
+
+#modal_resultado_historico .ft-modal-sub {
+    margin: 2px 0 0;
+}
+
+#modal_resultado_historico .ft-reporte-filtros {
     display: flex;
     flex-wrap: wrap;
+    gap: 6px;
+}
+
+#modal_resultado_historico .ft-modal-body-reporte {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 12px 18px 8px;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+#modal_resultado_historico .ft-tabla-wrap {
+    width: 100%;
+}
+
+/* Evitar scroll anidado feo de DataTables (igual que la página) */
+#modal_resultado_historico .dataTables_wrapper,
+#modal_resultado_historico .dataTables_scroll,
+#modal_resultado_historico .dataTables_scrollBody {
+    overflow: visible !important;
+}
+
+#modal_resultado_historico .dataTables_wrapper .dataTables_length,
+#modal_resultado_historico .dataTables_wrapper .dataTables_filter {
+    margin-bottom: 10px;
+}
+
+#modal_resultado_historico .dataTables_wrapper .dataTables_length select,
+#modal_resultado_historico .dataTables_wrapper .dataTables_filter input {
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid #cfd8e3;
+    background: #fff;
+    color: #2b2b2b;
+    padding: 4px 8px;
+}
+
+#modal_resultado_historico .dataTables_wrapper .dataTables_info,
+#modal_resultado_historico .dataTables_wrapper .dataTables_paginate {
+    margin-top: 10px;
+    padding-top: 4px;
+}
+
+#modal_resultado_historico .ft-modal-footer {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: flex-end;
     align-items: center;
     gap: 8px;
 }
 
-.folios-tarjeta-page .ft-btn-excel {
+.ft-modal .ft-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #2b2b2b;
+    background: rgba(127, 143, 166, 0.08);
+    border: 1px solid #dde3ea;
+}
+
+.ft-modal .ft-chip i {
+    color: #1a6fb5;
+}
+
+.ft-modal .ft-btn-excel {
     border-radius: 8px;
     background: linear-gradient(180deg, #2ea44f 0%, #238636 100%);
     border-color: #238636;
     color: #fff;
+    height: 34px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
 }
 
-.folios-tarjeta-page .ft-btn-excel:hover {
+.ft-modal .ft-btn-excel:hover {
     background: linear-gradient(180deg, #3fb950 0%, #2ea44f 100%);
     border-color: #2ea44f;
     color: #fff;
 }
 
-.folios-tarjeta-page .ft-reporte-filtros {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 14px;
+#modal_resultado_historico .table {
+    width: 100% !important;
+    margin: 0 !important;
+    font-size: 12.5px;
 }
 
-.folios-tarjeta-page .ft-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 10px;
-    border-radius: 999px;
+#modal_resultado_historico .table > thead > tr > th,
+#modal_resultado_historico table.dataTable > thead > tr > th,
+#modal_resultado_historico table.dataTable thead > tr > th {
+    text-align: center !important;
+    vertical-align: middle !important;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: normal;
+    line-height: 1.25;
+    border-bottom-width: 1px;
+    box-sizing: border-box !important;
+    padding: 12px 8px !important;
+    background-image: none !important;
+}
+
+#modal_resultado_historico .table > tbody > tr > td {
+    text-align: center;
+    vertical-align: middle;
+    padding: 8px 6px;
+    word-break: normal;
+    overflow-wrap: normal;
+}
+
+#modal_resultado_historico .table .celda-principal {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+#modal_resultado_historico .table .celda-secundaria {
+    display: block;
+    font-size: 11px;
+    font-weight: 400;
+    opacity: 0.75;
+    line-height: 1.25;
+    margin-top: 2px;
+}
+
+#modal_resultado_historico .table .celda-motivo,
+#modal_resultado_historico .table td.ft-col-motivo {
+    text-align: left;
+    white-space: normal;
+    line-height: 1.35;
     font-size: 12px;
-    font-weight: 600;
-    color: var(--ft-dark);
-    background: var(--ft-bloque-bg);
-    border: 1px solid var(--ft-border-soft);
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    min-width: 150px;
+    width: 160px;
+    max-width: 170px;
 }
 
-.folios-tarjeta-page .ft-chip i {
-    color: var(--ft-accent);
+#modal_resultado_historico .table td.ft-col-nombre {
+    min-width: 130px;
+    width: 140px;
+    white-space: normal;
+    line-height: 1.3;
+    word-break: break-word;
+}
+
+#modal_resultado_historico .table td.ft-col-fecha {
+    white-space: normal;
+    font-variant-numeric: tabular-nums;
+    font-size: 12px;
+    width: 78px;
+    min-width: 78px;
+    max-width: 86px;
+    line-height: 1.2;
+}
+
+#modal_resultado_historico .table .celda-fecha-dia {
+    display: block;
+    font-weight: 600;
+}
+
+#modal_resultado_historico .table .celda-fecha-hora {
+    display: block;
+    font-size: 11px;
+    font-weight: 400;
+    opacity: 0.75;
+    margin-top: 2px;
+}
+
+#modal_resultado_historico .table td.ft-col-badge {
+    white-space: nowrap;
+    width: 1%;
+}
+
+#modal_resultado_historico .ft-modal-body-reporte::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+#modal_resultado_historico .ft-modal-body-reporte::-webkit-scrollbar-thumb {
+    background: rgba(127, 143, 166, 0.45);
+    border-radius: 8px;
+}
+
+#modal_resultado_historico .ft-modal-body-reporte::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.ft-modal .badge-vigente,
+.ft-modal .badge-historico,
+.ft-modal .badge-mov-alta,
+.ft-modal .badge-mov-cambio,
+.ft-modal .badge-mov-adicional {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    line-height: 1.3;
+}
+
+.ft-modal .badge-vigente {
+    color: #166534;
+    background: #dcfce7;
+}
+
+.ft-modal .badge-historico {
+    color: #475569;
+    background: #e2e8f0;
+}
+
+.ft-modal .badge-mov-alta {
+    color: #1a6fb5;
+    background: #e8f2fb;
+}
+
+.ft-modal .badge-mov-cambio {
+    color: #b45309;
+    background: #fef3c7;
+}
+
+.ft-modal .badge-mov-adicional {
+    color: #166534;
+    background: #dcfce7;
+}
+
+@media (max-width: 992px) {
+    .ft-modal-reporte {
+        width: 98%;
+        margin: 12px auto;
+    }
+
+    #modal_resultado_historico .table {
+        font-size: 12px;
+    }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -815,9 +1060,114 @@
         color: #8b949e;
     }
 
+    .ft-modal .close {
+        color: #e6edf3;
+        opacity: 0.75;
+        text-shadow: none;
+    }
+
+    .ft-modal .close:hover {
+        color: #fff;
+        opacity: 1;
+    }
+
+    .ft-modal .form-control {
+        background: #1c2128;
+        border-color: #3d444d;
+        color: #e6edf3;
+    }
+
     .ft-modal .ft-modal-footer {
         background: rgba(255, 255, 255, 0.03);
         border-top-color: #3d444d;
+    }
+
+    .ft-modal .ft-modal-footer .btn-default {
+        background: #2a3038;
+        border-color: #3d444d;
+        color: #e6edf3;
+    }
+
+    .ft-modal .ft-chip {
+        color: #e6edf3;
+        background: rgba(88, 166, 255, 0.1);
+        border-color: rgba(88, 166, 255, 0.28);
+    }
+
+    .ft-modal .badge-vigente {
+        color: #3fb950;
+        background: rgba(46, 160, 67, 0.2);
+    }
+
+    .ft-modal .badge-historico {
+        color: #c9d1d9;
+        background: rgba(139, 148, 158, 0.25);
+    }
+
+    .ft-modal .badge-mov-alta {
+        color: #79c0ff;
+        background: rgba(88, 166, 255, 0.16);
+    }
+
+    .ft-modal .badge-mov-cambio {
+        color: #e3b341;
+        background: rgba(210, 153, 34, 0.18);
+    }
+
+    .ft-modal .badge-mov-adicional {
+        color: #3fb950;
+        background: rgba(46, 160, 67, 0.18);
+    }
+
+    #modal_resultado_historico .dataTables_wrapper .dataTables_length,
+    #modal_resultado_historico .dataTables_wrapper .dataTables_filter,
+    #modal_resultado_historico .dataTables_wrapper .dataTables_info,
+    #modal_resultado_historico .dataTables_wrapper .dataTables_paginate {
+        color: #c9d1d9;
+    }
+
+    #modal_resultado_historico .dataTables_wrapper .dataTables_length select,
+    #modal_resultado_historico .dataTables_wrapper .dataTables_filter input {
+        background: #1c2128;
+        border-color: #3d444d;
+        color: #e6edf3;
+    }
+
+    #modal_resultado_historico .dataTables_wrapper .paginate_button {
+        color: #c9d1d9 !important;
+    }
+
+    #modal_resultado_historico .dataTables_wrapper .paginate_button.current {
+        background: #1f6feb !important;
+        border-color: #1f6feb !important;
+        color: #fff !important;
+    }
+
+    #modal_resultado_historico .table {
+        color: #e6edf3;
+        border-color: #3d444d;
+    }
+
+    #modal_resultado_historico .table > thead > tr > th {
+        background: #2a3038;
+        border-color: #3d444d;
+        color: #8b949e;
+    }
+
+    #modal_resultado_historico .table > tbody > tr > td {
+        border-color: #3d444d;
+    }
+
+    #modal_resultado_historico .table-striped > tbody > tr:nth-of-type(odd) {
+        background-color: rgba(255, 255, 255, 0.03);
+    }
+
+    #modal_resultado_historico .table-hover > tbody > tr:hover {
+        background-color: rgba(88, 166, 255, 0.08);
+    }
+
+    #modal_resultado_historico .ft-modal-body-reporte::-webkit-scrollbar-thumb {
+        background: rgba(139, 148, 158, 0.45);
     }
 
     .folios-tarjeta-page .ft-btn-report {
