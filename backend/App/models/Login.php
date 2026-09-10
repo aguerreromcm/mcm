@@ -37,6 +37,7 @@ class Login
                     OR UT.CDGTUS = 'PLD' ---- USUARIO PLD CONSULTA
                     OR UT.CDGTUS = 'CPAGO' ---- USUARIO CONSULTA PAGOS
                     OR UT.CDGTUS = 'LAYOU' ---- USUARIO CONSULTA PAGOS
+                    OR UT.CDGTUS = 'CONS'
                 )
         SQL;
 

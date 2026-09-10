@@ -1010,10 +1010,6 @@ sql;
                     LEFT JOIN DEPOSITOS DP ON DP.CREDITO = DT.CREDITO
                     LEFT JOIN RETIROS RT ON RT.CREDITO = DT.CREDITO
                 WHERE DP.ABONOS IS NOT NULL
-                    AND (
-                        TRUNC(CA.FECHA_REGISTRO) <= TO_DATE('{$fechaCorte}', 'YYYY-MM-DD')
-                        OR CA.FECHA_REGISTRO IS NULL
-                    )
             )
             , CREDITO_AGG AS (
                 SELECT CREDITO
