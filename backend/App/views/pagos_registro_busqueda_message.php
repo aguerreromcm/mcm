@@ -38,7 +38,7 @@
                     <div class="tile_count float-right col-sm-12" style="margin-bottom: 1px; margin-top: 1px">
                         <div class="x_content">
                             <br />
-                            <div class="alert alerrt-<?= isset($vendido) ? 'danger' : 'warning' ?> alert-dismissable">
+                            <div class="alert alert-<?= isset($vendido) ? 'danger' : 'warning' ?> alert-dismissable">
                                 <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
                                 <?php if (isset($vendido)) { ?>
                                     <p style="font-size: 14px; color: black;">No se pueden registrar pagos a este crédito porque ha sido vendido.</p>
