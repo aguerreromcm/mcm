@@ -1987,20 +1987,18 @@ html;
         $credito = $_GET['Credito'];
         if ($credito == '') return View::render("pagos_registro_all");
 
+        $AdministracionOne = PagosDao::ConsultarPagosAdministracionOne($credito, $this->__perfil, $this->__usuario);
+        if ($AdministracionOne[0]['NO_CREDITO'] == '') return View::render("pagos_registro_busqueda_message");
+        if ($AdministracionOne[0]['VENDIDO'] != 0) {
+            View::set('vendido', true);
+            return View::render("pagos_registro_busqueda_message");
+        }
+
         $status = PagosDao::ListaEjecutivosAdmin($credito);
         $getStatus = '';
         foreach ($status[0] as $key => $val2) {
             $select = ($status[1] == $val2['ID_EJECUTIVO']) ? 'selected' : '';
             $getStatus .= '<option value="' . $val2['ID_EJECUTIVO'] . '" ' .  $select  . '>' . $val2['EJECUTIVO'] . '</option>';
-        }
-
-        $AdministracionOne = PagosDao::ConsultarPagosAdministracionOne($credito, $this->__perfil, $this->__usuario);
-        if ($AdministracionOne[0]['NO_CREDITO'] == '') {
-
-            View::set('status', $getStatus);
-            View::set('credito', $credito);
-            View::set('usuario', $this->__usuario);
-            return View::render("pagos_registro_busqueda_message");
         }
 
         $tabla = '';
