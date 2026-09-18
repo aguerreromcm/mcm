@@ -988,173 +988,153 @@ sql;
 
     public static function ConsultarPagosAdministracionOne($noCredito, $perfil, $user)
     {
-
-
-
-        $query_determina_adicional = <<<sql
-        select * from SN where CREDITO_ADICIONAL is not null and cdgns = '$noCredito'
-sql;
+        $query_determina_adicional = "SELECT * FROM SN WHERE CREDITO_ADICIONAL IS NOT NULL AND CDGNS = '$noCredito'";
         $mysqli = new Database();
-
-
-
-
-        if ($perfil != 'ADMIN') {
-            $Q1 = "AND PRN.CDGCO = 
-            
-            ANY(SELECT
-        CO.CODIGO ID_SUCURSAL
-        FROM
-        PCO, CO, RG
-        WHERE
-        PCO.CDGCO = CO.CODIGO
-        AND CO.CDGRG = RG.CODIGO
-        AND PCO.CDGEM = 'EMPFIN'
-        AND PCO.CDGPE = '$user') 
-            
-            
-            ";
-        } else {
-            $Q1 = '';
-        }
-
+        $Q1 = '';
 
         $consulta = $mysqli->queryOne($query_determina_adicional);
-
         $res_adicional = $consulta['CREDITO_ADICIONAL'];
-        if ($res_adicional == null) {
-            $query = <<<sql
-        SELECT 
-		SC.CDGNS NO_CREDITO,
-		SC.CDGCL ID_CLIENTE,
-		GET_NOMBRE_CLIENTE(SC.CDGCL) CLIENTE,
-		SC.CICLO,
-		NVL(SC.CANTAUTOR,SC.CANTSOLIC) MONTO,
-		PRN.SITUACION,
-        CASE PRN.SITUACION
-        WHEN 'S'THEN 'SOLICITADO' 
-        WHEN 'E'THEN 'ENTREGADO' 
-        WHEN 'A'THEN 'AUTORIZADO' 
-        WHEN 'L'THEN 'LIQUIDADO' 
-        ELSE 'DESCONOCIDO'
-      END SITUACION_NOMBRE,
-               CASE PRN.SITUACION
-    WHEN 'S'THEN '#1F6CC1FF'
-    WHEN 'E'THEN '#298732FF' 
-    WHEN 'A'THEN '#A31FC1FF' 
-    WHEN 'L'THEN '#000000FF' 
-    ELSE '#FF0000FF'
-  END COLOR,
-               CASE PRN.SITUACION
-    WHEN 'E'THEN ''
-    ELSE 'none'
-  END ACTIVO,
-		SN.PLAZOSOL PLAZO,
-		SN.PERIODICIDAD,
-		SN.TASA,
-		DIA_PAGO(SN.NOACUERDO) DIA_PAGO,
-		CALCULA_PARCIALIDAD(SN.PERIODICIDAD, SN.TASA, NVL(SC.CANTAUTOR,SC.CANTSOLIC), SN.PLAZOSOL) PARCIALIDAD,
-		Q2.CDGCL ID_AVAL,
-		GET_NOMBRE_CLIENTE(Q2.CDGCL) AVAL,
-		SN.CDGCO ID_SUCURSAL,
-		GET_NOMBRE_SUCURSAL(SN.CDGCO) SUCURSAL,
-		SN.CDGOCPE ID_EJECUTIVO,
-		GET_NOMBRE_EMPLEADO(SN.CDGOCPE) EJECUTIVO,
-		SC.CDGPI ID_PROYECTO,
-		'TRADICIONAL' as TIPO_C
-	FROM 
-		SN, SC, SC Q2, PRN
-	WHERE
-		SC.CDGNS = '$noCredito'
-		AND SC.CDGNS = Q2.CDGNS
-		AND SC.CICLO = Q2.CICLO
-		AND SC.CDGCL <> Q2.CDGCL
-		AND SC.CDGNS = SN.CDGNS
-		AND SC.CICLO = SN.CICLO
-	    AND PRN.CICLO = SC.CICLO 
-		AND PRN.CDGNS = SC.CDGNS 
-		AND PRN.SITUACION IN('E', 'L')
-	    $Q1
-		AND SC.CANTSOLIC <> '9999' order by SC.SOLICITUD  desc
-sql;
-        } else {
-            $query = <<<sql
-        SELECT 
-		SC.CDGNS NO_CREDITO,
-		SC.CDGCL ID_CLIENTE,
-		GET_NOMBRE_CLIENTE(SC.CDGCL) CLIENTE,
-		SC.CICLO,
-		NVL(SC.CANTAUTOR,SC.CANTSOLIC) MONTO,
-		PRN.SITUACION,
-        CASE PRN.SITUACION
-        WHEN 'S'THEN 'SOLICITADO' 
-        WHEN 'E'THEN 'ENTREGADO' 
-        WHEN 'A'THEN 'AUTORIZADO' 
-        WHEN 'L'THEN 'LIQUIDADO' 
-        ELSE 'DESCONOCIDO'
-      END SITUACION_NOMBRE,
-               CASE PRN.SITUACION
-    WHEN 'S'THEN '#1F6CC1FF'
-    WHEN 'E'THEN '#298732FF' 
-    WHEN 'A'THEN '#A31FC1FF' 
-    WHEN 'L'THEN '#000000FF' 
-    ELSE '#FF0000FF'
-  END COLOR,
-               CASE PRN.SITUACION
-    WHEN 'E'THEN ''
-    ELSE 'none'
-  END ACTIVO,
-		SN.PLAZOSOL PLAZO,
-		SN.PERIODICIDAD,
-		SN.TASA,
-		DIA_PAGO(SN.NOACUERDO) DIA_PAGO,
-		CALCULA_PARCIALIDAD(SN.PERIODICIDAD, SN.TASA, NVL(SC.CANTAUTOR,SC.CANTSOLIC), SN.PLAZOSOL) PARCIALIDAD,
-		SN.CDGCO ID_SUCURSAL,
-		GET_NOMBRE_SUCURSAL(SN.CDGCO) SUCURSAL,
-		SN.CDGOCPE ID_EJECUTIVO,
-		GET_NOMBRE_EMPLEADO(SN.CDGOCPE) EJECUTIVO,
-		SC.CDGPI ID_PROYECTO,
-		'MAS POR TI' as TIPO_C
-	FROM 
-		SN, SC, PRN
-	WHERE
-		SC.CDGNS = '$noCredito'
-		
-		AND SC.CDGNS = SN.CDGNS
-		AND SC.CICLO = SN.CICLO
-	    AND PRN.CICLO = SC.CICLO 
-		AND PRN.CDGNS = SC.CDGNS 
-		AND PRN.SITUACION IN('E', 'L')
-	    $Q1
-		AND SC.CANTSOLIC <> '9999' order by SC.SOLICITUD  desc
-sql;
+
+        if ($perfil != 'ADMIN') {
+            $Q1 = <<<SQL
+                AND PRN.CDGCO = ANY(
+                    SELECT
+                        CO.CODIGO ID_SUCURSAL
+                    FROM PCO
+                        , CO
+                        , RG
+                    WHERE PCO.CDGCO = CO.CODIGO
+                    AND CO.CDGRG = RG.CODIGO
+                    AND PCO.CDGEM = 'EMPFIN'
+                    AND PCO.CDGPE = '$user'
+                )
+            SQL;
         }
 
-
-        //var_dump($query);
-
-
-
+        if ($res_adicional == null) {
+            $query = <<<SQL
+                SELECT 
+                    SC.CDGNS NO_CREDITO,
+                    SC.CDGCL ID_CLIENTE,
+                    GET_NOMBRE_CLIENTE(SC.CDGCL) CLIENTE,
+                    SC.CICLO,
+                    NVL(SC.CANTAUTOR,SC.CANTSOLIC) MONTO,
+                    PRN.SITUACION,
+                    CASE PRN.SITUACION
+                        WHEN 'S'THEN 'SOLICITADO' 
+                        WHEN 'E'THEN 'ENTREGADO' 
+                        WHEN 'A'THEN 'AUTORIZADO' 
+                        WHEN 'L'THEN 'LIQUIDADO' 
+                        ELSE 'DESCONOCIDO'
+                    END SITUACION_NOMBRE,
+                    CASE PRN.SITUACION
+                        WHEN 'S'THEN '#1F6CC1FF'
+                        WHEN 'E'THEN '#298732FF' 
+                        WHEN 'A'THEN '#A31FC1FF' 
+                        WHEN 'L'THEN '#000000FF' 
+                        ELSE '#FF0000FF'
+                    END COLOR,
+                    CASE PRN.SITUACION
+                        WHEN 'E'THEN ''
+                        ELSE 'none'
+                    END ACTIVO,
+                    SN.PLAZOSOL PLAZO,
+                    SN.PERIODICIDAD,
+                    SN.TASA,
+                    DIA_PAGO(SN.NOACUERDO) DIA_PAGO,
+                    CALCULA_PARCIALIDAD(SN.PERIODICIDAD, SN.TASA, NVL(SC.CANTAUTOR,SC.CANTSOLIC), SN.PLAZOSOL) PARCIALIDAD,
+                    Q2.CDGCL ID_AVAL,
+                    GET_NOMBRE_CLIENTE(Q2.CDGCL) AVAL,
+                    SN.CDGCO ID_SUCURSAL,
+                    GET_NOMBRE_SUCURSAL(SN.CDGCO) SUCURSAL,
+                    SN.CDGOCPE ID_EJECUTIVO,
+                    GET_NOMBRE_EMPLEADO(SN.CDGOCPE) EJECUTIVO,
+                    SC.CDGPI ID_PROYECTO,
+                    'TRADICIONAL' as TIPO_C,
+                    (SELECT COUNT(*) FROM PRN_LEGAL WHERE CDGCLNS = SC.CDGNS AND TIPO = 'C' AND BAJA IS NULL) AS VENDIDO
+                FROM 
+                    SN, SC, SC Q2, PRN
+                WHERE
+                    SC.CDGNS = '$noCredito'
+                    AND SC.CDGNS = Q2.CDGNS
+                    AND SC.CICLO = Q2.CICLO
+                    AND SC.CDGCL <> Q2.CDGCL
+                    AND SC.CDGNS = SN.CDGNS
+                    AND SC.CICLO = SN.CICLO
+                    AND PRN.CICLO = SC.CICLO 
+                    AND PRN.CDGNS = SC.CDGNS 
+                    AND PRN.SITUACION IN('E', 'L')
+                    $Q1
+                    AND SC.CANTSOLIC <> '9999' order by SC.SOLICITUD  desc
+            SQL;
+        } else {
+            $query = <<<SQL
+                SELECT 
+                    SC.CDGNS NO_CREDITO,
+                    SC.CDGCL ID_CLIENTE,
+                    GET_NOMBRE_CLIENTE(SC.CDGCL) CLIENTE,
+                    SC.CICLO,
+                    NVL(SC.CANTAUTOR,SC.CANTSOLIC) MONTO,
+                    PRN.SITUACION,
+                    CASE PRN.SITUACION
+                        WHEN 'S'THEN 'SOLICITADO' 
+                        WHEN 'E'THEN 'ENTREGADO' 
+                        WHEN 'A'THEN 'AUTORIZADO' 
+                        WHEN 'L'THEN 'LIQUIDADO' 
+                        ELSE 'DESCONOCIDO'
+                    END SITUACION_NOMBRE,
+                    CASE PRN.SITUACION
+                        WHEN 'S'THEN '#1F6CC1FF'
+                        WHEN 'E'THEN '#298732FF' 
+                        WHEN 'A'THEN '#A31FC1FF' 
+                        WHEN 'L'THEN '#000000FF' 
+                        ELSE '#FF0000FF'
+                    END COLOR,
+                    CASE PRN.SITUACION
+                        WHEN 'E'THEN ''
+                        ELSE 'none'
+                    END ACTIVO,
+                    SN.PLAZOSOL PLAZO,
+                    SN.PERIODICIDAD,
+                    SN.TASA,
+                    DIA_PAGO(SN.NOACUERDO) DIA_PAGO,
+                    CALCULA_PARCIALIDAD(SN.PERIODICIDAD, SN.TASA, NVL(SC.CANTAUTOR,SC.CANTSOLIC), SN.PLAZOSOL) PARCIALIDAD,
+                    SN.CDGCO ID_SUCURSAL,
+                    GET_NOMBRE_SUCURSAL(SN.CDGCO) SUCURSAL,
+                    SN.CDGOCPE ID_EJECUTIVO,
+                    GET_NOMBRE_EMPLEADO(SN.CDGOCPE) EJECUTIVO,
+                    SC.CDGPI ID_PROYECTO,
+                    'MAS POR TI' as TIPO_C,
+                    (SELECT COUNT(*) FROM PRN_LEGAL WHERE CDGCLNS = SC.CDGNS AND TIPO = 'C' AND BAJA IS NULL) AS VENDIDO
+                FROM 
+                    SN, SC, PRN
+                WHERE
+                    SC.CDGNS = '$noCredito'
+                    AND SC.CDGNS = SN.CDGNS
+                    AND SC.CICLO = SN.CICLO
+                    AND PRN.CICLO = SC.CICLO 
+                    AND PRN.CDGNS = SC.CDGNS 
+                    AND PRN.SITUACION IN('E', 'L')
+                    $Q1
+                    AND SC.CANTSOLIC <> '9999' order by SC.SOLICITUD  desc
+            SQL;
+        }
 
         $consulta = $mysqli->queryOne($query);
-
         $cdgco = $consulta['ID_SUCURSAL'];
-
-        $query_horario = <<<sql
-        SELECT * FROM CIERRE_HORARIO WHERE CDGCO = '$cdgco'
-sql;
-
+        $query_horario = "SELECT * FROM CIERRE_HORARIO WHERE CDGCO = '$cdgco'";
         $fechaActual = date("Y-m-d");
 
-        $query_dia_festivo = <<<sql
-        SELECT COUNT(*) AS TOT, TO_CHAR(FECHA_CAPTURA, 'YYYY-mm-dd') as FECHA_CAPTURA FROM DIAS_FESTIVOS WHERE FECHA_CAPTURA = TIMESTAMP '$fechaActual 00:00:00.000000'
-        GROUP BY FECHA_CAPTURA 
-sql;
+        $query_dia_festivo = <<<SQL
+            SELECT COUNT(*) AS TOT
+                , TO_CHAR(FECHA_CAPTURA, 'YYYY-mm-dd') as FECHA_CAPTURA
+            FROM DIAS_FESTIVOS
+            WHERE FECHA_CAPTURA = TIMESTAMP '$fechaActual 00:00:00.000000'
+            GROUP BY FECHA_CAPTURA 
+        SQL;
 
-        //var_dump($query_dia_festivo);
         $consulta_horario = $mysqli->queryOne($query_horario);
         $consulta_dia_festivo = $mysqli->queryOne($query_dia_festivo);
-
         return [$consulta, $consulta_horario, $consulta_dia_festivo];
     }
 
