@@ -1045,4 +1045,247 @@ sql;
             return self::Responde(false, 'Error al consultar el histórico general', null, $e->getMessage());
         }
     }
+
+    /**
+     * Consulta crédito ciclo 01 / situacion Entregado para pago manual con GL.
+     */
+    public static function ConsultaPagoGL($credito)
+    {
+        $credito = self::normalizarNumeroCredito($credito);
+        if ($credito === '' || !ctype_digit($credito) || strlen($credito) !== 6) {
+            return self::Responde(false, 'Ingrese un número de crédito válido de 6 dígitos.');
+        }
+
+        $qry = <<<SQL
+            SELECT
+                PRN.CDGNS,
+                PRN.CICLO,
+                PRN.SITUACION,
+                fnSdoGarantia('EMPFIN', PRN.CDGNS, PRN.CICLO, 'G') AS GARANTIA,
+                fnRegresaSdoGrupo('EMPFIN', PRN.CDGNS, PRN.CICLO) AS SALDO,
+                TO_CHAR(
+                    TRUNC(PRN.INICIO + (DECODE(PRN.PERIODICIDAD, 'S', 7, 'C', 14, 'Q', 15, 'M', 30, 7) * PRN.PLAZO)),
+                    'YYYY-MM-DD'
+                ) AS FECHA_FIN,
+                TO_CHAR(
+                    TRUNC(PRN.INICIO + (DECODE(PRN.PERIODICIDAD, 'S', 7, 'C', 14, 'Q', 15, 'M', 30, 7) * PRN.PLAZO)),
+                    'DD/MM/YYYY'
+                ) AS FECHA_FIN_FMT,
+                'P' || PRN.CDGNS || PRN.CDGTPC || FN_DV('P' || PRN.CDGNS || PRN.CDGTPC) AS REFERENCIA
+            FROM PRN
+            WHERE PRN.CDGEM = 'EMPFIN'
+                AND PRN.CICLO = '01'
+                AND PRN.SITUACION = 'E'
+                AND PRN.CDGNS = :credito
+        SQL;
+
+        try {
+            $db = new Database();
+            $row = $db->queryOne($qry, ['credito' => $credito]);
+            if (!$row) {
+                return self::Responde(
+                    false,
+                    'El crédito no existe, no está en ciclo 01 o no se encuentra en situación Entregado.'
+                );
+            }
+
+            $garantia = (float) ($row['GARANTIA'] ?? 0);
+            $saldo = (float) ($row['SALDO'] ?? 0);
+            $fechaFin = (string) ($row['FECHA_FIN'] ?? '');
+            $fechaConsulta = date('Y-m-d');
+            $rango = self::calcularRangoFechaAplicacionGL($fechaFin, $fechaConsulta);
+
+            $datos = [
+                'CDGNS' => trim((string) $row['CDGNS']),
+                'CICLO' => trim((string) $row['CICLO']),
+                'SITUACION' => trim((string) $row['SITUACION']),
+                'GARANTIA' => $garantia,
+                'SALDO' => $saldo,
+                'FECHA_FIN' => $fechaFin,
+                'FECHA_FIN_FMT' => (string) ($row['FECHA_FIN_FMT'] ?? ''),
+                'REFERENCIA' => trim((string) ($row['REFERENCIA'] ?? '')),
+                'FECHA_CONSULTA' => $fechaConsulta,
+                'INICIO_ULTIMA_SEMANA' => $rango['inicio_ultima_semana'],
+                'FECHA_MINIMA' => $rango['minima'],
+                'FECHA_MAXIMA' => $rango['maxima'],
+                'RANGO_DISPONIBLE' => $rango['disponible'],
+                'LIQUIDA' => ($saldo > 0 && $garantia >= $saldo),
+            ];
+
+            if (!$rango['disponible']) {
+                return self::Responde(
+                    true,
+                    'Crédito encontrado, pero la fecha actual no permite registrar el pago con GL (fuera de los últimos 6 días del crédito o del rango de días hábiles).',
+                    $datos
+                );
+            }
+
+            return self::Responde(true, 'Crédito encontrado', $datos);
+        } catch (\Exception $e) {
+            return self::Responde(false, 'Error al consultar el crédito para pago con GL', null, $e->getMessage());
+        }
+    }
+
+    /**
+     * Aplica el pago con garantía líquida mediante SP_IMPORTA_CONCILIA.
+     */
+    public static function AplicarPagoGL(array $datos)
+    {
+        $credito = self::normalizarNumeroCredito($datos['credito'] ?? '');
+        $fechaPago = trim((string) ($datos['fecha_pago'] ?? ''));
+        $usuario = trim((string) ($datos['usuario'] ?? ''));
+
+        if ($credito === '' || !ctype_digit($credito) || strlen($credito) !== 6) {
+            return self::Responde(false, 'Ingrese un número de crédito válido de 6 dígitos.');
+        }
+        if ($fechaPago === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaPago)) {
+            return self::Responde(false, 'Seleccione una fecha de aplicación válida.');
+        }
+        if ($usuario === '') {
+            return self::Responde(false, 'Usuario no válido.');
+        }
+
+        $consulta = self::ConsultaPagoGL($credito);
+        if (!($consulta['success'] ?? false)) {
+            return $consulta;
+        }
+
+        $info = $consulta['datos'] ?? [];
+        if (!($info['RANGO_DISPONIBLE'] ?? false)) {
+            return self::Responde(false, 'No hay fechas disponibles para registrar el pago con GL en este momento.');
+        }
+
+        $minima = (string) ($info['FECHA_MINIMA'] ?? '');
+        $maxima = (string) ($info['FECHA_MAXIMA'] ?? '');
+        if ($fechaPago < $minima || $fechaPago > $maxima) {
+            return self::Responde(
+                false,
+                'La fecha de aplicación debe estar entre ' . self::formatoFechaMx($minima) . ' y ' . self::formatoFechaMx($maxima) . '.'
+            );
+        }
+
+        $garantia = (float) ($info['GARANTIA'] ?? 0);
+        if ($garantia <= 0) {
+            return self::Responde(false, 'El crédito no tiene saldo de garantía líquida para aplicar.');
+        }
+
+        $referencia = (string) ($info['REFERENCIA'] ?? '');
+        $ciclo = (string) ($info['CICLO'] ?? '01');
+        $identificador = date('dmYHis');
+
+        try {
+            $db = new Database();
+            $res = $db->spImportaConcilia(
+                $credito,
+                $ciclo,
+                $garantia,
+                $fechaPago,
+                $referencia,
+                '12',
+                $usuario,
+                $identificador,
+                1
+            );
+
+            if (!($res['success'] ?? false) || (int) ($res['validacion'] ?? 0) !== 1) {
+                $mensaje = trim((string) ($res['resultado'] ?? ''));
+                if ($mensaje === '') {
+                    $mensaje = 'No fue posible aplicar el pago con GL.';
+                }
+                return self::Responde(false, $mensaje, null, $res);
+            }
+
+            $actualizado = self::ConsultaPagoGL($credito);
+            $mensajeOk = 'Pago con GL registrado correctamente.';
+            if (!empty($info['LIQUIDA'])) {
+                $mensajeOk = 'Pago con GL registrado correctamente. El crédito fue liquidado.';
+            }
+
+            return self::Responde(true, $mensajeOk, [
+                'aplicado' => true,
+                'liquida' => (bool) ($info['LIQUIDA'] ?? false),
+                'credito' => $credito,
+                'ciclo' => $ciclo,
+                'monto' => $garantia,
+                'fecha_pago' => $fechaPago,
+                'referencia' => $referencia,
+                'consulta' => ($actualizado['success'] ?? false) ? ($actualizado['datos'] ?? null) : null,
+                'consulta_mensaje' => $actualizado['mensaje'] ?? null,
+            ]);
+        } catch (\Exception $e) {
+            return self::Responde(false, 'Error al aplicar el pago con GL', null, $e->getMessage());
+        }
+    }
+
+    /**
+     * Rango permitible: intersección de [fecha_fin-6, fecha_fin] con [día hábil anterior, día hábil posterior] a la consulta.
+     */
+    private static function calcularRangoFechaAplicacionGL(string $fechaFin, string $fechaConsulta): array
+    {
+        $inicioUltimaSemana = date('Y-m-d', strtotime($fechaFin . ' -6 days'));
+        $festivos = self::obtenerFestivosGL($fechaConsulta);
+        $prev = self::diaHabilAnteriorGL($fechaConsulta, $festivos);
+        $next = self::diaHabilSiguienteGL($fechaConsulta, $festivos);
+
+        $minima = max($inicioUltimaSemana, $prev);
+        $maxima = min($fechaFin, $next);
+        $disponible = ($minima <= $maxima);
+
+        return [
+            'disponible' => $disponible,
+            'inicio_ultima_semana' => $inicioUltimaSemana,
+            'minima' => $disponible ? $minima : null,
+            'maxima' => $disponible ? $maxima : null,
+        ];
+    }
+
+    private static function obtenerFestivosGL(string $fechaConsulta): array
+    {
+        $qry = <<<SQL
+            SELECT TO_CHAR(FECHA, 'YYYY-MM-DD') AS FECHA
+            FROM DIAS_FESTIVOS
+            WHERE FECHA BETWEEN TO_DATE(:inicio, 'YYYY-MM-DD') AND TO_DATE(:fin, 'YYYY-MM-DD')
+            ORDER BY FECHA ASC
+        SQL;
+
+        try {
+            $db = new Database();
+            $inicio = date('Y-m-d', strtotime($fechaConsulta . ' -15 days'));
+            $fin = date('Y-m-d', strtotime($fechaConsulta . ' +15 days'));
+            $rows = $db->queryAll($qry, ['inicio' => $inicio, 'fin' => $fin]) ?: [];
+            $festivos = [];
+            foreach ($rows as $row) {
+                if (!empty($row['FECHA'])) {
+                    $festivos[] = $row['FECHA'];
+                }
+            }
+            return $festivos;
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
+
+    private static function diaHabilAnteriorGL(string $fecha, array $festivos): string
+    {
+        $dia = date('Y-m-d', strtotime($fecha . ' -1 day'));
+        if (in_array($dia, $festivos, true) || (int) date('N', strtotime($dia)) >= 6) {
+            return self::diaHabilAnteriorGL($dia, $festivos);
+        }
+        return $dia;
+    }
+
+    private static function diaHabilSiguienteGL(string $fecha, array $festivos): string
+    {
+        $dia = date('Y-m-d', strtotime($fecha . ' +1 day'));
+        if (in_array($dia, $festivos, true) || (int) date('N', strtotime($dia)) >= 6) {
+            return self::diaHabilSiguienteGL($dia, $festivos);
+        }
+        return $dia;
+    }
+
+    private static function formatoFechaMx(string $ymd): string
+    {
+        $ts = strtotime($ymd);
+        return $ts ? date('d/m/Y', $ts) : $ymd;
+    }
 }

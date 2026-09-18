@@ -1,0 +1,499 @@
+/* Pagos con GL — refinamiento visual sobre el sistema de Tarjeta de Pagos */
+
+.pagos-gl-page .pgl-vacio {
+    padding: 42px 20px;
+}
+
+.pagos-gl-page .pgl-vacio-icon {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 12px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, rgba(26, 111, 181, 0.14) 0%, rgba(26, 111, 181, 0.04) 100%);
+    border: 1px solid rgba(26, 111, 181, 0.22);
+    color: var(--ft-accent);
+    font-size: 22px;
+}
+
+.pagos-gl-page .pgl-vacio h4 {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ft-dark);
+}
+
+.pagos-gl-page .pgl-vacio p {
+    margin: 0 auto;
+    max-width: 28rem;
+}
+
+.pagos-gl-page .resultado.conDatos {
+    animation: pglFadeUp 0.28s ease-out;
+}
+
+@keyframes pglFadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.pagos-gl-page .pgl-identidad {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.pagos-gl-page .pgl-id-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 16px 18px;
+    border: 1px solid var(--ft-border-soft);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #ffffff 0%, #f7fafc 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.pagos-gl-page .pgl-id-icon {
+    flex: 0 0 auto;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, rgba(26, 111, 181, 0.12) 0%, rgba(26, 111, 181, 0.04) 100%);
+    border: 1px solid rgba(26, 111, 181, 0.18);
+    color: var(--ft-accent);
+    font-size: 14px;
+}
+
+.pagos-gl-page .pgl-id-copy {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.pagos-gl-page .pgl-id-item label {
+    display: block;
+    margin: 0 0 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ft-muted);
+}
+
+.pagos-gl-page .pgl-id-copy > span {
+    display: block;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ft-dark);
+    line-height: 1.3;
+    word-break: break-word;
+    font-variant-numeric: tabular-nums;
+}
+
+.pagos-gl-page .pgl-id-credito .pgl-id-copy > span {
+    letter-spacing: 0.04em;
+}
+
+.pagos-gl-page .pgl-id-ref .pgl-id-copy > span {
+    font-family: inherit;
+    letter-spacing: 0.02em;
+}
+
+.pagos-gl-page .pgl-operacion {
+    display: grid;
+    grid-template-columns: minmax(200px, 1fr) minmax(200px, 1fr) minmax(340px, 1.15fr);
+    align-items: stretch;
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.pagos-gl-page .pgl-money-grid {
+    display: contents;
+}
+
+.pagos-gl-page .pgl-money-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow: hidden;
+    border: 1px solid var(--ft-border-soft);
+    border-radius: 12px;
+    padding: 16px 18px 16px 20px;
+    background: linear-gradient(180deg, #ffffff 0%, #f7fafc 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    min-width: 0;
+    min-height: 112px;
+}
+
+.pagos-gl-page .pgl-money-card::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+}
+
+.pagos-gl-page .pgl-money-saldo::before {
+    background: linear-gradient(180deg, #738091 0%, #5b6777 100%);
+}
+
+.pagos-gl-page .pgl-money-garantia::before {
+    background: linear-gradient(180deg, #2480cc 0%, var(--ft-accent) 100%);
+}
+
+.pagos-gl-page .pgl-money-garantia.es-liquida {
+    border-color: rgba(176, 42, 55, 0.35);
+    background: linear-gradient(180deg, #fff8f8 0%, #fff1f2 100%);
+    box-shadow: 0 0 0 1px rgba(176, 42, 55, 0.08);
+}
+
+.pagos-gl-page .pgl-money-garantia.es-liquida::before {
+    background: linear-gradient(180deg, #e35d6a 0%, #c82333 100%);
+}
+
+.pagos-gl-page .pgl-money-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.pagos-gl-page .pgl-money-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--ft-muted);
+}
+
+.pagos-gl-page .pgl-money-top i {
+    color: var(--ft-muted);
+    opacity: 0.75;
+}
+
+.pagos-gl-page .pgl-money-garantia .pgl-money-top i {
+    color: var(--ft-accent);
+    opacity: 1;
+}
+
+.pagos-gl-page .pgl-money-garantia.es-liquida .pgl-money-top i,
+.pagos-gl-page .pgl-money-garantia.es-liquida .pgl-money-label {
+    color: #b02a37;
+}
+
+.pagos-gl-page .pgl-money-value {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+    color: var(--ft-dark);
+}
+
+.pagos-gl-page .pgl-money-garantia .pgl-money-value {
+    color: var(--ft-dark);
+}
+
+.pagos-gl-page .pgl-money-garantia.es-liquida .pgl-money-value {
+    color: #b02a37;
+}
+
+.pagos-gl-page .pgl-money-note {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--ft-muted);
+    line-height: 1.35;
+}
+
+.pagos-gl-page .pgl-alerta {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin: 0 0 14px;
+    padding: 13px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--ft-border-soft);
+}
+
+.pagos-gl-page .pgl-alerta-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    color: #fff;
+    font-size: 15px;
+}
+
+.pagos-gl-page .pgl-alerta strong {
+    display: block;
+    margin-bottom: 2px;
+    font-size: 13px;
+}
+
+.pagos-gl-page .pgl-alerta p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--ft-muted);
+}
+
+.pagos-gl-page .pgl-alerta-peligro {
+    background: rgba(220, 53, 69, 0.06);
+    border-color: rgba(220, 53, 69, 0.28);
+}
+
+.pagos-gl-page .pgl-alerta-peligro .pgl-alerta-icon {
+    background: linear-gradient(180deg, #e35d6a 0%, #c82333 100%);
+}
+
+.pagos-gl-page .pgl-alerta-peligro strong {
+    color: #b02a37;
+}
+
+.pagos-gl-page .pgl-alerta-aviso {
+    background: rgba(180, 83, 9, 0.06);
+    border-color: rgba(180, 83, 9, 0.28);
+}
+
+.pagos-gl-page .pgl-alerta-aviso .pgl-alerta-icon {
+    background: linear-gradient(180deg, #f0b429 0%, #b45309 100%);
+}
+
+.pagos-gl-page .pgl-alerta-aviso strong {
+    color: #b45309;
+}
+
+.pagos-gl-page .pgl-head-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.pagos-gl-page .pgl-accion {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+    margin: 0;
+    padding: 16px 18px;
+    border: 1px solid var(--ft-border-soft);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #ffffff 0%, #f7fafc 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    min-width: 0;
+    min-height: 112px;
+}
+
+.pagos-gl-page .pgl-registro-fecha {
+    flex: 0 0 auto;
+    min-width: 0;
+    width: 100%;
+}
+
+.pagos-gl-page .pgl-registro-fecha .ft-tb-lbl {
+    margin-bottom: 8px;
+}
+
+.pagos-gl-page .pgl-accion-controls {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+}
+
+.pagos-gl-page .pgl-registro-fecha .form-control {
+    height: 44px;
+    min-height: 44px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    background: var(--ft-surface);
+    width: 100%;
+}
+
+.pagos-gl-page .pgl-accion-controls .form-control {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pagos-gl-page .pgl-btn-aplicar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 0 16px;
+    margin: 0;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    background: linear-gradient(180deg, #2ea44f 0%, #238636 100%);
+    border-color: #238636;
+    box-shadow: 0 2px 8px rgba(35, 134, 54, 0.24);
+    white-space: nowrap;
+}
+
+.pagos-gl-page .pgl-btn-aplicar:hover,
+.pagos-gl-page .pgl-btn-aplicar:focus {
+    background: linear-gradient(180deg, #3fb950 0%, #2ea44f 100%);
+    border-color: #2ea44f;
+}
+
+.pagos-gl-page .pgl-btn-aplicar:disabled,
+.pagos-gl-page .pgl-btn-aplicar[disabled] {
+    opacity: 0.5;
+    box-shadow: none;
+}
+
+.pagos-gl-page .ft-conteo.pgl-badge-ok {
+    color: #2e7d52;
+    background: #e8f5ee;
+    border-color: rgba(46, 125, 82, 0.25);
+}
+
+.pagos-gl-page .ft-conteo.pgl-badge-warn {
+    color: #b45309;
+    background: #fef3c7;
+    border-color: rgba(180, 83, 9, 0.25);
+}
+
+.pagos-gl-page .ft-conteo.pgl-badge-danger {
+    color: #b02a37;
+    background: #fde8ea;
+    border-color: rgba(176, 42, 55, 0.25);
+}
+
+@media (max-width: 1100px) {
+    .pagos-gl-page .pgl-identidad {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .pagos-gl-page .pgl-operacion {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .pagos-gl-page .pgl-accion {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 768px) {
+    .pagos-gl-page .pgl-identidad {
+        grid-template-columns: 1fr;
+    }
+
+    .pagos-gl-page .pgl-operacion {
+        grid-template-columns: 1fr;
+    }
+
+    .pagos-gl-page .pgl-accion-controls {
+        flex-direction: column;
+    }
+
+    .pagos-gl-page .pgl-btn-aplicar {
+        width: 100%;
+    }
+
+    .pagos-gl-page .pgl-head-badges {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+    .pagos-gl-page .pgl-id-item {
+        background: linear-gradient(180deg, #2a3038 0%, #252930 100%);
+        box-shadow: none;
+    }
+
+    .pagos-gl-page .pgl-id-icon {
+        background: rgba(88, 166, 255, 0.12);
+        border-color: rgba(88, 166, 255, 0.28);
+        color: #79c0ff;
+    }
+
+    .pagos-gl-page .pgl-money-card {
+        background: linear-gradient(180deg, #2a3038 0%, #252930 100%);
+        box-shadow: none;
+    }
+
+    .pagos-gl-page .pgl-accion {
+        background: linear-gradient(180deg, #2a3038 0%, #252930 100%);
+        box-shadow: none;
+    }
+
+    .pagos-gl-page .pgl-money-garantia.es-liquida {
+        background: linear-gradient(180deg, rgba(248, 81, 73, 0.14) 0%, rgba(248, 81, 73, 0.06) 100%);
+        border-color: rgba(248, 81, 73, 0.35);
+    }
+
+    .pagos-gl-page .pgl-money-garantia.es-liquida .pgl-money-top i,
+    .pagos-gl-page .pgl-money-garantia.es-liquida .pgl-money-label,
+    .pagos-gl-page .pgl-money-garantia.es-liquida .pgl-money-value {
+        color: #ff7b72;
+    }
+
+    .pagos-gl-page .pgl-alerta-peligro {
+        background: rgba(248, 81, 73, 0.12);
+        border-color: rgba(248, 81, 73, 0.35);
+    }
+
+    .pagos-gl-page .pgl-alerta-peligro strong {
+        color: #ff7b72;
+    }
+
+    .pagos-gl-page .pgl-alerta-aviso {
+        background: rgba(210, 153, 34, 0.12);
+        border-color: rgba(210, 153, 34, 0.35);
+    }
+
+    .pagos-gl-page .pgl-alerta-aviso strong {
+        color: #e3b341;
+    }
+
+    .pagos-gl-page .ft-conteo.pgl-badge-ok {
+        color: #3fb950;
+        background: rgba(63, 185, 80, 0.14);
+        border-color: rgba(63, 185, 80, 0.28);
+    }
+
+    .pagos-gl-page .ft-conteo.pgl-badge-warn {
+        color: #e3b341;
+        background: rgba(210, 153, 34, 0.16);
+        border-color: rgba(210, 153, 34, 0.3);
+    }
+
+    .pagos-gl-page .ft-conteo.pgl-badge-danger {
+        color: #ff7b72;
+        background: rgba(248, 81, 73, 0.14);
+        border-color: rgba(248, 81, 73, 0.3);
+    }
+
+    .pagos-gl-page .pgl-vacio-icon {
+        background: rgba(88, 166, 255, 0.12);
+        border-color: rgba(88, 166, 255, 0.28);
+        color: #79c0ff;
+    }
+}

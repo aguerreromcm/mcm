@@ -547,6 +547,98 @@ class Database
     }
 
     /**
+     * Ejecuta SP_IMPORTA_CONCILIA para registrar un pago con garantía líquida (GL).
+     * p_VAL_IMPORTACION = 1 indica aplicación correcta; cualquier otro valor es error.
+     *
+     * @param string $credito CDGNS
+     * @param string $ciclo Ciclo (ej. 01)
+     * @param string|float $monto Monto de la garantía
+     * @param string $fechaPago Fecha de aplicación (Y-m-d)
+     * @param string $referencia Referencia bancaria
+     * @param string $ctaBancaria Cuenta bancaria (ej. 12)
+     * @param string $usuario Código de usuario
+     * @param string $identificador Identificador del movimiento
+     * @param int $secuencia Secuencia (default 1)
+     * @return array ['success' => bool, 'resultado' => string, 'validacion' => int]
+     */
+    public function spImportaConcilia($credito, $ciclo, $monto, $fechaPago, $referencia, $ctaBancaria, $usuario, $identificador, $secuencia = 1)
+    {
+        $resImportacion = '';
+        $valImportacion = '0';
+        $fila = null;
+        $filas = null;
+        $idImportacion = null;
+
+        $credito = (string) $credito;
+        $ciclo = (string) $ciclo;
+        $monto = (string) $monto;
+        $fechaPago = (string) $fechaPago;
+        $referencia = (string) $referencia;
+        $ctaBancaria = (string) $ctaBancaria;
+        $usuario = (string) $usuario;
+        $identificador = (string) $identificador;
+        $secuencia = (string) $secuencia;
+
+        $sql = "BEGIN SP_IMPORTA_CONCILIA(
+            p_CREDITO => :p_credito,
+            p_CICLO => :p_ciclo,
+            p_MONTO => :p_monto,
+            p_FECHA_PAGO => TO_DATE(:p_fecha, 'YYYY-MM-DD'),
+            p_REFERENCIA => :p_referencia,
+            p_CTA_BANCARIA => :p_cta,
+            p_USUARIO => :p_usuario,
+            p_IDENTIFICADOR => :p_identificador,
+            p_SECUENCIA => :p_secuencia,
+            p_FILA => :p_fila,
+            p_FILAS => :p_filas,
+            p_ID_IMPORTACION => :p_id_importacion,
+            p_RES_IMPORTACION => :p_res,
+            p_VAL_IMPORTACION => :p_val
+        ); END;";
+
+        try {
+            $stmt = $this->db_activa->prepare($sql);
+            $stmt->bindParam(':p_credito', $credito, PDO::PARAM_STR, 20);
+            $stmt->bindParam(':p_ciclo', $ciclo, PDO::PARAM_STR, 10);
+            $stmt->bindParam(':p_monto', $monto, PDO::PARAM_STR, 30);
+            $stmt->bindParam(':p_fecha', $fechaPago, PDO::PARAM_STR, 20);
+            $stmt->bindParam(':p_referencia', $referencia, PDO::PARAM_STR, 120);
+            $stmt->bindParam(':p_cta', $ctaBancaria, PDO::PARAM_STR, 20);
+            $stmt->bindParam(':p_usuario', $usuario, PDO::PARAM_STR, 50);
+            $stmt->bindParam(':p_identificador', $identificador, PDO::PARAM_STR, 30);
+            $stmt->bindParam(':p_secuencia', $secuencia, PDO::PARAM_STR, 10);
+            $stmt->bindValue(':p_fila', $fila, PDO::PARAM_NULL);
+            $stmt->bindValue(':p_filas', $filas, PDO::PARAM_NULL);
+            $stmt->bindValue(':p_id_importacion', $idImportacion, PDO::PARAM_NULL);
+            $stmt->bindParam(':p_res', $resImportacion, PDO::PARAM_STR | PDO::PARAM_INPUT_OUTPUT, 4000);
+            $stmt->bindParam(':p_val', $valImportacion, PDO::PARAM_STR | PDO::PARAM_INPUT_OUTPUT, 20);
+
+            $ok = $stmt->execute();
+            if (!$ok) {
+                $errorInfo = $stmt->errorInfo();
+                $mensajeError = $errorInfo[2] ?? ($errorInfo[1] ?? 'execute() retornó false sin detalle');
+                return [
+                    'success' => false,
+                    'resultado' => $mensajeError,
+                    'validacion' => -1,
+                ];
+            }
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'resultado' => $e->getMessage(),
+                'validacion' => -1,
+            ];
+        }
+
+        return [
+            'success' => true,
+            'resultado' => trim((string) $resImportacion),
+            'validacion' => (int) $valImportacion,
+        ];
+    }
+
+    /**
      * Ejecuta el SP de prueba (no modifica tablas). Misma firma que spImportaPagoSOF.
      * SOLO PRUEBAS: usar cuando APLICAR_PAGOS_SOLO_FLUJO = true.
      *

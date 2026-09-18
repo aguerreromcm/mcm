@@ -251,6 +251,202 @@ class Creditos extends Controller
         echo json_encode(CreditosDao::ProcedureGarantiasDelete($_POST));
     }
 
+    public function PagosConGL()
+    {
+        $extraFooter = <<<HTML
+            <script>
+                {$this->mensajes}
+                {$this->consultaServidor}
+                {$this->confirmarMovimiento}
+                {$this->parseaNumero}
+                {$this->formatoMoneda}
+
+                let datosCredito = null
+
+                const setBadge = (selector, texto, tipo) => {
+                    const el = $(selector)
+                    el.removeClass("pgl-badge-ok pgl-badge-warn pgl-badge-danger")
+                    if (!texto) {
+                        el.text("")
+                        return
+                    }
+                    el.text(texto)
+                    if (tipo) el.addClass("pgl-badge-" + tipo)
+                }
+
+                const limpiarResultado = () => {
+                    datosCredito = null
+                    $(".resultado").toggleClass("conDatos", false)
+                    $("#estadoInicial").show()
+                    $("#alertaLiquidacion").hide()
+                    $("#alertaSinRango").hide()
+                    $("#btnRegistrar").prop("disabled", true)
+                    $("#fechaAplicacion").val("").attr("min", "").attr("max", "")
+                    $("#lblCredito, #lblCiclo, #lblSaldo, #lblGarantia, #lblFechaFin, #lblReferencia").text("—")
+                    $("#txtSinRango").text("")
+                    $("#cardGarantia").removeClass("es-liquida")
+                    setBadge("#lblEstadoCredito", "")
+                    setBadge("#lblRango", "")
+                }
+
+                const consultaPagoGL = () => {
+                    const credito = $("#creditoBuscar").val().trim()
+                    if (credito === "") {
+                        $("#creditoBuscar").toggleClass("incorrecto", true).focus()
+                        return showWarning("Debe ingresar un número de crédito.")
+                    }
+                    if (!/^\d{1,6}$/.test(credito)) {
+                        $("#creditoBuscar").toggleClass("incorrecto", true).focus()
+                        return showWarning("El número de crédito debe ser numérico (máximo 6 dígitos).")
+                    }
+
+                    $("#creditoBuscar").toggleClass("incorrecto", false)
+                    consultaServidor("/Creditos/ConsultaPagoGL/", { credito }, (resultado) => {
+                        if (!resultado.success) {
+                            limpiarResultado()
+                            return showError(resultado.mensaje)
+                        }
+                        mostrarDatos(resultado.datos, resultado.mensaje)
+                    })
+                }
+
+                const mostrarDatos = (datos, mensaje) => {
+                    datosCredito = datos
+                    $("#estadoInicial").hide()
+                    $("#lblCredito").text(datos.CDGNS || "—")
+                    $("#lblCiclo").text(datos.CICLO || "—")
+                    $("#lblSaldo").text("$" + formatoMoneda(datos.SALDO || 0))
+                    $("#lblGarantia").text("$" + formatoMoneda(datos.GARANTIA || 0))
+                    $("#lblFechaFin").text(datos.FECHA_FIN_FMT || "—")
+                    $("#lblReferencia").text(datos.REFERENCIA || "—")
+                    $("#cardGarantia").toggleClass("es-liquida", !!datos.LIQUIDA)
+
+                    const rangoOk = !!datos.RANGO_DISPONIBLE
+                    if (rangoOk) {
+                        const rangoTxt = formateaFecha(datos.FECHA_MINIMA) + " a " + formateaFecha(datos.FECHA_MAXIMA)
+                        setBadge("#lblRango", rangoTxt, "ok")
+                        $("#fechaAplicacion")
+                            .attr("min", datos.FECHA_MINIMA)
+                            .attr("max", datos.FECHA_MAXIMA)
+                            .val(sugerirFecha(datos.FECHA_MINIMA, datos.FECHA_MAXIMA, datos.FECHA_CONSULTA))
+                        $("#alertaSinRango").hide()
+                        $("#btnRegistrar").prop("disabled", (parseFloat(datos.GARANTIA) || 0) <= 0)
+                    } else {
+                        setBadge("#lblRango", "Sin fechas disponibles", "warn")
+                        $("#fechaAplicacion").val("").attr("min", "").attr("max", "")
+                        $("#txtSinRango").text(mensaje || "No hay rango de fechas disponible para registrar el pago.")
+                        $("#alertaSinRango").show()
+                        $("#btnRegistrar").prop("disabled", true)
+                    }
+
+                    if (datos.LIQUIDA) {
+                        $("#alertaLiquidacion").show()
+                        setBadge("#lblEstadoCredito", "Liquidará el crédito", "danger")
+                    } else {
+                        $("#alertaLiquidacion").hide()
+                        setBadge("#lblEstadoCredito", "Ciclo 01 · Entregado", "ok")
+                    }
+
+                    $(".resultado").toggleClass("conDatos", true)
+                }
+
+                const formateaFecha = (ymd) => {
+                    if (!ymd) return "—"
+                    const p = ymd.split("-")
+                    if (p.length !== 3) return ymd
+                    return p[2] + "/" + p[1] + "/" + p[0]
+                }
+
+                const sugerirFecha = (minima, maxima, consulta) => {
+                    if (consulta && consulta >= minima && consulta <= maxima) return consulta
+                    return minima
+                }
+
+                const registrarPagoGL = () => {
+                    if (!datosCredito) return showWarning("Consulte primero un crédito.")
+                    if (!datosCredito.RANGO_DISPONIBLE) return showWarning("No hay fechas disponibles para registrar el pago.")
+
+                    const fechaPago = $("#fechaAplicacion").val()
+                    if (!fechaPago) return showWarning("Seleccione la fecha de aplicación.")
+                    if (fechaPago < datosCredito.FECHA_MINIMA || fechaPago > datosCredito.FECHA_MAXIMA) {
+                        return showWarning("La fecha debe estar entre " + formateaFecha(datosCredito.FECHA_MINIMA) + " y " + formateaFecha(datosCredito.FECHA_MAXIMA) + ".")
+                    }
+                    if ((parseFloat(datosCredito.GARANTIA) || 0) <= 0) {
+                        return showWarning("El crédito no tiene saldo de garantía líquida para aplicar.")
+                    }
+
+                    let titulo = "¿Registrar pago con GL?"
+                    let mensaje = "Se aplicará la garantía de $" + formatoMoneda(datosCredito.GARANTIA)
+                        + " al crédito " + datosCredito.CDGNS
+                        + " con fecha " + formateaFecha(fechaPago) + "."
+
+                    if (datosCredito.LIQUIDA) {
+                        titulo = "¡Atención! Este movimiento liquidará el crédito"
+                        mensaje = "La garantía ($" + formatoMoneda(datosCredito.GARANTIA)
+                            + ") es mayor o igual al saldo pendiente ($" + formatoMoneda(datosCredito.SALDO)
+                            + "). Al confirmar, el crédito " + datosCredito.CDGNS
+                            + " quedará liquidado. ¿Desea continuar?"
+                    }
+
+                    confirmarMovimiento(titulo, mensaje).then((continuar) => {
+                        if (!continuar) return
+                        consultaServidor("/Creditos/AplicarPagoGL/", {
+                            credito: datosCredito.CDGNS,
+                            fecha_pago: fechaPago
+                        }, (resultado) => {
+                            if (!resultado.success) return showError(resultado.mensaje)
+                            showSuccess(resultado.mensaje).then(() => {
+                                if (resultado.datos && resultado.datos.consulta) {
+                                    mostrarDatos(resultado.datos.consulta, resultado.datos.consulta_mensaje || "")
+                                } else {
+                                    limpiarResultado()
+                                    if (resultado.datos && resultado.datos.liquida) {
+                                        showInfo("El crédito fue liquidado. Ya no aparece en situación Entregado / ciclo 01.")
+                                    }
+                                }
+                            })
+                        })
+                    })
+                }
+
+                $(document).ready(() => {
+                    $("#buscar").click(consultaPagoGL)
+                    $("#creditoBuscar").on("keypress", (e) => {
+                        if (e.key === "Enter") consultaPagoGL()
+                    })
+                    $("#btnRegistrar").click(registrarPagoGL)
+                })
+            </script>
+        HTML;
+
+        $extraHeader = $this->getExtraHeader("Pagos con GL", [
+            '<link href="/css/folios-tarjeta.css" rel="stylesheet">',
+            '<link href="/css/pagos-con-gl.css" rel="stylesheet">'
+        ]);
+
+        View::set('header', $this->_contenedor->header($extraHeader));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::render('pagos_con_gl');
+    }
+
+    public function ConsultaPagoGL()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        $credito = trim((string) ($_POST['credito'] ?? ''));
+        echo json_encode(CreditosDao::ConsultaPagoGL($credito));
+    }
+
+    public function AplicarPagoGL()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        $datos = [
+            'credito' => $_POST['credito'] ?? '',
+            'fecha_pago' => $_POST['fecha_pago'] ?? '',
+            'usuario' => $this->__usuario
+        ];
+        echo json_encode(CreditosDao::AplicarPagoGL($datos));
+    }
+
     public function ActualizaCredito()
     {
         $extraHeader = <<<html

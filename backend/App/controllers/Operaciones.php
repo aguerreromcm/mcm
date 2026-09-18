@@ -67,6 +67,13 @@ class Operaciones extends Controller
                     return d.innerHTML
                 }
 
+                const htmlTiempoEstimadoCierre = () => {
+                    if (!(estimado > 0)) return ""
+                    const limite = estimado * 2
+                    return "<p>Tiempo estimado de finalización: <b>" + estimado + "</b> minutos.</p>"
+                        + "<p>Si demora más de <b>" + limite + "</b> minutos, comuníquese con desarrollo.</p>"
+                }
+
                 const refrescarPantallaTrasCierre = () => {
                     const tareas = [refrescarTablaUltimosCierres()]
                     if (typeof window.refrescarDatosOperativosCierreDia === "function") {
@@ -296,9 +303,7 @@ class Operaciones extends Controller
                     }
                     const diferencia = Math.max(0, parseInt(segundosTranscurridos, 10) || 0)
                     let mensaje = "<p>El proceso de cierre diario se encuentra en ejecución desde el " + escHtml(String(inicioEjecucion)) + " por el usuario <b>" + escHtml(String(usuarioEjecucion || "-")) + "</b>.</p>"
-                    if (estimado > 0) {
-                        mensaje += "<p>Tiempo estimado de finalización: <b>" + estimado + "</b> minutos.</p>"
-                    }
+                    mensaje += htmlTiempoEstimadoCierre()
                     mensaje += "<p>Tiempo transcurrido: <b id='transcurrido'>" + getTiempoTranscurrido(diferencia) + "</b></p>"
                     actualizaTiempoEstimado(diferencia)
                     renuevaEjecucionActiva()
@@ -399,9 +404,7 @@ class Operaciones extends Controller
                                     segundosTranscurridos = Math.max(0, parseInt(datos.SEGUNDOS, 10) || 0)
                                     clearTimeout(actualiza)
                                     let mensajePoll = "<p>El proceso de cierre diario se encuentra en ejecución desde el " + escHtml(String(inicioEjecucion)) + " por el usuario <b>" + escHtml(String(usuarioEjecucion || "-")) + "</b>.</p>"
-                                    if (estimado > 0) {
-                                        mensajePoll += "<p>Tiempo estimado de finalización: <b>" + estimado + "</b> minutos.</p>"
-                                    }
+                                    mensajePoll += htmlTiempoEstimadoCierre()
                                     mensajePoll += "<p>Tiempo transcurrido: <b id='transcurrido'>" + getTiempoTranscurrido(segundosTranscurridos) + "</b></p>"
                                     $("#tiempoEstimado").html(mensajePoll)
                                     $("#alertaEjecucion").show()

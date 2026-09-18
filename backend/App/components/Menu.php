@@ -117,6 +117,7 @@ class Menu
     {
         return [
             $this->enlace('Control de Garantías', '/Creditos/ControlGarantias/', ['ADMIN', 'GARAN', 'GOBA', 'MAPH', 'AMOCA', 'MMPA']),
+            $this->enlace('Pagos con GL', '/Creditos/PagosConGL/', ['ADMIN', 'GARAN', 'GOBA', 'MAPH', 'AMOCA', 'MMPA']),
             $this->enlace('Calculo Descuento Telaraña', '/Promociones/Telarana/', ['ADMIN', 'GOBA', 'MAPH']),
             $this->enlace('Registro Telaraña', '/Validaciones/RegistroTelarana/', ['ADMIN', 'GOBA', 'MAPH']),
             $this->enlace('Actualización de Créditos', '/Creditos/ActualizaCredito/', ['ADMIN', 'GOBA', 'MAPH']),
