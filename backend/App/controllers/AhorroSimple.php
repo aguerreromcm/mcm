@@ -166,6 +166,8 @@ class AhorroSimple extends Controller
                     foreach ($movimientos['datos'] as $key => $value) {
                         if ($value['TIPO'] == 'ABONO') {
                             $tipo = '<i class="fa fa-arrow-down" style="color: green;"></i>';
+                        } else if ($value['TIPO'] == 'INTERÉS') {
+                            $tipo = '<i class="fa fa-percent" style="color: green;"></i>';
                         } else {
                             switch ($value['DESCRIPCION']) {
                                 case 'ENTREGADO':

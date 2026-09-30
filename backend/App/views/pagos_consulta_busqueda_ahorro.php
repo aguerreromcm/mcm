@@ -2,7 +2,7 @@
 
 <div class="right_col" style="color: #000;">
 
-    <div class="panel panel-body" style="margin-bottom: 0px; background: #f9f9f9; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 20px;">
+    <div class="panel panel-body panel-estado-cuenta" style="margin-bottom: 0px; background: #f9f9f9; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 20px;">
         <div class="x_title">
             <label style="font-size: 28px; font-weight: bold; cursor: pointer;">📊 Estado de Cuenta</label>
             <div class="clearfix"></div>
@@ -47,6 +47,11 @@
                             <td class="simbolo-operacion">+</td>
                             <td class="concepto-operacion">Abonos</td>
                             <td class="monto-operacion">$ <?= number_format($infoCredito['ABONOS'], 2, '.', ','); ?></td>
+                        </tr>
+                        <tr class="fila-abono">
+                            <td class="simbolo-operacion">+</td>
+                            <td class="concepto-operacion">Intereses</td>
+                            <td class="monto-operacion">$ <?= number_format($infoCredito['INTERES'], 2, '.', ','); ?></td>
                         </tr>
                         <tr class="fila-retiro">
                             <td class="simbolo-operacion">-</td>
@@ -144,6 +149,50 @@
         font-size: 16px;
         font-weight: 600;
         text-transform: uppercase;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .panel-estado-cuenta {
+            background: #22272e !important;
+            color: #c9d1d9;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
+        }
+
+        .panel-estado-cuenta .x_title label {
+            color: #e6edf3;
+        }
+
+        .panel-estado-cuenta .tile_stats_count span {
+            color: #c9d1d9;
+        }
+
+        .panel-estado-cuenta .tile_stats_count span[style*="bold"] {
+            color: #e6edf3;
+        }
+
+        .fila-abono td {
+            color: #3fb950;
+        }
+
+        .fila-retiro td {
+            color: #f85149;
+        }
+
+        .fila-transito td {
+            color: #8b949e;
+        }
+
+        .fila-saldo {
+            border-top-color: #c9d1d9;
+        }
+
+        .fila-saldo td {
+            color: #e6edf3;
+        }
+
+        #movimientosAhorro .fa-ban {
+            color: #8b949e !important;
+        }
     }
 </style>
 

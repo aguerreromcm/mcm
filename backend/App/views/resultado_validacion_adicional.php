@@ -3,7 +3,7 @@
 <div class="right_col" style="color: #000;">
 
     <!-- Panel principal -->
-    <div class="panel panel-body" style="margin-bottom: 0px; background: #f9f9f9; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 20px;">
+    <div class="panel panel-body panel-validacion-adicional" style="margin-bottom: 0px; background: #f9f9f9; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 20px;">
 
         <div class="x_title">
             <a href="/AhorroSimple/EstadoCuenta/" style="text-decoration: none; color: inherit;">
@@ -73,5 +73,27 @@
     </div>
 
 </div>
+
+<style>
+    @media (prefers-color-scheme: dark) {
+        .panel-validacion-adicional {
+            background: #22272e !important;
+            color: #c9d1d9;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
+        }
+
+        .panel-validacion-adicional .x_title label {
+            color: #e6edf3;
+        }
+
+        .panel-validacion-adicional .tile_stats_count .count_top {
+            color: #8b949e;
+        }
+
+        .panel-validacion-adicional .tile_stats_count .count {
+            color: #e6edf3;
+        }
+    }
+</style>
 
 <?php echo $footer; ?>

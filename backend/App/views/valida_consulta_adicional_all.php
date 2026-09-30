@@ -114,6 +114,40 @@
             padding: 12px 28px;
         }
     }
+
+    @media (prefers-color-scheme: dark) {
+        .estado-cuenta-wrapper {
+            background: #22272e;
+            color: #c9d1d9;
+        }
+
+        .estado-cuenta-wrapper h1 {
+            color: #e6edf3;
+        }
+
+        .estado-cuenta-wrapper p {
+            color: #8b949e;
+        }
+
+        .estado-cuenta-wrapper p strong {
+            color: #c9d1d9;
+        }
+
+        .buscador-box {
+            background: #0d1117;
+            border-color: #3d444d;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .buscador-box input {
+            background-color: transparent !important;
+            color: #e6edf3 !important;
+        }
+
+        .buscador-box input::placeholder {
+            color: #6e7681;
+        }
+    }
 </style>
 
 <div class="right_col" role="main">

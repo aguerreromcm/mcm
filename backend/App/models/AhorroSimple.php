@@ -22,7 +22,11 @@ class AhorroSimple extends Model
                 ,TO_CHAR(CA.FECHA_REGISTRO, 'DD/MM/YYYY') AS APERTURA
                 ,TO_CHAR(ADD_MONTHS(CA.FECHA_REGISTRO, 12), 'DD/MM/YYYY') AS ANIVERSARIO
                 ,CA.TASA_ANUAL AS TASA
-                ,0 AS INTERES
+                ,NVL((SELECT SUM(IA.MONTO)
+                    FROM INTERES_AHORRO IA
+                    WHERE IA.CDGNS = CA.CDGNS
+                        AND IA.ESTATUS = 'A'
+                ), 0) AS INTERES
                 ,FN_GET_AHORRO(PRC.CDGNS) AS SALDO_ACTUAL
                 ,NVL((SELECT SUM(MONTO)
                     FROM PAGOSDIA
@@ -108,6 +112,17 @@ class AhorroSimple extends Model
                     ,GET_NOMBRE_EMPLEADO(RA.CDGPE_ADMINISTRADORA) AS EJECUTIVO
                 FROM RETIROS_AHORRO RA
                 WHERE RA.CDGNS = :credito
+                UNION ALL
+                SELECT 'INTERÉS' AS TIPO
+                    ,'INTERÉS ANUAL (' || TO_CHAR(IA.FECHA_INICIO, 'DD/MM/YYYY') || ' AL ' || TO_CHAR(IA.FECHA_FIN, 'DD/MM/YYYY') || ')' AS DESCRIPCION
+                    ,TO_CHAR(IA.FECHA_FIN, 'DD/MM/YYYY') AS APLICACION
+                    ,TO_CHAR(IA.FECHA_REGISTRO, 'DD/MM/YYYY HH24:MI:SS') AS REGISTRO
+                    ,IA.MONTO
+                    ,'SISTEMA' AS EJECUTIVO
+                FROM INTERES_AHORRO IA
+                WHERE IA.CDGNS = :credito
+                    AND IA.ESTATUS = 'A'
+                    AND IA.MONTO > 0
             )
             ORDER BY TO_DATE(REGISTRO, 'DD/MM/YYYY HH24:MI:SS') DESC
         SQL;

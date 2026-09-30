@@ -10,559 +10,261 @@ use Core\Database;
 
 class JobsAhorro extends Model
 {
-    public static function GetCuentasActivas()
+    public static function GetCuentasAhorro()
     {
         $qry = <<<SQL
-            SELECT
-                APA.CDGCL AS CLIENTE,
-                APA.CONTRATO,
-                APA.SALDO,
-                APA.TASA,
-                APA.FECHA_APERTURA
-            FROM
-                ASIGNA_PROD_AHORRO APA
-            WHERE
-                APA.ESTATUS = 'A'
+            SELECT X.CDGNS
+                , X.TASA
+                , TO_CHAR(X.INICIO, 'YYYY-MM-DD') AS INICIO
+                , (
+                    SELECT TO_CHAR(MAX(TRUNC(DA.FECHA)), 'YYYY-MM-DD')
+                    FROM DEVENGO_AHORRO DA
+                    WHERE DA.CONTRATO = X.CDGNS
+                        AND DA.ID_INTERES IS NULL
+                        AND DA.FECHA >= X.INICIO
+                ) AS ULTIMO_DEVENGO
+            FROM (
+                SELECT CA.CDGNS
+                    , CA.TASA_ANUAL AS TASA
+                    , GREATEST(
+                        PD.PRIMER_DEPOSITO
+                        , NVL(AJ.ULTIMO_AJUSTE, PD.PRIMER_DEPOSITO)
+                        , NVL(RA.ULTIMO_RETIRO, PD.PRIMER_DEPOSITO)
+                        , NVL(IA.ULTIMO_INTERES, PD.PRIMER_DEPOSITO)
+                    ) + 1 AS INICIO
+                FROM CONTRATOS_AHORRO CA
+                    INNER JOIN (
+                        SELECT CDGNS, MIN(TRUNC(FECHA)) AS PRIMER_DEPOSITO
+                        FROM PAGOSDIA
+                        WHERE ESTATUS = 'A'
+                            AND TIPO IN ('B', 'F', 'E')
+                        GROUP BY CDGNS
+                    ) PD ON PD.CDGNS = CA.CDGNS
+                    LEFT JOIN (
+                        SELECT CDGNS, MAX(TRUNC(FECHA)) AS ULTIMO_AJUSTE
+                        FROM PAGOSDIA
+                        WHERE ESTATUS = 'A'
+                            AND TIPO = 'A'
+                        GROUP BY CDGNS
+                    ) AJ ON AJ.CDGNS = CA.CDGNS
+                    LEFT JOIN (
+                        SELECT CDGNS, MAX(TRUNC(FECHA_ENTREGA_REAL)) AS ULTIMO_RETIRO
+                        FROM RETIROS_AHORRO
+                        WHERE ESTATUS = 'E'
+                        GROUP BY CDGNS
+                    ) RA ON RA.CDGNS = CA.CDGNS
+                    LEFT JOIN (
+                        SELECT CDGNS, MAX(FECHA_FIN) AS ULTIMO_INTERES
+                        FROM INTERES_AHORRO
+                        WHERE ESTATUS = 'A'
+                        GROUP BY CDGNS
+                    ) IA ON IA.CDGNS = CA.CDGNS
+            ) X
+            ORDER BY X.CDGNS
         SQL;
 
         try {
             $db = new Database();
             $res = $db->queryAll($qry);
-            return self::Responde(true, "Créditos activos obtenidos correctamente", $res ?? []);
+            if ($res === false) return self::Responde(false, "Error al obtener las cuentas de ahorro", null, "Error en la consulta de cuentas de ahorro");
+            return self::Responde(true, "Cuentas de ahorro obtenidas correctamente", $res ?? []);
         } catch (\Exception $e) {
-            return self::Responde(false, "Error al obtener los créditos activos", null, $e->getMessage());
+            return self::Responde(false, "Error al obtener las cuentas de ahorro", null, $e->getMessage());
         }
     }
 
-    public static function AplicaDevengo($datos)
+    public static function RegistraDevengos($datos)
     {
-        $f = isset($datos["fecha"]) ? ':fecha' : 'SYSDATE';
+        $qryElimina = <<<SQL
+            DELETE FROM
+                DEVENGO_AHORRO
+            WHERE
+                CONTRATO = :cdgns
+                AND ID_INTERES IS NULL
+                AND FECHA >= TO_DATE(:desde, 'YYYY-MM-DD')
+        SQL;
+
         $qryDevengo = <<<SQL
-            INSERT INTO
-                DEVENGO_AHORRO (
-                    CONTRATO,
-                    SALDO_CIERRE,
-                    FECHA,
-                    DEVENGO,
-                    TASA
-                )
-            VALUES
-                (
-                    :contrato,
-                    :saldo,
-                    $f,
-                    :devengo,
-                    :tasa
-                )
+            INSERT INTO DEVENGO_AHORRO (
+                CONTRATO,
+                SALDO_CIERRE,
+                FECHA,
+                DEVENGO,
+                TASA
+            )
+            WITH DIAS AS (
+                SELECT TO_DATE(:desde, 'YYYY-MM-DD') + LEVEL - 1 AS FECHA
+                FROM DUAL
+                CONNECT BY LEVEL <= TO_DATE(:hasta, 'YYYY-MM-DD') - TO_DATE(:desde, 'YYYY-MM-DD') + 1
+            )
+            , MOVIMIENTOS AS (
+                SELECT TRUNC(PD.FECHA) AS FECHA
+                    , DECODE(PD.TIPO, 'A', -PD.MONTO, PD.MONTO) AS MONTO
+                FROM PAGOSDIA PD
+                WHERE PD.CDGNS = :cdgns
+                    AND PD.ESTATUS = 'A'
+                    AND PD.TIPO IN ('B', 'F', 'E', 'A')
+                UNION ALL
+                SELECT TRUNC(NVL(RA.FECHA_CREACION, RA.FECHA_SOLICITUD))
+                    , -RA.CANT_SOLICITADA
+                FROM RETIROS_AHORRO RA
+                WHERE RA.CDGNS = :cdgns
+                    AND (RA.ESTATUS NOT IN ('C', 'R', 'D') OR COALESCE(RA.FECHA_CANCELACION, RA.FECHA_DEVOLUCION) IS NOT NULL)
+                UNION ALL
+                SELECT TRUNC(COALESCE(RA.FECHA_CANCELACION, RA.FECHA_DEVOLUCION))
+                    , RA.CANT_SOLICITADA
+                FROM RETIROS_AHORRO RA
+                WHERE RA.CDGNS = :cdgns
+                    AND RA.ESTATUS IN ('C', 'R', 'D')
+                    AND COALESCE(RA.FECHA_CANCELACION, RA.FECHA_DEVOLUCION) IS NOT NULL
+                UNION ALL
+                SELECT IA.FECHA_FIN
+                    , IA.MONTO
+                FROM INTERES_AHORRO IA
+                WHERE IA.CDGNS = :cdgns
+                    AND IA.ESTATUS = 'A'
+            )
+            , DIARIO AS (
+                SELECT GREATEST(M.FECHA, TO_DATE(:desde, 'YYYY-MM-DD')) AS FECHA
+                    , SUM(M.MONTO) AS MONTO
+                FROM MOVIMIENTOS M
+                WHERE M.FECHA <= TO_DATE(:hasta, 'YYYY-MM-DD')
+                GROUP BY GREATEST(M.FECHA, TO_DATE(:desde, 'YYYY-MM-DD'))
+            )
+            , SALDOS AS (
+                SELECT D.FECHA
+                    , GREATEST(SUM(NVL(DI.MONTO, 0)) OVER (ORDER BY D.FECHA), 0) AS SALDO
+                FROM DIAS D
+                    LEFT JOIN DIARIO DI ON DI.FECHA = D.FECHA
+            )
+            SELECT :cdgns
+                , S.SALDO
+                , S.FECHA
+                , S.SALDO * (:tasa / 100) / :base
+                , :tasa
+            FROM SALDOS S
         SQL;
 
         $qrys = [
-            $qryDevengo,
-            self::GetQueryTicket(),
-            self::GetQueryMovimientoAhorro()
+            $qryElimina,
+            $qryDevengo
         ];
 
         $parametros = [
             [
-                "contrato" => $datos["contrato"],
-                "saldo" => $datos["saldo"],
-                "devengo" => $datos["devengo"],
+                "cdgns" => $datos["cdgns"],
+                "desde" => $datos["desde"]
+            ],
+            [
+                "cdgns" => $datos["cdgns"],
+                "desde" => $datos["desde"],
+                "hasta" => $datos["hasta"],
+                "tasa" => $datos["tasa"],
+                "base" => $datos["base"]
+            ]
+        ];
+
+        try {
+            $db = new Database();
+            $db->insertaMultiple($qrys, $parametros);
+            return self::Responde(true, "Devengos registrados correctamente");
+        } catch (\Exception $e) {
+            return self::Responde(false, "Error al registrar los devengos", null, $e->getMessage());
+        }
+    }
+
+    public static function RegistraInteres($datos)
+    {
+        $qryInteres = <<<SQL
+            INSERT INTO INTERES_AHORRO (
+                CDGNS,
+                FECHA_INICIO,
+                FECHA_FIN,
+                DIAS,
+                TASA,
+                MONTO
+            )
+            SELECT :cdgns
+                , TO_DATE(:inicio, 'YYYY-MM-DD')
+                , TO_DATE(:fin, 'YYYY-MM-DD')
+                , :dias
+                , :tasa
+                , ROUND(NVL(SUM(DA.DEVENGO), 0), 2)
+            FROM DEVENGO_AHORRO DA
+            WHERE DA.CONTRATO = :cdgns
+                AND DA.ID_INTERES IS NULL
+                AND DA.FECHA BETWEEN TO_DATE(:inicio, 'YYYY-MM-DD') AND TO_DATE(:fin, 'YYYY-MM-DD')
+            HAVING COUNT(*) = :dias
+        SQL;
+
+        $qryDevengos = <<<SQL
+            UPDATE
+                DEVENGO_AHORRO
+            SET
+                ID_INTERES = (
+                    SELECT ID
+                    FROM INTERES_AHORRO
+                    WHERE CDGNS = :cdgns
+                        AND FECHA_INICIO = TO_DATE(:inicio, 'YYYY-MM-DD')
+                )
+            WHERE
+                CONTRATO = :cdgns
+                AND ID_INTERES IS NULL
+                AND FECHA BETWEEN TO_DATE(:inicio, 'YYYY-MM-DD') AND TO_DATE(:fin, 'YYYY-MM-DD')
+        SQL;
+
+        $qrys = [
+            $qryInteres,
+            $qryDevengos
+        ];
+
+        $parametros = [
+            [
+                "cdgns" => $datos["cdgns"],
+                "inicio" => $datos["inicio"],
+                "fin" => $datos["fin"],
+                "dias" => $datos["dias"],
                 "tasa" => $datos["tasa"]
             ],
             [
-                "contrato" => $datos["contrato"],
-                "monto" => $datos["devengo"],
-            ],
-            [
-                "contrato" => $datos["contrato"],
-                "monto" => $datos["devengo"],
-                "tipo_pago" => 15,
-                "movimiento" => 1,
-                "cliente" => $datos["cliente"]
+                "cdgns" => $datos["cdgns"],
+                "inicio" => $datos["inicio"],
+                "fin" => $datos["fin"]
             ]
         ];
 
-        if (isset($datos["fecha"])) $parametros[0]["fecha"] = $datos["fecha"];
-
-        try {
-            $db = new Database();
-            $db->insertaMultiple($qrys, $parametros);
-            return self::Responde(true, "Devengo aplicado correctamente");
-        } catch (\Exception $e) {
-            return self::Responde(false, "Error al aplicar el devengo", null, $e->getMessage());
-        }
-    }
-
-    public static function GetInversiones()
-    {
-        $qry = <<<SQL
+        // El INSERT no genera registro si faltan días devengados en el periodo
+        $qryValida = <<<SQL
             SELECT
-                (SELECT CDGCL FROM ASIGNA_PROD_AHORRO WHERE CONTRATO = CI.CDG_CONTRATO) AS CLIENTE,
-                CI.CDG_CONTRATO AS CONTRATO,
-                CI.FECHA_APERTURA AS APERTURA,
-                CI.FECHA_VENCIMIENTO AS VENCIMIENTO,
-                CI.MONTO_INVERSION AS MONTO,
-                CI.CDG_TASA AS ID_TASA,
-                TI.TASA,
-                PI.PLAZO
-            FROM
-                CUENTA_INVERSION CI
-            JOIN
-                TASA_INVERSION TI ON CI.CDG_TASA = TI.CODIGO
-            JOIN
-                PLAZO_INVERSION PI ON TI.CDG_PLAZO = PI.CODIGO
-            WHERE
-                CI.ESTATUS = 'A'
-                AND TRUNC(CI.FECHA_VENCIMIENTO) = TRUNC(SYSDATE)
-        SQL;
-
-        try {
-            $db = new Database();
-            $res = $db->queryAll($qry);
-            return self::Responde(true, "Inversiones obtenidas correctamente", ($res ?? []));
-        } catch (\Exception $e) {
-            return self::Responde(false, "Error al obtener las inversiones", null, $e->getMessage());
-        }
-    }
-
-    public static function LiquidaInversion($datos)
-    {
-        $qryLiquidacion = <<<SQL
-            UPDATE
-                CUENTA_INVERSION
-            SET
-                RENDIMIENTO = :rendimiento,
-                ESTATUS = 'L',
-                FECHA_LIQUIDACION = SYSDATE,
-                MODIFICACION = SYSDATE
-            WHERE
-                CDG_CONTRATO = :contrato
-                AND ESTATUS = 'A'
-                AND FECHA_VENCIMIENTO = TO_TIMESTAMP(:fecha_vencimiento, 'DD/MM/YY HH24:MI:SS.FF6')
-                AND FECHA_APERTURA = TO_TIMESTAMP(:fecha_apertura, 'DD/MM/YY HH24:MI:SS.FF6')
-                AND CDG_TASA = :id_tasa
-                AND MONTO_INVERSION = :monto
-        SQL;
-
-        $qrys = [
-            $qryLiquidacion,
-            self::GetQueryTicket(),
-            self::GetQueryMovimientoAhorro(),
-            self::GetQueryTicket(),
-            self::GetQueryMovimientoAhorro()
-        ];
-
-        $parametros = [
-            [
-                "rendimiento" => $datos["rendimiento"],
-                "contrato" => $datos["contrato"],
-                "fecha_vencimiento" => $datos["fecha_vencimiento"],
-                "fecha_apertura" => $datos["fecha_apertura"],
-                "id_tasa" => $datos["id_tasa"],
-                "monto" => $datos["monto"]
-            ],
-            [
-                "contrato" => $datos["contrato"],
-                "monto" => $datos["monto"],
-            ],
-            [
-                "contrato" => $datos["contrato"],
-                "monto" => $datos["monto"],
-                "tipo_pago" => 11,
-                "movimiento" => 1,
-                "cliente" => $datos["cliente"],
-            ],
-            [
-                "contrato" => $datos["contrato"],
-                "monto" => $datos["rendimiento"],
-            ],
-            [
-                "contrato" => $datos["contrato"],
-                "monto" => $datos["rendimiento"],
-                "tipo_pago" => 12,
-                "movimiento" => 1,
-                "cliente" => $datos["cliente"],
-
-            ]
-        ];
-
-        try {
-            $db = new Database();
-            $db->insertaMultiple($qrys, $parametros);
-            return self::Responde(true, "Inversión liquidada correctamente");
-        } catch (\Exception $e) {
-            return self::Responde(false, "Error al liquidar la inversión", null, $e->getMessage());
-        }
-    }
-
-    public static function GetSolicitudesRetiro()
-    {
-        $qry = <<<SQL
-            SELECT
-                SRA.ID_SOL_RETIRO_AHORRO AS ID,
-                CONCATENA_NOMBRE(CL.NOMBRE1, CL.NOMBRE2, CL.PRIMAPE, CL.SEGAPE) AS NOMBRE,
-                CL.CODIGO AS CLIENTE,
-                SRA.CANTIDAD_SOLICITADA AS MONTO,
                 (
-                    SELECT
-                        CONCATENA_NOMBRE(PE.NOMBRE1, PE.NOMBRE2, PE.PRIMAPE, PE.SEGAPE)
-                    FROM
-                        PE
-                    WHERE
-                        PE.CODIGO = SRA.CDGPE_ASIGNA_ESTATUS
-                        AND CDGEM = 'EMPFIN'
-                ) AS APROBADO_POR,
-                TO_CHAR(SRA.FECHA_SOLICITUD, 'DD/MM/YYYY') AS FECHA_ESPERADA,
-                SRA.CONTRATO,
-                SRA.TIPO_RETIRO
+                    SELECT COUNT(*)
+                    FROM INTERES_AHORRO
+                    WHERE CDGNS = :cdgns
+                        AND FECHA_INICIO = TO_DATE(:inicio, 'YYYY-MM-DD')
+                ) AS REGISTRADO
+                , (
+                    SELECT COUNT(*)
+                    FROM DEVENGO_AHORRO
+                    WHERE CONTRATO = :cdgns
+                        AND FECHA BETWEEN TO_DATE(:inicio, 'YYYY-MM-DD') AND TO_DATE(:fin, 'YYYY-MM-DD')
+                ) AS DIAS
             FROM
-                SOLICITUD_RETIRO_AHORRO SRA
-                INNER JOIN CL ON CL.CODIGO = (SELECT CDGCL FROM ASIGNA_PROD_AHORRO WHERE CONTRATO = SRA.CONTRATO)
-            WHERE
-                SRA.ESTATUS <= 1
-                AND TRUNC(SRA.FECHA_SOLICITUD) < TRUNC(SYSDATE)
+                DUAL
         SQL;
-
-        try {
-            $db = new Database();
-            $res = $db->queryAll($qry);
-            return self::Responde(true, "Solicitudes de retiro obtenidas correctamente", $res ?? []);
-        } catch (\Exception $e) {
-            return self::Responde(false, "Error al obtener las solicitudes de retiro", null, $e->getMessage());
-        }
-    }
-
-    public static function CancelaSolicitudRetiro($datos)
-    {
-        $qry = <<<SQL
-        UPDATE
-            SOLICITUD_RETIRO_AHORRO
-        SET
-            FECHA_ESTATUS = SYSDATE,
-            ESTATUS = '5',
-            CDGPE_ASIGNA_ESTATUS = 'SSTM'
-        WHERE
-            ID_SOL_RETIRO_AHORRO = '{$datos['idSolicitud']}'
-        SQL;
-
-        try {
-            $mysqli = new Database();
-            $res = $mysqli->queryOne($qry);
-            if (!$res) return self::Responde(true, "Solicitud cancelada correctamente.");
-            return self::Responde(false, "Ocurrió un error al cancelar la solicitud.");
-        } catch (\Exception $e) {
-            return self::Responde(false, "Ocurrió un error al cancelar la solicitud.", null, $e->getMessage());
-        }
-    }
-
-    public static function DevolucionRetiro($datos)
-    {
-        $query = [
-            self::GetQueryTicket(),
-            self::GetQueryMovimientoAhorro()
-        ];
-
-        $datosInsert = [
-            [
-                'contrato' => $datos['contrato'],
-                'monto' => $datos['monto'],
-            ],
-            [
-                'contrato' => $datos['contrato'],
-                'monto' => $datos['monto'],
-                'tipo_pago' => $datos['tipo'] == 1 ? '8' : '9',
-                'movimiento' => '1',
-                'cliente' => $datos['cliente'],
-            ]
-        ];
-
-        try {
-            $mysqli = new Database();
-            $res = $mysqli->insertaMultiple($query, $datosInsert);
-            if ($res) {
-                $ticket = self::RecuperaTicket($datos['contrato']);
-                return self::Responde(true, "Se han liberado $ " . number_format($datos['monto'], 2) . " a la cuenta del cliente por el apartado para el retiro " . ($datos['tipo'] == 1 ? "express" : "programado") . ".", ['ticket' => $ticket['CODIGO']]);
-            }
-            return self::Responde(false, "Ocurrió un error al registrar la devolución.");
-        } catch (\Exception $e) {
-            return self::Responde(false, "Ocurrió un error al registrar la devolución.", null, $e->getMessage());
-        }
-    }
-
-    public static function GetSucursalesSinArqueo()
-    {
-        $qry = <<<SQL
-        SELECT
-            SEA.CDG_SUCURSAL,
-            NVL(ARQ.CONTEO, 0) AS CONTEO
-        FROM
-            SUC_ESTADO_AHORRO SEA
-        LEFT JOIN (
-                SELECT
-                    A.CDG_SUCURSAL,
-                    TRUNC(A.FECHA) AS FECHA,
-                    COUNT(*) AS CONTEO
-                FROM
-                    ARQUEO A
-                WHERE
-                    TRUNC(FECHA) = TRUNC(SYSDATE)
-                GROUP BY
-                    A.CDG_SUCURSAL,
-                    TRUNC(A.FECHA)
-            ) ARQ ON ARQ.CDG_SUCURSAL = SEA.CDG_SUCURSAL
-        WHERE
-            ARQ.CONTEO IS NULL
-        SQL;
-
-        try {
-            $db = new Database();
-            $res = $db->queryAll($qry);
-            return self::Responde(true, "Sucursales sin arqueo obtenidas correctamente", $res ?? []);
-        } catch (\Exception $e) {
-            return self::Responde(false, "Error al obtener las sucursales sin arqueo", null, $e->getMessage());
-        }
-    }
-
-    public static function RegistraArqueoPendiente($datos)
-    {
-        try {
-
-            $qry = <<<SQL
-            INSERT INTO ARQUEO
-            (CDG_ARQUEO, CDG_USUARIO, CDG_SUCURSAL, FECHA, MONTO, B_1000, B_500, B_200, B_100, B_50, B_20, M_10, M_5, M_2, M_1, M_050, M_020, M_010, SALDO_SUCURSAL)
-            VALUES
-            ((SELECT NVL(MAX(CDG_ARQUEO),0) FROM ARQUEO) + 1, 'SSTM', :sucursal, SYSDATE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (SELECT
-                SALDO
-            FROM
-                SUC_ESTADO_AHORRO
-            WHERE
-                CDG_SUCURSAL = :sucursal))
-            SQL;
-
-            $parametros = [
-                'sucursal' => $datos['sucursal']
-            ];
-
-            $mysqli = new Database();
-            $res = $mysqli->insertar($qry, $parametros);
-            return self::Responde(true, "Arqueo registrado correctamente.");
-        } catch (\Exception $e) {
-            return self::Responde(false, "Ocurrió un error al registrar el arqueo.", null, $e->getMessage());
-        }
-    }
-
-    public static function GetSucursales()
-    {
-        $qry = <<<SQL
-            SELECT
-                CODIGO,
-                CDG_SUCURSAL,
-                SALDO
-            FROM
-                SUC_ESTADO_AHORRO
-        SQL;
-
-        try {
-            $db = new Database();
-            $res = $db->queryAll($qry);
-            return self::Responde(true, "Sucursales obtenidas correctamente", $res ?? []);
-        } catch (\Exception $e) {
-            return self::Responde(false, "Error al obtener las sucursales", null, $e->getMessage());
-        }
-    }
-
-    public static function CapturaSaldos($datos)
-    {
-        $qry = <<<SQL
-            MERGE INTO SUC_MOVIMIENTOS_AHORRO dest
-            USING (
-                SELECT
-                    NVL(MAX(TO_NUMBER(CODIGO)), 0) + 1 AS codigo,
-                    :sucursal AS sucursal,
-                    TO_DATE(:fecha, 'DD/MM/YYYY HH24:MI:SS') AS fecha,
-                    :saldo AS saldo,
-                    :movimiento AS movimiento,
-                    'SYSTEM' AS cdg_usuario
-                FROM
-                    SUC_MOVIMIENTOS_AHORRO
-            ) src
-            ON (dest.CDG_ESTADO_AHORRO = src.sucursal AND TRUNC(dest.FECHA) = TRUNC(src.fecha) AND dest.MOVIMIENTO = src.movimiento)
-            WHEN NOT MATCHED THEN
-            INSERT (
-                CODIGO,
-                CDG_ESTADO_AHORRO,
-                FECHA,
-                MONTO,
-                MOVIMIENTO,
-                CDG_USUARIO
-            ) VALUES (
-                src.codigo,
-                src.sucursal,
-                src.fecha,
-                src.saldo,
-                src.movimiento,
-                src.cdg_usuario
-            )
-        SQL;
-
-        $qrys = [
-            $qry,
-            $qry
-        ];
-
-        $parametros = [
-            [
-                "sucursal" => $datos["codigo"],
-                "saldo" => $datos["saldo"],
-                "movimiento" => 3,
-                "fecha" => date("d/m/Y H:i:s")
-            ],
-            [
-                "sucursal" => $datos["codigo"],
-                "saldo" => $datos["saldo"],
-                "movimiento" => 2
-            ]
-        ];
-
-        $parametros[1]["fecha"] = date("N") == 5 ? date("d/m/Y H:i:s", strtotime("+3 days 8am")) : date("d/m/Y H:i:s", strtotime("tomorrow 8am"));
 
         try {
             $db = new Database();
             $db->insertaMultiple($qrys, $parametros);
-            return self::Responde(true, "Saldos capturados correctamente");
+            $valida = $db->queryOne($qryValida, [
+                "cdgns" => $datos["cdgns"],
+                "inicio" => $datos["inicio"],
+                "fin" => $datos["fin"]
+            ]);
+            if ($valida === false) return self::Responde(false, "Error al validar el registro del interés", null, "Error en la consulta de validación");
+            if ((int)$valida["REGISTRADO"] === 0) return self::Responde(false, "Error al registrar el interés", null, "El periodo tiene {$valida["DIAS"]} días devengados de {$datos["dias"]} esperados.");
+            return self::Responde(true, "Interés registrado correctamente");
         } catch (\Exception $e) {
-            return self::Responde(false, "Error al capturar los saldos", null, $e->getMessage());
-        }
-    }
-
-    public static function GetQueryTicket()
-    {
-        return <<<SQL
-        INSERT INTO TICKETS_AHORRO
-            (CODIGO, FECHA, CDG_CONTRATO, MONTO, CDGPE, CDG_SUCURSAL)
-        VALUES
-            ((SELECT NVL(MAX(TO_NUMBER(CODIGO)),0) FROM TICKETS_AHORRO) + 1, SYSDATE, :contrato, :monto, 'SSTM', '000')
-        SQL;
-    }
-
-    public static function GetQueryMovimientoAhorro()
-    {
-        return <<<SQL
-            INSERT INTO
-                MOVIMIENTOS_AHORRO (
-                    CODIGO,
-                    FECHA_MOV,
-                    CDG_TIPO_PAGO,
-                    CDG_CONTRATO,
-                    MONTO,
-                    MOVIMIENTO,
-                    DESCRIPCION,
-                    CDG_TICKET,
-                    FECHA_VALOR,
-                    CDG_RETIRO,
-                    CDGCO,
-                    CDGCL,
-                    CDGPE
-                )
-            VALUES
-                (
-                    (
-                        SELECT
-                            NVL(MAX(TO_NUMBER(CODIGO)), 0)
-                        FROM
-                            MOVIMIENTOS_AHORRO
-                    ) + 1,
-                    SYSDATE,
-                    :tipo_pago,
-                    :contrato,
-                    :monto,
-                    :movimiento,
-                    'ALGUNA_DESCRIPCION',
-                    (
-                        SELECT
-                            MAX(TO_NUMBER(CODIGO)) AS CODIGO
-                        FROM
-                            TICKETS_AHORRO
-                        WHERE
-                            CDG_CONTRATO = :contrato
-                    ),
-                    SYSDATE,
-                    (
-                        SELECT
-                            CASE
-                                :tipo_pago
-                                WHEN '6' THEN MAX(TO_NUMBER(ID_SOL_RETIRO_AHORRO))
-                                WHEN '7' THEN MAX(TO_NUMBER(ID_SOL_RETIRO_AHORRO))
-                                ELSE NULL
-                            END
-                        FROM
-                            SOLICITUD_RETIRO_AHORRO
-                        WHERE
-                            CONTRATO = :contrato
-                    ),
-                    '000',
-                    :cliente,
-                    'SSTM'
-                )
-        SQL;
-    }
-
-    public static function RecuperaTicket($contrato)
-    {
-        $queryTicket = <<<SQL
-            SELECT
-                MAX(TO_NUMBER(CODIGO)) AS CODIGO
-            FROM
-                TICKETS_AHORRO
-            WHERE
-                CDG_CONTRATO = '$contrato'
-        SQL;
-
-        try {
-            $mysqli = new Database();
-            return $mysqli->queryOne($queryTicket);
-        } catch (\Exception $e) {
-            return 0;
-        }
-    }
-
-    public static function GetCuentasAhorroValidacionDevengo()
-    {
-        $qry = <<<SQL
-            WITH FECHAS AS (
-                SELECT
-                    APA.CONTRATO,
-                    TRUNC(APA.FECHA_APERTURA) + LEVEL - 1 AS FECHA
-                FROM
-                    ASIGNA_PROD_AHORRO APA CONNECT BY LEVEL <= TRUNC(SYSDATE) - TRUNC(APA.FECHA_APERTURA) + 1
-                    AND PRIOR APA.CONTRATO = APA.CONTRATO
-                    AND PRIOR SYS_GUID() IS NOT NULL
-            )
-            SELECT
-                F.CONTRATO,
-                F.FECHA,
-                APA.CDGCL AS CLIENTE,
-                APA.CONTRATO,
-                APA.SALDO,
-                APA.TASA
-            FROM
-                FECHAS F
-                LEFT JOIN DEVENGO_AHORRO DA ON F.CONTRATO = DA.CONTRATO
-                LEFT JOIN ASIGNA_PROD_AHORRO APA ON F.CONTRATO = APA.CONTRATO
-            WHERE
-                DA.CONTRATO IS NULL
-                AND TRUNC(F.FECHA) != TRUNC(SYSDATE)
-            ORDER BY
-                F.CONTRATO,
-                F.FECHA
-        SQL;
-
-        try {
-            $db = new Database();
-            $res = $db->queryAll($qry);
-            return self::Responde(true, "Créditos activos obtenidos correctamente", $res ?? []);
-        } catch (\Exception $e) {
-            return self::Responde(false, "Error al obtener los créditos activos", null, $e->getMessage());
+            return self::Responde(false, "Error al registrar el interés", null, $e->getMessage());
         }
     }
 }
