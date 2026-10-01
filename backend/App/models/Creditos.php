@@ -718,6 +718,7 @@ sql;
 
         // FECHA ya se almacena en hora de México (default de la tabla); no aplicar conversión TZ.
         $fechaMx = "TO_CHAR(T.FECHA, 'DD/MM/YYYY HH24:MI:SS')";
+        $enPlazo = self::sqlEnPlazoReasignacion();
 
         $qryHistorico = <<<SQL
             SELECT
@@ -734,8 +735,21 @@ sql;
                 T.TIPO_MOV,
                 T.MOTIVO,
                 T.ACTIVO,
-                {$fechaMx} FECHA
+                {$fechaMx} FECHA,
+                TRIM(O.CDGNS) CREDITO_ORIGEN,
+                (
+                    SELECT TRIM(D.CDGNS)
+                    FROM FOLIO_TARJETA D
+                    WHERE D.ID_ORIGEN = T.ID
+                      AND D.TIPO_MOV = 'REASIGNACION'
+                      AND ROWNUM = 1
+                ) CREDITO_DESTINO,
+                TRIM(R.CDGPE) ID_USUARIO_ORIGINAL,
+                TO_CHAR(R.FECHA, 'DD/MM/YYYY HH24:MI:SS') FECHA_ORIGINAL,
+                {$enPlazo} EN_PLAZO_REASIGNA
             FROM FOLIO_TARJETA T
+                LEFT JOIN FOLIO_TARJETA O ON O.ID = T.ID_ORIGEN
+                LEFT JOIN FOLIO_TARJETA R ON R.ID = T.ID_ORIGINAL
             WHERE T.CDGEM = 'EMPFIN'
               AND T.CDGNS = :credito
             ORDER BY T.FECHA DESC, T.ID DESC
@@ -745,7 +759,7 @@ sql;
             $db = new Database();
             $val = $db->queryOne($qryVal, ['credito' => $credito]);
             if (!$val) {
-                return self::Responde(false, 'Crédito no encontrado en PRN.');
+                return self::Responde(false, 'Crédito no encontrado.');
             }
 
             $historico = $db->queryAll($qryHistorico, ['credito' => $credito]) ?: [];
@@ -871,7 +885,7 @@ sql;
                 'ciclo' => $ciclo
             ]);
             if (!$infoCiclo) {
-                return self::Responde(false, 'El crédito/ciclo no existe en PRN o no está en situación Entregado.');
+                return self::Responde(false, 'El crédito/ciclo no existe o no está en situación Entregado.');
             }
             if (trim((string) ($infoCiclo['SITUACION'] ?? '')) !== 'E') {
                 return self::Responde(false, 'Solo se puede gestionar el último ciclo con situación Entregado.');
@@ -970,8 +984,189 @@ sql;
     }
 
     /**
+     * 'S' si la tarjeta (alias T) sigue dentro de los 7 días naturales posteriores a su
+     * registro original. Requiere LEFT JOIN FOLIO_TARJETA R ON R.ID = T.ID_ORIGINAL;
+     * FECHA ya está en hora de México.
+     */
+    private static function sqlEnPlazoReasignacion(): string
+    {
+        return "CASE WHEN TRUNC(NVL(R.FECHA, T.FECHA)) + 7"
+            . " >= TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'America/Mexico_City' AS TIMESTAMP))"
+            . " THEN 'S' ELSE 'N' END";
+    }
+
+    /**
+     * Mueve una Tarjeta de Pagos vigente al último ciclo entregado de otro crédito.
+     * La fila de origen queda como histórico y se inserta una nueva REASIGNACION
+     * ligada al registro anterior (ID_ORIGEN) y al original (ID_ORIGINAL).
+     */
+    public static function ReasignarFolioTarjeta($datos)
+    {
+        $idFolio = trim((string) ($datos['id_folio'] ?? ''));
+        $creditoDestino = self::normalizarNumeroCredito($datos['credito_destino'] ?? '');
+        $motivo = trim((string) ($datos['motivo'] ?? ''));
+        $usuario = trim((string) ($datos['usuario'] ?? ''));
+
+        if ($idFolio === '' || !ctype_digit($idFolio)) {
+            return self::Responde(false, 'Seleccione la Tarjeta de Pagos a reasignar.');
+        }
+        if ($creditoDestino === '') {
+            return self::Responde(false, 'Capture el crédito al que se reasignará la Tarjeta de Pagos.');
+        }
+        if ($motivo === '') {
+            return self::Responde(false, 'Capture el motivo de la reasignación.');
+        }
+        if ($usuario === '') {
+            return self::Responde(false, 'Usuario no válido.');
+        }
+
+        $enPlazo = self::sqlEnPlazoReasignacion();
+
+        $qryOrigen = <<<SQL
+            SELECT
+                T.ID,
+                TRIM(T.CDGNS) CDGNS,
+                TRIM(T.FOLIO) FOLIO,
+                T.ACTIVO,
+                NVL(T.ID_ORIGINAL, T.ID) ID_ORIGINAL,
+                {$enPlazo} EN_PLAZO
+            FROM FOLIO_TARJETA T
+                LEFT JOIN FOLIO_TARJETA R ON R.ID = T.ID_ORIGINAL
+            WHERE T.ID = :id
+              AND T.CDGEM = 'EMPFIN'
+        SQL;
+
+        $qryDestino = <<<SQL
+            SELECT
+                TRIM(PRN.CICLO) CICLO,
+                TRIM(PRN.CDGCO) CDGCO,
+                TRIM(PRN.CDGOCPE) CDGOCPE
+            FROM PRN
+            WHERE PRN.CDGEM = 'EMPFIN'
+              AND PRN.CDGNS = :credito
+              AND PRN.SITUACION = 'E'
+              AND PRN.CICLO NOT LIKE 'R%'
+            ORDER BY PRN.INICIO DESC NULLS LAST, PRN.CICLO DESC
+            FETCH FIRST 1 ROW ONLY
+        SQL;
+
+        $qryActivosDestino = <<<SQL
+            SELECT COUNT(*) TOTAL
+            FROM FOLIO_TARJETA
+            WHERE CDGEM = 'EMPFIN'
+              AND CDGNS = :credito
+              AND CICLO = :ciclo
+              AND ACTIVO = 'S'
+        SQL;
+
+        $qryDupActivo = <<<SQL
+            SELECT COUNT(*) TOTAL
+            FROM FOLIO_TARJETA
+            WHERE CDGEM = 'EMPFIN'
+              AND CDGCO = :sucursal
+              AND FOLIO = :folio
+              AND ACTIVO = 'S'
+              AND ID <> :id
+        SQL;
+
+        $qryDesactiva = <<<SQL
+            UPDATE FOLIO_TARJETA
+            SET ACTIVO = 'N'
+            WHERE ID = :id
+              AND CDGEM = 'EMPFIN'
+              AND ACTIVO = 'S'
+        SQL;
+
+        $qryInsert = <<<SQL
+            INSERT INTO FOLIO_TARJETA
+                (CDGEM, CDGNS, CICLO, FOLIO, CDGCO, CDGOCPE, CDGPE, TIPO_MOV, MOTIVO, ACTIVO, ID_ORIGEN, ID_ORIGINAL)
+            VALUES
+                ('EMPFIN', :credito, :ciclo, :folio, :sucursal, :asesor, :usuario, 'REASIGNACION', :motivo, 'S', :id_origen, :id_original)
+        SQL;
+
+        try {
+            $db = new Database();
+            $origen = $db->queryOne($qryOrigen, ['id' => $idFolio]);
+            if (!$origen) {
+                return self::Responde(false, 'La Tarjeta de Pagos a reasignar no existe.');
+            }
+            if (trim((string) ($origen['ACTIVO'] ?? '')) !== 'S') {
+                return self::Responde(false, 'La Tarjeta de Pagos ya no está vigente.');
+            }
+            if (trim((string) ($origen['EN_PLAZO'] ?? '')) !== 'S') {
+                return self::Responde(false, 'Solo se puede reasignar dentro de los 7 días posteriores al registro original de la Tarjeta de Pagos.');
+            }
+            if (trim((string) ($origen['CDGNS'] ?? '')) === $creditoDestino) {
+                return self::Responde(false, 'El crédito destino debe ser distinto al crédito actual de la Tarjeta de Pagos.');
+            }
+
+            $destino = $db->queryOne($qryDestino, ['credito' => $creditoDestino]);
+            if (!$destino) {
+                return self::Responde(false, 'El crédito destino no tiene un ciclo con situación Entregado.');
+            }
+
+            $cicloDestino = trim((string) ($destino['CICLO'] ?? ''));
+            $sucursalDestino = trim((string) ($destino['CDGCO'] ?? ''));
+            $folio = trim((string) ($origen['FOLIO'] ?? ''));
+            if ($sucursalDestino === '') {
+                return self::Responde(false, 'El crédito destino no tiene sucursal asignada.');
+            }
+
+            $activos = $db->queryOne($qryActivosDestino, [
+                'credito' => $creditoDestino,
+                'ciclo' => $cicloDestino
+            ]);
+            if ($activos && (int) ($activos['TOTAL'] ?? 0) >= 2) {
+                return self::Responde(false, 'El ciclo del crédito destino ya tiene el máximo de 2 tarjetas activas.');
+            }
+
+            $dup = $db->queryOne($qryDupActivo, [
+                'sucursal' => $sucursalDestino,
+                'folio' => $folio,
+                'id' => $idFolio
+            ]);
+            if ($dup && (int) ($dup['TOTAL'] ?? 0) > 0) {
+                return self::Responde(false, 'El folio ya está vigente en otro crédito de la sucursal destino.');
+            }
+
+            $db->IniciaTransaccion();
+            try {
+                if (!$db->actualizar($qryDesactiva, ['id' => $idFolio])) {
+                    $db->CancelaTransaccion();
+                    return self::Responde(false, 'La Tarjeta de Pagos ya no está vigente.');
+                }
+
+                $db->insertar($qryInsert, [
+                    'credito' => $creditoDestino,
+                    'ciclo' => $cicloDestino,
+                    'folio' => $folio,
+                    'sucursal' => $sucursalDestino,
+                    'asesor' => trim((string) ($destino['CDGOCPE'] ?? '')),
+                    'usuario' => $usuario,
+                    'motivo' => $motivo,
+                    'id_origen' => $idFolio,
+                    'id_original' => (string) ($origen['ID_ORIGINAL'] ?? $idFolio)
+                ]);
+
+                $db->ConfirmaTransaccion();
+            } catch (\Exception $tx) {
+                $db->CancelaTransaccion();
+                throw $tx;
+            }
+
+            return self::Responde(true, 'Tarjeta de Pagos reasignada al crédito ' . $creditoDestino . ', ciclo ' . $cicloDestino . '.');
+        } catch (\Exception $e) {
+            $msg = $e->getMessage();
+            if (stripos($msg, 'UK_FT_SUC_FOLIO') !== false || stripos($msg, 'unique') !== false) {
+                return self::Responde(false, 'El folio ya está vigente en otro crédito de la sucursal destino.');
+            }
+            return self::Responde(false, 'Error al reasignar la Tarjeta de Pagos', null, $msg);
+        }
+    }
+
+    /**
      * Histórico general de Tarjeta de Pagos por rango de fecha de registro,
-     * región y/o sucursal.
+     * región, sucursal y/o tipo de movimiento.
      */
     public static function ConsultaHistoricoGeneralFoliosTarjeta($datos)
     {
@@ -979,6 +1174,7 @@ sql;
         $fechaFin = trim((string) ($datos['fecha_fin'] ?? ''));
         $region = trim((string) ($datos['region'] ?? ''));
         $sucursal = trim((string) ($datos['sucursal'] ?? ''));
+        $tipoMov = strtoupper(trim((string) ($datos['tipo_mov'] ?? '')));
 
         if ($fechaInicio === '' || $fechaFin === '') {
             return self::Responde(false, 'Capture fecha inicio y fecha fin.');
@@ -1012,6 +1208,12 @@ sql;
             $params['region'] = $region;
         }
 
+        $filtroMov = '';
+        if (in_array($tipoMov, ['ALTA', 'CAMBIO', 'ADICIONAL', 'REASIGNACION'], true)) {
+            $filtroMov = ' AND T.TIPO_MOV = :tipo_mov';
+            $params['tipo_mov'] = $tipoMov;
+        }
+
         $qry = <<<SQL
             SELECT
                 TRIM(T.CDGNS) NO_CREDITO,
@@ -1022,18 +1224,32 @@ sql;
                 TRIM(T.CDGCO) ID_SUCURSAL,
                 GET_NOMBRE_SUCURSAL(T.CDGCO) SUCURSAL,
                 T.TIPO_MOV,
-                DECODE(T.TIPO_MOV, 'ALTA', 'Alta', 'CAMBIO', 'Cambio', 'ADICIONAL', 'Adicional', T.TIPO_MOV) MOVIMIENTO,
+                DECODE(T.TIPO_MOV, 'ALTA', 'Alta', 'CAMBIO', 'Cambio', 'ADICIONAL', 'Adicional', 'REASIGNACION', 'Reasignación', T.TIPO_MOV) MOVIMIENTO,
                 T.MOTIVO,
                 TRIM(T.CDGPE) ID_USUARIO,
                 GET_NOMBRE_EMPLEADO(T.CDGPE) USUARIO,
                 {$fechaMx} FECHA,
                 T.ACTIVO,
-                DECODE(T.ACTIVO, 'S', 'Vigente', 'Histórico') ESTADO
+                DECODE(T.ACTIVO, 'S', 'Vigente', 'Histórico') ESTADO,
+                TRIM(O.CDGNS) CREDITO_ORIGEN,
+                (
+                    SELECT TRIM(D.CDGNS)
+                    FROM FOLIO_TARJETA D
+                    WHERE D.ID_ORIGEN = T.ID
+                      AND D.TIPO_MOV = 'REASIGNACION'
+                      AND ROWNUM = 1
+                ) CREDITO_DESTINO,
+                TRIM(R.CDGPE) ID_USUARIO_ORIGINAL,
+                GET_NOMBRE_EMPLEADO(R.CDGPE) USUARIO_ORIGINAL,
+                TO_CHAR(R.FECHA, 'DD/MM/YYYY HH24:MI:SS') FECHA_ORIGINAL
             FROM FOLIO_TARJETA T
+                LEFT JOIN FOLIO_TARJETA O ON O.ID = T.ID_ORIGEN
+                LEFT JOIN FOLIO_TARJETA R ON R.ID = T.ID_ORIGINAL
             WHERE T.CDGEM = 'EMPFIN'
               AND TRUNC(T.FECHA) BETWEEN TO_DATE(:fecha_inicio, 'YYYY-MM-DD')
                                      AND TO_DATE(:fecha_fin, 'YYYY-MM-DD')
               {$filtroGeo}
+              {$filtroMov}
             ORDER BY T.FECHA DESC, T.ID DESC
         SQL;
 

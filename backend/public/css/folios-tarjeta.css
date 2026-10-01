@@ -397,6 +397,21 @@
     font-size: 12px;
 }
 
+.folios-tarjeta-page .ft-folio-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.folios-tarjeta-page .ft-btn-reasignar {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+    border-radius: 6px;
+    font-weight: 600;
+}
+
 .folios-tarjeta-page .ft-encabezado-tabla {
     display: flex;
     flex-wrap: wrap;
@@ -442,6 +457,14 @@
     font-weight: 600;
 }
 
+.folios-tarjeta-page .table .celda-motivo {
+    text-align: left;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    max-width: 220px;
+}
+
 .folios-tarjeta-page .table .celda-secundaria {
     display: block;
     font-size: 11px;
@@ -484,6 +507,11 @@
     background: #e8f5ee;
 }
 
+.folios-tarjeta-page .badge-mov-reasigna {
+    color: #6d28d9;
+    background: #ede9fe;
+}
+
 .folios-tarjeta-page .ft-vacio {
     text-align: center;
     padding: 36px 16px;
@@ -507,13 +535,28 @@
     color: var(--ft-muted);
 }
 
-#modal_folio_tarjeta .ft-credito-modal {
+#modal_folio_tarjeta .ft-credito-modal,
+#modal_reasigna_tarjeta .ft-credito-modal {
     border: 1px solid var(--ft-borde);
     border-radius: 8px;
     padding: 10px 12px;
     margin-bottom: 16px;
     font-size: 13px;
     background: var(--ft-bloque-bg);
+}
+
+#modal_reasigna_tarjeta .ft-search-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#modal_reasigna_tarjeta .ft-search-line .form-control {
+    width: 10rem;
+}
+
+#modal_reasigna_tarjeta .ft-search-line .btn {
+    margin: 0;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -570,6 +613,11 @@
     .folios-tarjeta-page .badge-mov-adicional {
         color: #3fb950;
         background: rgba(63, 185, 80, 0.16);
+    }
+
+    .folios-tarjeta-page .badge-mov-reasigna {
+        color: #d2a8ff;
+        background: rgba(163, 113, 247, 0.16);
     }
 }
 
@@ -997,7 +1045,8 @@
 .ft-modal .badge-historico,
 .ft-modal .badge-mov-alta,
 .ft-modal .badge-mov-cambio,
-.ft-modal .badge-mov-adicional {
+.ft-modal .badge-mov-adicional,
+.ft-modal .badge-mov-reasigna {
     display: inline-block;
     padding: 3px 10px;
     border-radius: 999px;
@@ -1030,6 +1079,11 @@
 .ft-modal .badge-mov-adicional {
     color: #166534;
     background: #dcfce7;
+}
+
+.ft-modal .badge-mov-reasigna {
+    color: #6d28d9;
+    background: #ede9fe;
 }
 
 @media (max-width: 992px) {
@@ -1117,6 +1171,11 @@
     .ft-modal .badge-mov-adicional {
         color: #3fb950;
         background: rgba(46, 160, 67, 0.18);
+    }
+
+    .ft-modal .badge-mov-reasigna {
+        color: #d2a8ff;
+        background: rgba(163, 113, 247, 0.18);
     }
 
     #modal_resultado_historico .dataTables_wrapper .dataTables_length,

@@ -742,6 +742,18 @@ HTML;
         echo json_encode(CreditosDao::RegistrarFolioTarjeta($datos));
     }
 
+    public function ReasignarFolioTarjeta()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        $datos = [
+            'id_folio' => $_POST['id_folio'] ?? '',
+            'credito_destino' => $_POST['credito_destino'] ?? '',
+            'motivo' => $_POST['motivo'] ?? '',
+            'usuario' => $this->__usuario
+        ];
+        echo json_encode(CreditosDao::ReasignarFolioTarjeta($datos));
+    }
+
     public function ConsultaHistoricoFoliosTarjeta()
     {
         header('Content-Type: application/json; charset=utf-8');
@@ -749,7 +761,8 @@ HTML;
             'fecha_inicio' => $_POST['fecha_inicio'] ?? '',
             'fecha_fin' => $_POST['fecha_fin'] ?? '',
             'region' => $_POST['region'] ?? '',
-            'sucursal' => $_POST['sucursal'] ?? ''
+            'sucursal' => $_POST['sucursal'] ?? '',
+            'tipo_mov' => $_POST['tipo_mov'] ?? ''
         ];
         echo json_encode(CreditosDao::ConsultaHistoricoGeneralFoliosTarjeta($datos));
     }
@@ -760,7 +773,8 @@ HTML;
             'fecha_inicio' => $_GET['fecha_inicio'] ?? '',
             'fecha_fin' => $_GET['fecha_fin'] ?? '',
             'region' => $_GET['region'] ?? '',
-            'sucursal' => $_GET['sucursal'] ?? ''
+            'sucursal' => $_GET['sucursal'] ?? '',
+            'tipo_mov' => $_GET['tipo_mov'] ?? ''
         ];
         $resultado = CreditosDao::ConsultaHistoricoGeneralFoliosTarjeta($datos);
         $filas = ($resultado['success'] ?? false) ? ($resultado['datos'] ?? []) : [];
@@ -782,6 +796,11 @@ HTML;
             \PHPSpreadsheet::ColumnaExcel('USUARIO', 'Nombre Usuario'),
             \PHPSpreadsheet::ColumnaExcel('FECHA', 'Fecha', $centrado),
             \PHPSpreadsheet::ColumnaExcel('ESTADO', 'Estado', $centrado),
+            \PHPSpreadsheet::ColumnaExcel('CREDITO_ORIGEN', 'Reasignada del crédito', $texto),
+            \PHPSpreadsheet::ColumnaExcel('CREDITO_DESTINO', 'Reasignada al crédito', $texto),
+            \PHPSpreadsheet::ColumnaExcel('ID_USUARIO_ORIGINAL', 'ID Usuario registro original', $texto),
+            \PHPSpreadsheet::ColumnaExcel('USUARIO_ORIGINAL', 'Nombre Usuario registro original'),
+            \PHPSpreadsheet::ColumnaExcel('FECHA_ORIGINAL', 'Fecha registro original', $centrado),
         ];
 
         \PHPSpreadsheet::DescargaExcel(

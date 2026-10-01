@@ -15,9 +15,9 @@ echo $header;
             </div>
 
             <p class="text-muted ft-descripcion">
-                Consulte el histórico de folios de Tarjeta de Pagos y asesores por ciclo. Solo el último ciclo con situación
-                <strong>Entregado</strong> permite cambiar o agregar una segunda tarjeta (máximo 2),
-                justificando el motivo. Los movimientos no se editan ni eliminan.
+                Consulte el histórico de Tarjetas de Pagos de un crédito y registre, cambie o agregue tarjetas.
+                Si una tarjeta se registró en el crédito equivocado, puede reasignarla a otro crédito dentro de los
+                7 días posteriores a su registro.
             </p>
 
             <div class="panel-card ft-toolbar">
@@ -41,7 +41,7 @@ echo $header;
                     </div>
                     <div class="ft-toolbar-sep" aria-hidden="true"></div>
                     <div class="ft-toolbar-hint">
-                        <p>Ingrese el crédito para consultar el histórico de Tarjeta de Pagos y gestionar el ciclo entregado vigente.</p>
+                        <p>Ingrese el número de crédito para ver sus Tarjetas de Pagos vigentes y su histórico de movimientos.</p>
                     </div>
                     <div class="ft-toolbar-actions">
                         <button type="button" class="ft-btn-report" id="btnHistoricoGeneral" title="Consultar histórico general por fechas y sucursal">
@@ -174,6 +174,42 @@ echo $header;
     </div>
 </div>
 
+<div class="modal fade" id="modal_reasigna_tarjeta" tabindex="-1" role="dialog" aria-labelledby="modalReasignaTarjetaTitle">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">&times;</button>
+                <h4 class="modal-title" id="modalReasignaTarjetaTitle">Reasignar Tarjeta de Pagos</h4>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="idFolioReasigna" value="">
+                <div class="ft-credito-modal" id="resumenModalReasigna"></div>
+
+                <div class="form-group">
+                    <label for="creditoDestino">Crédito destino *</label>
+                    <div class="ft-search-line">
+                        <input type="text" class="form-control" id="creditoDestino" maxlength="6" autocomplete="off" placeholder="Ej. 019692">
+                        <button type="button" class="btn btn-default" id="btnValidarDestino">
+                            <i class="fa fa-search"></i> Validar
+                        </button>
+                    </div>
+                </div>
+                <div class="ft-credito-modal" id="resumenDestinoReasigna" style="display:none;"></div>
+                <div class="form-group">
+                    <label for="motivoReasigna">Motivo *</label>
+                    <textarea class="form-control" id="motivoReasigna" rows="3" maxlength="4000" placeholder="Ej. registro erróneo del ejecutivo en otro crédito"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnGuardarReasigna">
+                    <i class="fa fa-save"></i> Reasignar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade ft-modal" id="modal_filtros_historico" tabindex="-1" role="dialog" aria-labelledby="modalFiltrosHistoricoTitle">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
@@ -183,7 +219,7 @@ echo $header;
                     <span class="ft-modal-icon"><i class="fa fa-calendar"></i></span>
                     <div>
                         <h4 class="modal-title" id="modalFiltrosHistoricoTitle">Histórico general</h4>
-                        <p class="ft-modal-sub">Filtre por fecha de registro, región y sucursal</p>
+                        <p class="ft-modal-sub">Filtre por fecha de registro, región, sucursal y movimiento</p>
                     </div>
                 </div>
             </div>
@@ -207,6 +243,16 @@ echo $header;
                         <label class="ft-tb-lbl" for="repSucursal"><i class="fa fa-building-o"></i> Sucursal</label>
                         <select class="form-control" id="repSucursal">
                             <option value="*">Todas</option>
+                        </select>
+                    </div>
+                    <div class="form-group ft-filtro-full">
+                        <label class="ft-tb-lbl" for="repMovimiento"><i class="fa fa-exchange"></i> Movimiento</label>
+                        <select class="form-control" id="repMovimiento">
+                            <option value="*">Todos</option>
+                            <option value="ALTA">Alta</option>
+                            <option value="CAMBIO">Cambio</option>
+                            <option value="ADICIONAL">Adicional</option>
+                            <option value="REASIGNACION">Reasignación</option>
                         </select>
                     </div>
                 </div>
@@ -274,11 +320,19 @@ var creditoActual = '';
 var cicloGestion = null;
 var foliosActivos = [];
 var paramsHistoricoGeneral = null;
+var destinoReasigna = null;
 
 var ETIQUETA_MOV = {
     ALTA: 'Alta',
     CAMBIO: 'Cambio',
-    ADICIONAL: 'Adicional'
+    ADICIONAL: 'Adicional',
+    REASIGNACION: 'Reasignación'
+};
+
+var CLASE_MOV = {
+    CAMBIO: 'badge-mov-cambio',
+    ADICIONAL: 'badge-mov-adicional',
+    REASIGNACION: 'badge-mov-reasigna'
 };
 
 function escHtml(valor) {
@@ -340,11 +394,24 @@ function initTablaHistoricoGeneral() {
 function etiquetaMovimiento(tipo) {
     var clave = String(tipo || '').toUpperCase();
     var texto = ETIQUETA_MOV[clave] || tipo || '';
-    var clase = clave === 'CAMBIO'
-        ? 'badge-mov-cambio'
-        : (clave === 'ADICIONAL' ? 'badge-mov-adicional' : 'badge-mov-alta');
+    var clase = CLASE_MOV[clave] || 'badge-mov-alta';
     return '<span class="' + clase + '" style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;">'
         + escHtml(texto) + '</span>';
+}
+
+function celdaMovimiento(f) {
+    var html = etiquetaMovimiento(f.TIPO_MOV || f.MOVIMIENTO);
+    if (f.CREDITO_ORIGEN) {
+        html += '<span class="celda-secundaria">Del crédito ' + escHtml(f.CREDITO_ORIGEN) + '</span>';
+    }
+    if (f.CREDITO_DESTINO) {
+        html += '<span class="celda-secundaria">Reasignada al crédito ' + escHtml(f.CREDITO_DESTINO) + '</span>';
+    }
+    if (f.ID_USUARIO_ORIGINAL) {
+        html += '<span class="celda-secundaria">Registro original: ' + escHtml(f.ID_USUARIO_ORIGINAL)
+            + ' · ' + escHtml(f.FECHA_ORIGINAL) + '</span>';
+    }
+    return html;
 }
 
 function celdaUsuario(idUsuario, nombreUsuario) {
@@ -382,10 +449,18 @@ function pintarFoliosActivos() {
         return;
     }
     foliosActivos.forEach(function (f) {
-        $lista.append(
+        var $item = $('<span class="ft-folio-item">').append(
             '<span class="ft-folio-badge"><i class="fa fa-credit-card"></i> '
             + escHtml(f.FOLIO || '') + '</span>'
         );
+        if (f.EN_PLAZO_REASIGNA === 'S') {
+            $item.append(
+                $('<button type="button" class="btn btn-default btn-xs ft-btn-reasignar" title="Reasignar a otro crédito">')
+                    .attr('data-id', f.ID)
+                    .html('<i class="fa fa-share"></i> Reasignar')
+            );
+        }
+        $lista.append($item);
     });
     $('#bloqueFoliosActivos').show();
 }
@@ -455,8 +530,8 @@ function pintarResultado(datos) {
             + '<td class="celda-principal">' + escHtml(f.FOLIO) + '</td>'
             + '<td>' + celdaUsuario(f.ID_ASESOR, f.ASESOR) + '</td>'
             + '<td>' + escHtml(f.SUCURSAL) + '</td>'
-            + '<td>' + etiquetaMovimiento(f.TIPO_MOV) + '</td>'
-            + '<td style="text-align:left;max-width:220px;">' + escHtml(f.MOTIVO) + '</td>'
+            + '<td>' + celdaMovimiento(f) + '</td>'
+            + '<td class="celda-motivo">' + escHtml(f.MOTIVO) + '</td>'
             + '<td>' + celdaUsuario(f.ID_USUARIO, f.USUARIO) + '</td>'
             + '<td>' + escHtml(f.FECHA) + '</td>'
             + '<td>' + estado + '</td>'
@@ -542,6 +617,96 @@ function guardarFolio() {
     });
 }
 
+function abrirModalReasigna(idFolio) {
+    var origen = null;
+    foliosActivos.forEach(function (f) {
+        if (String(f.ID) === String(idFolio)) origen = f;
+    });
+    if (!origen) {
+        return showWarning('La Tarjeta de Pagos ya no está vigente.');
+    }
+
+    destinoReasigna = null;
+    $('#idFolioReasigna').val(origen.ID);
+    $('#creditoDestino').val('');
+    $('#motivoReasigna').val('');
+    $('#resumenDestinoReasigna').hide().empty();
+    $('#resumenModalReasigna').html(
+        '<strong>Folio:</strong> ' + escHtml(origen.FOLIO)
+        + '<br><strong>Crédito actual:</strong> ' + escHtml(creditoActual)
+        + ' · Ciclo ' + escHtml(origen.CICLO)
+        + '<br><strong>Registró:</strong> ' + escHtml(origen.USUARIO || origen.ID_USUARIO || 'N/D')
+        + ' · ' + escHtml(origen.FECHA)
+    );
+
+    $('#modal_reasigna_tarjeta').modal('show');
+    window.setTimeout(function () { $('#creditoDestino').focus(); }, 300);
+}
+
+function limpiarDestinoReasigna() {
+    destinoReasigna = null;
+    $('#resumenDestinoReasigna').hide().empty();
+}
+
+function validarDestinoReasigna() {
+    var destino = $('#creditoDestino').val().trim();
+    limpiarDestinoReasigna();
+    if (destino === '') return showWarning('Capture el crédito destino.');
+
+    consultaServidor('/Creditos/ConsultaFoliosTarjeta/', { credito: destino }, function (resultado) {
+        if (!resultado.success) return showError(resultado.mensaje);
+
+        var datos = resultado.datos || {};
+        if (datos.credito === creditoActual) {
+            return showWarning('El crédito destino debe ser distinto al crédito actual.');
+        }
+        if (!datos.ciclo_gestion) {
+            return showWarning('El crédito destino no tiene un ciclo con situación Entregado.');
+        }
+        if (!datos.puede_adicional) {
+            return showWarning('El ciclo del crédito destino ya tiene el máximo de 2 tarjetas activas.');
+        }
+
+        destinoReasigna = { credito: datos.credito, ciclo: datos.ciclo_gestion.CICLO };
+        $('#creditoDestino').val(datos.credito);
+        $('#resumenDestinoReasigna').html(
+            '<strong>Crédito destino:</strong> ' + escHtml(datos.credito)
+            + ' · Ciclo ' + escHtml(datos.ciclo_gestion.CICLO)
+            + '<br><strong>Cliente:</strong> ' + escHtml(datos.cliente || 'N/D')
+            + '<br><strong>Asesor:</strong> ' + escHtml(datos.ciclo_gestion.ASESOR || 'N/D')
+            + '<br><strong>Sucursal:</strong> ' + escHtml(datos.ciclo_gestion.SUCURSAL || 'N/D')
+            + '<br><strong>Tarjetas vigentes:</strong> ' + (datos.folios_activos || []).length
+        ).show();
+    });
+}
+
+function guardarReasigna() {
+    var motivo = $('#motivoReasigna').val().trim();
+    if (!destinoReasigna) return showWarning('Valide el crédito destino.');
+    if (motivo === '') return showWarning('Capture el motivo de la reasignación.');
+
+    var payload = {
+        id_folio: $('#idFolioReasigna').val(),
+        credito_destino: destinoReasigna.credito,
+        motivo: motivo
+    };
+
+    confirmarMovimiento(
+        'Reasignar Tarjeta de Pagos',
+        '¿Confirma reasignar la Tarjeta de Pagos al crédito ' + destinoReasigna.credito
+        + ', ciclo ' + destinoReasigna.ciclo + '?'
+    ).then(function (continuar) {
+        if (!continuar) return;
+        consultaServidor('/Creditos/ReasignarFolioTarjeta/', payload, function (resultado) {
+            if (!resultado.success) return showError(resultado.mensaje);
+            $('#modal_reasigna_tarjeta').modal('hide');
+            showSuccess(resultado.mensaje).then(function () {
+                buscarFolios(creditoActual);
+            });
+        });
+    });
+}
+
 function abrirModalHistoricoGeneral() {
     $('#modal_filtros_historico').modal('show');
 }
@@ -619,8 +784,10 @@ function consultarHistoricoGeneral() {
     var fechaFin = $('#repFechaFin').val();
     var region = $('#repRegion').val() || '*';
     var sucursal = $('#repSucursal').val() || '*';
+    var tipoMov = $('#repMovimiento').val() || '*';
     var regionTexto = ($('#repRegion option:selected').text() || 'Todas').trim();
     var sucursalTexto = ($('#repSucursal option:selected').text() || 'Todas').trim();
+    var movimientoTexto = ($('#repMovimiento option:selected').text() || 'Todos').trim();
 
     if (!fechaInicio || !fechaFin) {
         return showWarning('Capture fecha inicio y fecha fin.');
@@ -633,7 +800,8 @@ function consultarHistoricoGeneral() {
         fecha_inicio: fechaInicio,
         fecha_fin: fechaFin,
         region: region,
-        sucursal: sucursal
+        sucursal: sucursal,
+        tipo_mov: tipoMov
     };
 
     consultaServidor('/Creditos/ConsultaHistoricoFoliosTarjeta/', paramsHistoricoGeneral, function (resultado) {
@@ -644,7 +812,8 @@ function consultarHistoricoGeneral() {
             fechaInicio: fechaInicio,
             fechaFin: fechaFin,
             regionTexto: regionTexto,
-            sucursalTexto: sucursalTexto
+            sucursalTexto: sucursalTexto,
+            movimientoTexto: movimientoTexto
         });
         $('#modal_filtros_historico').modal('hide');
     });
@@ -667,7 +836,7 @@ function pintarHistoricoGeneral(filas, filtros) {
             + '<td class="celda-principal">' + escHtml(f.ID_ASESOR) + '</td>'
             + '<td>' + escHtml(f.ASESOR) + '</td>'
             + '<td>' + escHtml(f.SUCURSAL) + '</td>'
-            + '<td>' + etiquetaMovimiento(f.TIPO_MOV || f.MOVIMIENTO) + '</td>'
+            + '<td>' + celdaMovimiento(f) + '</td>'
             + '<td class="celda-motivo">' + escHtml(f.MOTIVO) + '</td>'
             + '<td class="celda-principal">' + escHtml(f.ID_USUARIO) + '</td>'
             + '<td>' + escHtml(f.USUARIO) + '</td>'
@@ -683,6 +852,7 @@ function pintarHistoricoGeneral(filas, filtros) {
         + '</span>'
         + '<span class="ft-chip"><i class="fa fa-map-marker"></i> ' + escHtml(filtros.regionTexto) + '</span>'
         + '<span class="ft-chip"><i class="fa fa-building-o"></i> ' + escHtml(filtros.sucursalTexto) + '</span>'
+        + '<span class="ft-chip"><i class="fa fa-exchange"></i> ' + escHtml(filtros.movimientoTexto) + '</span>'
     );
 
     $('#modal_resultado_historico').modal('show');
@@ -726,6 +896,18 @@ document.addEventListener('DOMContentLoaded', function () {
     $('#btnCambiar').on('click', function () { abrirModal('CAMBIO'); });
     $('#btnAdicional').on('click', function () { abrirModal('ADICIONAL'); });
     $('#btnGuardarFolio').on('click', guardarFolio);
+    $('#listaFoliosActivos').on('click', '.ft-btn-reasignar', function () {
+        abrirModalReasigna($(this).attr('data-id'));
+    });
+    $('#btnValidarDestino').on('click', validarDestinoReasigna);
+    $('#creditoDestino').on('input', limpiarDestinoReasigna);
+    $('#creditoDestino').on('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            validarDestinoReasigna();
+        }
+    });
+    $('#btnGuardarReasigna').on('click', guardarReasigna);
     $('#btnHistoricoGeneral').on('click', abrirModalHistoricoGeneral);
     $('#btnConsultarHistoricoGeneral').on('click', consultarHistoricoGeneral);
     $('#btnExcelHistoricoGeneral').on('click', excelHistoricoGeneral);
