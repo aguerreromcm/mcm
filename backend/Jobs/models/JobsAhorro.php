@@ -10,62 +10,65 @@ use Core\Database;
 
 class JobsAhorro extends Model
 {
-    public static function GetCuentasAhorro()
+    public static function GetCuentasAhorro($fecha)
     {
         $qry = <<<SQL
-            SELECT X.CDGNS
-                , X.TASA
-                , TO_CHAR(X.INICIO, 'YYYY-MM-DD') AS INICIO
-                , (
-                    SELECT TO_CHAR(MAX(TRUNC(DA.FECHA)), 'YYYY-MM-DD')
-                    FROM DEVENGO_AHORRO DA
-                    WHERE DA.CONTRATO = X.CDGNS
-                        AND DA.ID_INTERES IS NULL
-                        AND DA.FECHA >= X.INICIO
-                ) AS ULTIMO_DEVENGO
+            SELECT Y.CDGNS
+                , Y.TASA
+                , TO_CHAR(Y.INICIO, 'YYYY-MM-DD') AS INICIO
+                , TO_CHAR(Y.ANIVERSARIO - 1, 'YYYY-MM-DD') AS FIN
+                , Y.ANIVERSARIO - Y.INICIO AS DIAS
             FROM (
-                SELECT CA.CDGNS
-                    , CA.TASA_ANUAL AS TASA
-                    , GREATEST(
-                        PD.PRIMER_DEPOSITO
-                        , NVL(AJ.ULTIMO_AJUSTE, PD.PRIMER_DEPOSITO)
-                        , NVL(RA.ULTIMO_RETIRO, PD.PRIMER_DEPOSITO)
-                        , NVL(IA.ULTIMO_INTERES, PD.PRIMER_DEPOSITO)
-                    ) + 1 AS INICIO
-                FROM CONTRATOS_AHORRO CA
-                    INNER JOIN (
-                        SELECT CDGNS, MIN(TRUNC(FECHA)) AS PRIMER_DEPOSITO
-                        FROM PAGOSDIA
-                        WHERE ESTATUS = 'A'
-                            AND TIPO IN ('B', 'F', 'E')
-                        GROUP BY CDGNS
-                    ) PD ON PD.CDGNS = CA.CDGNS
-                    LEFT JOIN (
-                        SELECT CDGNS, MAX(TRUNC(FECHA)) AS ULTIMO_AJUSTE
-                        FROM PAGOSDIA
-                        WHERE ESTATUS = 'A'
-                            AND TIPO = 'A'
-                        GROUP BY CDGNS
-                    ) AJ ON AJ.CDGNS = CA.CDGNS
-                    LEFT JOIN (
-                        SELECT CDGNS, MAX(TRUNC(FECHA_ENTREGA_REAL)) AS ULTIMO_RETIRO
-                        FROM RETIROS_AHORRO
-                        WHERE ESTATUS = 'E'
-                        GROUP BY CDGNS
-                    ) RA ON RA.CDGNS = CA.CDGNS
-                    LEFT JOIN (
-                        SELECT CDGNS, MAX(FECHA_FIN) AS ULTIMO_INTERES
-                        FROM INTERES_AHORRO
-                        WHERE ESTATUS = 'A'
-                        GROUP BY CDGNS
-                    ) IA ON IA.CDGNS = CA.CDGNS
-            ) X
-            ORDER BY X.CDGNS
+                SELECT X.CDGNS
+                    , X.TASA
+                    , X.INICIO
+                    -- Restar y sumar un día evita que ADD_MONTHS recorra los fines de mes (28/02 -> 29/02)
+                    , ADD_MONTHS(X.INICIO - 1, 12) + 1 AS ANIVERSARIO
+                FROM (
+                    SELECT CA.CDGNS
+                        , CA.TASA_ANUAL AS TASA
+                        , GREATEST(
+                            PD.PRIMER_DEPOSITO
+                            , NVL(AJ.ULTIMO_AJUSTE, PD.PRIMER_DEPOSITO)
+                            , NVL(RA.ULTIMO_RETIRO, PD.PRIMER_DEPOSITO)
+                            , NVL(IA.ULTIMO_INTERES, PD.PRIMER_DEPOSITO)
+                        ) + 1 AS INICIO
+                    FROM CONTRATOS_AHORRO CA
+                        INNER JOIN (
+                            SELECT CDGNS, MIN(TRUNC(FECHA)) AS PRIMER_DEPOSITO
+                            FROM PAGOSDIA
+                            WHERE ESTATUS = 'A'
+                                AND TIPO IN ('B', 'F', 'E')
+                            GROUP BY CDGNS
+                        ) PD ON PD.CDGNS = CA.CDGNS
+                        LEFT JOIN (
+                            SELECT CDGNS, MAX(TRUNC(FECHA)) AS ULTIMO_AJUSTE
+                            FROM PAGOSDIA
+                            WHERE ESTATUS = 'A'
+                                AND TIPO = 'A'
+                            GROUP BY CDGNS
+                        ) AJ ON AJ.CDGNS = CA.CDGNS
+                        LEFT JOIN (
+                            SELECT CDGNS, MAX(TRUNC(FECHA_ENTREGA_REAL)) AS ULTIMO_RETIRO
+                            FROM RETIROS_AHORRO
+                            WHERE ESTATUS = 'E'
+                            GROUP BY CDGNS
+                        ) RA ON RA.CDGNS = CA.CDGNS
+                        LEFT JOIN (
+                            SELECT CDGNS, MAX(FECHA_FIN) AS ULTIMO_INTERES
+                            FROM INTERES_AHORRO
+                            WHERE ESTATUS = 'A'
+                            GROUP BY CDGNS
+                        ) IA ON IA.CDGNS = CA.CDGNS
+                ) X
+            ) Y
+            WHERE Y.ANIVERSARIO <= TO_DATE(:fecha, 'YYYY-MM-DD')
+            ORDER BY Y.CDGNS
         SQL;
 
         try {
             $db = new Database();
-            $res = $db->queryAll($qry);
+            $res = $db->queryAll($qry, ["fecha" => $fecha]);
             if ($res === false) return self::Responde(false, "Error al obtener las cuentas de ahorro", null, "Error en la consulta de cuentas de ahorro");
             return self::Responde(true, "Cuentas de ahorro obtenidas correctamente", $res ?? []);
         } catch (\Exception $e) {
