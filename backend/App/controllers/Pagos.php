@@ -327,7 +327,7 @@ class Pagos extends Controller
         if ($AdministracionOne[0]['NO_CREDITO'] == '') return View::render('pagos_admin_busqueda_message');
         if ($AdministracionOne[0]['VENDIDO'] != 0) {
             View::set('vendido', true);
-            return View::render("pagos_registro_busqueda_message");
+            return View::render("pagos_admin_busqueda_message");
         }
 
         $getStatus = '';
