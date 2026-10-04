@@ -1,4 +1,4 @@
-<?php echo $header; ?>
+<?= $header ?? '' ?>
 
 <div class="right_col">
     <div class="panel panel-body" style="margin-bottom: 0px;">
@@ -22,7 +22,7 @@
                                 <span id="availability1"></span>
                             </div>
                             <div class="col-md-4">
-                                <input class="form-control mr-sm-2" style="font-size: 24px;" autofocus type="text" onKeypress="if (event.keyCode < 9 || event.keyCode > 57) event.returnValue = false;" id="Credito" name="Credito" placeholder="000000" aria-label="Search" value="<?php echo $credito; ?>">
+                                <input class="form-control mr-sm-2" style="font-size: 24px;" autofocus type="text" onKeypress="if (event.keyCode < 9 || event.keyCode > 57) event.returnValue = false;" id="Credito" name="Credito" placeholder="000000" aria-label="Search" value="<?= $credito ?? ''; ?>">
                                 <span id="availability1"></span>
                             </div>
                             <div class="col-md-4">
@@ -38,12 +38,18 @@
                 <div class="tile_count float-right col-sm-12" style="margin-bottom: 1px; margin-top: 1px">
                     <div class="x_content">
                         <br />
-                        <div class="alert alert-warning alert-dismissable">
-                            <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-                            <label style="font-size: 14px; color: black;">Los parametros no arrojan resultados:</label> <li style="color: black;">Valide que las fechas que ingresaste sean correctas. </li> <li style="color: black;">Si el problema persiste, comuníquese con soporte técnico.</li>
-                            <br>
-                            <a href="/Pagos/Layout/" class="alert-link">Regresar</a>.
-                        </div>
+                            <div class="alert alert-<?= isset($vendido) ? 'danger' : 'warning' ?> alert-dismissable">
+                                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+                                <?php if (isset($vendido)) { ?>
+                                    <p style="font-size: 14px; color: black;">No se pueden registrar pagos a este crédito porque ha sido vendido.</p>
+                                <?php } else { ?>
+                                    <label style="font-size: 14px; color: black;">Crédito no encontrado:</label>
+                                    <li style="color: black;">Valide que el número de crédito sea correcto</li>
+                                    <li style="color: black;">Si el problema persiste, comuníquese con soporte técnico</li>
+                                <?php } ?>
+                                <br>
+                                <a href="/Pagos/PagosRegistro/" class="alert-link">Regresar</a>.
+                            </div>
                     </div>
                 </div>
             </div>
@@ -53,4 +59,4 @@
 </div>
 </div>
 
-<?php echo $footer; ?>
+<?= $footer ?? '' ?>
