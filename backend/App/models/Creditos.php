@@ -984,14 +984,14 @@ sql;
     }
 
     /**
-     * 'S' si la tarjeta (alias T) sigue dentro de los 7 días naturales posteriores a su
+     * 'S' si la tarjeta (alias T) sigue dentro de los 5 días naturales posteriores a su
      * registro original. Requiere LEFT JOIN FOLIO_TARJETA R ON R.ID = T.ID_ORIGINAL;
      * FECHA ya está en hora de México.
      */
     private static function sqlEnPlazoReasignacion(): string
     {
-        return "CASE WHEN TRUNC(NVL(R.FECHA, T.FECHA)) + 7"
-            . " >= TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'America/Mexico_City' AS TIMESTAMP))"
+        return "CASE WHEN TRUNC(NVL(R.FECHA, T.FECHA)) + 5"
+            . " >= TRUNC(SYSDATE)"
             . " THEN 'S' ELSE 'N' END";
     }
 
