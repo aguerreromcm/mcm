@@ -1051,7 +1051,7 @@ sql;
                     GET_NOMBRE_EMPLEADO(SN.CDGOCPE) EJECUTIVO,
                     SC.CDGPI ID_PROYECTO,
                     'TRADICIONAL' as TIPO_C,
-                    (SELECT COUNT(*) FROM PRN_LEGAL WHERE CDGCLNS = SC.CDGNS AND TIPO = 'C' AND BAJA IS NULL) AS VENDIDO
+                    (SELECT COUNT(*) FROM PRN_LEGAL WHERE CDGCLNS = SC.CDGNS AND TIPO = 'Z' AND BAJA IS NULL) AS VENDIDO
                 FROM 
                     SN, SC, SC Q2, PRN
                 WHERE
@@ -1105,7 +1105,7 @@ sql;
                     GET_NOMBRE_EMPLEADO(SN.CDGOCPE) EJECUTIVO,
                     SC.CDGPI ID_PROYECTO,
                     'MAS POR TI' as TIPO_C,
-                    (SELECT COUNT(*) FROM PRN_LEGAL WHERE CDGCLNS = SC.CDGNS AND TIPO = 'C' AND BAJA IS NULL) AS VENDIDO
+                    (SELECT COUNT(*) FROM PRN_LEGAL WHERE CDGCLNS = SC.CDGNS AND TIPO = 'Z' AND BAJA IS NULL) AS VENDIDO
                 FROM 
                     SN, SC, PRN
                 WHERE
