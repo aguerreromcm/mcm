@@ -73,7 +73,8 @@
         color: #c9d1d9;
     }
 
-    .panel-heading {
+    .panel-heading,
+    .panel-default > .panel-heading {
         background-color: #252930;
         border-color: #3d444d;
         color: #e6edf3;
@@ -227,10 +228,24 @@
     }
 
     .btn-default:hover,
-    .btn-default:focus {
+    .btn-default:focus,
+    .btn-default:active,
+    .btn-default.active,
+    .open > .dropdown-toggle.btn-default,
+    .open > .dropdown-toggle.btn-default:hover,
+    .open > .dropdown-toggle.btn-default:focus {
         background-color: #3d444d;
         border-color: #484f58;
         color: #f0f6fc;
+    }
+
+    /* Administración de correos: nombres de grupo con color: black inline */
+    #grupoFiltro .nombreGrupo {
+        color: #c9d1d9 !important;
+    }
+
+    #grupoFiltro > li:hover {
+        background-color: #30363d;
     }
 
     /* DataTables (controles, “Procesando…” y paginación) */

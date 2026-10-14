@@ -11,6 +11,7 @@ use App\services\PagosAplicacionService;
 use App\services\ConciliacionService;
 use App\services\CierreDiaService;
 use App\services\CierreDiaJobLock;
+use App\services\AplicacionPagosService;
 
 class Operaciones extends Controller
 {
@@ -936,6 +937,341 @@ class Operaciones extends Controller
                 'mensaje' => 'Error al conciliar pagos.',
                 'error' => $e->getMessage(),
             ];
+        }
+
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        $json = json_encode($respuesta, JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            $json = '{"success":false,"mensaje":"Error al generar la respuesta."}';
+        }
+        echo $json;
+        exit;
+    }
+
+    ////////////////////////////////////////////////////////////////////
+
+    public function PagosPostCierre()
+    {
+        $fechaDefault = date('Y-m-d', strtotime('-1 day'));
+        $fechaMaxima = date('Y-m-d');
+
+        $extraFooter = <<<HTML
+            <script>
+                {$this->mensajes}
+                {$this->consultaServidor}
+                {$this->confirmarMovimiento}
+                {$this->configuraTabla}
+                {$this->formatoMoneda}
+
+                const idTablaPendientes = "tablaPendientes"
+                const idTablaResultado = "tablaResultado"
+                let datosFecha = null
+
+                const escHtml = (s) => {
+                    const d = document.createElement("div")
+                    d.textContent = s == null ? "" : String(s)
+                    return d.innerHTML
+                }
+
+                const formateaFecha = (ymd) => {
+                    if (!ymd) return "—"
+                    const p = String(ymd).split("-")
+                    if (p.length !== 3) return ymd
+                    return p[2] + "/" + p[1] + "/" + p[0]
+                }
+
+                const setBadge = (selector, texto, tipo) => {
+                    const el = $(selector)
+                    el.removeClass("pgl-badge-ok pgl-badge-warn pgl-badge-danger")
+                    el.text(texto || "")
+                    if (texto && tipo) el.addClass("pgl-badge-" + tipo)
+                }
+
+                const textoTipo = (tipo) => tipo === "G" ? "Garantía" : "Pago"
+
+                const cargaFechasPendientes = () => {
+                    $.ajax({
+                        url: "/Operaciones/FechasPagosPostCierre/",
+                        type: "GET",
+                        dataType: "json"
+                    }).done((resp) => {
+                        const fechas = (resp && resp.success && resp.datos && Array.isArray(resp.datos.fechas)) ? resp.datos.fechas : []
+                        pintaFechasPendientes(fechas)
+                    }).fail(() => pintaFechasPendientes([]))
+                }
+
+                const MESES_CORTOS = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"]
+                const DIAS_SEMANA = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"]
+
+                const marcaFechaActiva = () => {
+                    const actual = datosFecha ? datosFecha.fecha : ""
+                    $("#listaFechasPendientes .ppc-fecha-card").each(function () {
+                        $(this).toggleClass("activa", $(this).data("fecha") === actual)
+                    })
+                }
+
+                const pintaFechasPendientes = (fechas) => {
+                    const cont = $("#listaFechasPendientes")
+                    cont.empty()
+                    const montoTotal = fechas.reduce((s, f) => s + (parseFloat(f.MONTO) || 0), 0)
+                    setBadge(
+                        "#lblFechasPendientes",
+                        fechas.length ? fechas.length + (fechas.length === 1 ? " fecha" : " fechas") + " · $" + formatoMoneda(montoTotal) : "Sin pendientes",
+                        fechas.length ? "warn" : "ok"
+                    )
+                    if (!fechas.length) {
+                        cont.append(
+                            $("<div>").addClass("ppc-sin-fechas")
+                                .append($("<i>").addClass("fa fa-check-circle"))
+                                .append($("<span>").text("No se detectaron pagos pendientes de importar en días ya cerrados de los últimos 30 días."))
+                        )
+                        return
+                    }
+                    fechas.forEach((f) => {
+                        const partes = String(f.FECHA || "").split("-").map(Number)
+                        const fecha = new Date(partes[0], (partes[1] || 1) - 1, partes[2] || 1)
+                        const pagos = parseInt(f.PAGOS, 10) || 0
+
+                        const card = $("<button>")
+                            .attr({ type: "button", title: "Consultar pagos pendientes" })
+                            .data("fecha", f.FECHA)
+                            .addClass("ppc-fecha-card")
+                            .append(
+                                $("<span>").addClass("ppc-fc-cal")
+                                    .append($("<span>").addClass("ppc-fc-mes").text(MESES_CORTOS[fecha.getMonth()]))
+                                    .append($("<span>").addClass("ppc-fc-dia").text(String(fecha.getDate()).padStart(2, "0")))
+                            )
+                            .append(
+                                $("<span>").addClass("ppc-fc-info")
+                                    .append($("<span>").addClass("ppc-fc-titulo").text(DIAS_SEMANA[fecha.getDay()] + " " + f.FECHA_FMT))
+                                    .append($("<span>").addClass("ppc-fc-monto").text("$" + formatoMoneda(f.MONTO || 0)))
+                                    .append($("<span>").addClass("ppc-fc-meta").text(pagos + (pagos === 1 ? " pago pendiente" : " pagos pendientes")))
+                            )
+                            .append($("<i>").addClass("fa fa-chevron-right ppc-fc-ir"))
+                            .on("click", () => {
+                                $("#fechaBuscar").val(f.FECHA)
+                                consultaPendientes()
+                            })
+                        cont.append(card)
+                    })
+                    marcaFechaActiva()
+                }
+
+                const limpiarResultado = () => {
+                    datosFecha = null
+                    marcaFechaActiva()
+                    $(".resultado").toggleClass("conDatos", false)
+                    $("#estadoInicial").show()
+                    $("#btnProcesar").prop("disabled", true)
+                    actualizaDatosTabla(idTablaPendientes, [])
+                }
+
+                const consultaPendientes = () => {
+                    const fecha = $("#fechaBuscar").val()
+                    if (!fecha) {
+                        $("#fechaBuscar").toggleClass("incorrecto", true).focus()
+                        return showWarning("Seleccione la fecha de los pagos.")
+                    }
+                    $("#fechaBuscar").toggleClass("incorrecto", false)
+
+                    consultaServidor("/Operaciones/ConsultaPagosPostCierre/", { fecha }, (resultado) => {
+                        if (!resultado.success) {
+                            limpiarResultado()
+                            return showError(resultado.mensaje)
+                        }
+                        mostrarDatos(resultado.datos, resultado.mensaje)
+                    })
+                }
+
+                const mostrarDatos = (datos, mensaje) => {
+                    datosFecha = datos
+                    marcaFechaActiva()
+                    const resumen = datos.resumen || {}
+                    const cierre = datos.cierre || {}
+                    $("#estadoInicial").hide()
+
+                    $("#lblFecha").text(formateaFecha(datos.fecha))
+                    $("#lblTotalPagos").text(resumen.totalPagos || 0)
+                    $("#lblTotalMonto").text("$" + formatoMoneda(resumen.totalMonto || 0))
+                    $("#lblPagos").text(resumen.pagos || 0)
+                    $("#lblMontoPagos").text("$" + formatoMoneda(resumen.montoPagos || 0))
+                    $("#lblGarantias").text(resumen.garantias || 0)
+                    $("#lblMontoGarantias").text("$" + formatoMoneda(resumen.montoGarantias || 0))
+
+                    if (cierre.enEjecucion) setBadge("#lblEstadoCierre", "Cierre en ejecución", "warn")
+                    else if (!cierre.ejecutado) setBadge("#lblEstadoCierre", "Sin cierre", "danger")
+                    else setBadge("#lblEstadoCierre", "")
+
+                    const sinPendientes = !(resumen.totalPagos > 0)
+                    $("#alertaBloqueo").toggle(!sinPendientes && !datos.puedeProcesar)
+                    $("#txtBloqueo").text(mensaje || "")
+                    $("#alertaSinPendientes").toggle(sinPendientes)
+                    $("#btnProcesar").prop("disabled", !datos.puedeProcesar)
+
+                    const filas = (datos.filas || []).map((f) => [
+                        f.FECHA_FMT,
+                        escHtml(f.CDGNS),
+                        escHtml(f.CICLO),
+                        escHtml(f.NOMBRE || "—"),
+                        escHtml(f.REFERENCIA),
+                        textoTipo(f.TIPO),
+                        "$" + formatoMoneda(f.MONTO || 0)
+                    ])
+                    actualizaDatosTabla(idTablaPendientes, filas)
+                    $(".resultado").toggleClass("conDatos", true)
+                    $("#" + idTablaPendientes).DataTable().columns.adjust()
+                }
+
+                const mostrarResultadoProceso = (datos, mensaje) => {
+                    const fechaProceso = (datos.consulta && datos.consulta.fecha) || (datosFecha && datosFecha.fecha) || ""
+                    $("#lblResFecha").text(formateaFecha(fechaProceso))
+                    const resumen = datos.resumen || {}
+                    const conObservacion = (resumen.conObservacion || 0) > 0
+                    $("#alertaResultadoProceso")
+                        .toggleClass("pgl-alerta-aviso", conObservacion)
+                        .toggleClass("ppc-alerta-ok", !conObservacion)
+                    $("#iconoResultadoProceso").attr("class", "fa " + (conObservacion ? "fa-exclamation-triangle" : "fa-check"))
+                    $("#txtResultadoProceso").text(
+                        resumen.detenido
+                            ? "El proceso se detuvo por un error. " + (resumen.sinProcesar || 0) + " registro(s) siguen pendientes; revise el detalle."
+                            : conObservacion
+                                ? "Proceso terminado con observaciones. Revise los pagos marcados con incidencia."
+                                : "Proceso terminado. Todos los pagos se procesaron correctamente."
+                    )
+                    $("#lblResProcesados").text(resumen.totalPagos || 0)
+                    $("#lblResCorrectos").text(resumen.correctos || 0)
+                    $("#lblResObservacion").text(resumen.conObservacion || 0)
+                    $("#lblResImportacion").text(datos.idImportacion || "—")
+
+                    const filas = (datos.detalle || []).map((d) => [
+                        escHtml(d.CDGNS),
+                        escHtml(d.CICLO),
+                        textoTipo(d.TIPO),
+                        escHtml(d.REFERENCIA),
+                        "$" + formatoMoneda(d.MONTO || 0),
+                        '<span class="ft-conteo ppc-estado ' + (d.CORRECTO ? "pgl-badge-ok" : "pgl-badge-warn") + '">' + escHtml(d.ESTADO) + "</span>",
+                        escHtml(d.MENSAJE || "")
+                    ])
+                    actualizaDatosTabla(idTablaResultado, filas)
+                    $("#modalResultadoProceso").modal("show")
+                }
+
+                const procesarPagos = () => {
+                    if (!datosFecha) return showWarning("Consulte primero una fecha.")
+                    if (!datosFecha.puedeProcesar) return showWarning("Los pagos de esta fecha no se pueden procesar en este momento.")
+
+                    const resumen = datosFecha.resumen || {}
+                    const mensaje = "Se importarán y conciliarán " + (resumen.totalPagos || 0)
+                        + " pago(s) por $" + formatoMoneda(resumen.totalMonto || 0)
+                        + " del " + formateaFecha(datosFecha.fecha)
+                        + ". Esta acción no se puede deshacer."
+
+                    confirmarMovimiento("¿Importar y conciliar pagos?", mensaje).then((continuar) => {
+                        if (!continuar) return
+                        consultaServidor("/Operaciones/ProcesaPagosPostCierre/", { fecha: datosFecha.fecha }, (resultado) => {
+                            if (!resultado.success) return showError(resultado.mensaje)
+                            const datos = resultado.datos || {}
+                            if (datos.consulta) mostrarDatos(datos.consulta, "")
+                            mostrarResultadoProceso(datos, resultado.mensaje)
+                            cargaFechasPendientes()
+                        })
+                    })
+                }
+
+                $(document).ready(() => {
+                    configuraTabla(idTablaPendientes)
+                    configuraTabla(idTablaResultado)
+                    $("#buscar").click(consultaPendientes)
+                    $("#fechaBuscar").on("keypress", (e) => {
+                        if (e.key === "Enter") consultaPendientes()
+                    })
+                    $("#btnProcesar").click(procesarPagos)
+                    $("#modalResultadoProceso").on("shown.bs.modal", () => {
+                        $("#" + idTablaResultado).DataTable().columns.adjust()
+                    })
+                    cargaFechasPendientes()
+                })
+            </script>
+        HTML;
+
+        $extraHeader = self::GetExtraHeader('Aplicación de pagos', [
+            '<link href="/css/folios-tarjeta.css" rel="stylesheet">',
+            '<link href="/css/pagos-con-gl.css" rel="stylesheet">',
+            '<link href="/css/aplicacion-pagos.css" rel="stylesheet">'
+        ]);
+
+        View::set('header', $this->_contenedor->header($extraHeader));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::set('fechaDefault', $fechaDefault);
+        View::set('fechaMaxima', $fechaMaxima);
+        View::render('operaciones_aplicacion_pagos');
+    }
+
+    /**
+     * GET: fechas de los últimos días con pagos pendientes de importar.
+     */
+    public function FechasPagosPostCierre()
+    {
+        try {
+            $respuesta = AplicacionPagosService::fechasConPendientes();
+        } catch (\Throwable $e) {
+            $respuesta = \Core\Model::Responde(false, 'Error al consultar las fechas con pagos pendientes.', null, $e->getMessage());
+        }
+
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        $json = json_encode($respuesta, JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            $json = '{"success":false,"mensaje":"Error al generar la respuesta."}';
+        }
+        echo $json;
+        exit;
+    }
+
+    /**
+     * POST: fecha. Pagos pendientes de importar y estado del cierre de esa fecha.
+     */
+    public function ConsultaPagosPostCierre()
+    {
+        try {
+            $fecha = isset($_POST['fecha']) ? trim((string) $_POST['fecha']) : '';
+            $respuesta = AplicacionPagosService::consultar($fecha);
+        } catch (\Throwable $e) {
+            $respuesta = \Core\Model::Responde(false, 'Error al consultar los pagos pendientes.', null, $e->getMessage());
+        }
+
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        $json = json_encode($respuesta, JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            $json = '{"success":false,"mensaje":"Error al generar la respuesta."}';
+        }
+        echo $json;
+        exit;
+    }
+
+    /**
+     * POST: fecha. Importa y concilia los pagos pendientes de una fecha ya cerrada.
+     */
+    public function ProcesaPagosPostCierre()
+    {
+        set_time_limit(0);
+        try {
+            $fecha = isset($_POST['fecha']) ? trim((string) $_POST['fecha']) : '';
+            $usuario = isset($this->__usuario) ? (string) $this->__usuario : '';
+            $respuesta = AplicacionPagosService::procesar($fecha, $usuario);
+        } catch (\Throwable $e) {
+            $respuesta = \Core\Model::Responde(false, 'Error al procesar los pagos.', null, $e->getMessage());
         }
 
         while (ob_get_level()) {
