@@ -1,0 +1,251 @@
+/* Aplicación de pagos — complementa folios-tarjeta.css y pagos-con-gl.css */
+
+.pagos-post-cierre-page .ft-search input[type="date"].form-control {
+    width: 12.5rem;
+}
+
+.pagos-post-cierre-page .ppc-fechas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+}
+
+.pagos-post-cierre-page .ppc-sin-fechas {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    padding: 12px 14px;
+    border: 1px dashed var(--ft-border-soft);
+    border-radius: 10px;
+    color: var(--ft-muted);
+}
+
+.pagos-post-cierre-page .ppc-sin-fechas .fa {
+    font-size: 18px;
+    color: #2e7d52;
+}
+
+.pagos-post-cierre-page .ppc-fecha-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--ft-border-soft);
+    border-radius: 12px;
+    background: #ffffff;
+    color: var(--ft-dark);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.pagos-post-cierre-page .ppc-fecha-card:hover,
+.pagos-post-cierre-page .ppc-fecha-card:focus {
+    border-color: var(--ft-accent);
+    box-shadow: 0 4px 14px rgba(26, 111, 181, 0.12);
+    transform: translateY(-1px);
+    outline: none;
+}
+
+.pagos-post-cierre-page .ppc-fecha-card.activa {
+    border-color: var(--ft-accent);
+    box-shadow: 0 0 0 2px rgba(26, 111, 181, 0.25);
+    background: rgba(26, 111, 181, 0.04);
+}
+
+.pagos-post-cierre-page .ppc-fc-cal {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 0 0 52px;
+    overflow: hidden;
+    border-radius: 10px;
+    border: 1px solid rgba(26, 111, 181, 0.25);
+    background: rgba(26, 111, 181, 0.06);
+}
+
+.pagos-post-cierre-page .ppc-fc-mes {
+    width: 100%;
+    padding: 2px 0;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-align: center;
+    color: #ffffff;
+    background: var(--ft-accent);
+}
+
+.pagos-post-cierre-page .ppc-fc-dia {
+    padding: 3px 0 4px;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--ft-accent);
+    font-variant-numeric: tabular-nums;
+}
+
+.pagos-post-cierre-page .ppc-fc-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pagos-post-cierre-page .ppc-fc-titulo,
+.pagos-post-cierre-page .ppc-fc-meta {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.pagos-post-cierre-page .ppc-fc-titulo {
+    font-size: 12px;
+    color: var(--ft-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.pagos-post-cierre-page .ppc-fc-monto {
+    font-size: 17px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.pagos-post-cierre-page .ppc-fc-meta {
+    font-size: 12px;
+    color: var(--ft-muted);
+}
+
+.pagos-post-cierre-page .ppc-fc-ir {
+    flex: 0 0 auto;
+    color: var(--ft-muted);
+    transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.pagos-post-cierre-page .ppc-fecha-card:hover .ppc-fc-ir,
+.pagos-post-cierre-page .ppc-fecha-card.activa .ppc-fc-ir {
+    color: var(--ft-accent);
+    transform: translateX(2px);
+}
+
+.pagos-post-cierre-page .ppc-desglose {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 14px;
+    color: var(--ft-dark);
+    font-variant-numeric: tabular-nums;
+}
+
+.pagos-post-cierre-page .ppc-desglose b {
+    font-size: 18px;
+}
+
+.pagos-post-cierre-page .ppc-accion-nota {
+    margin: 0 0 4px;
+}
+
+.pagos-post-cierre-page .ppc-alerta-ok {
+    background: rgba(46, 125, 82, 0.06);
+    border-color: rgba(46, 125, 82, 0.28);
+}
+
+.pagos-post-cierre-page .ppc-alerta-ok .pgl-alerta-icon {
+    background: linear-gradient(180deg, #3fb950 0%, #238636 100%);
+}
+
+.pagos-post-cierre-page .ppc-alerta-ok strong {
+    color: #2e7d52;
+}
+
+.pagos-post-cierre-page .ppc-tabla {
+    margin-top: 16px;
+}
+
+.pagos-post-cierre-page .ppc-modal-dialog {
+    width: 95%;
+    max-width: 1100px;
+}
+
+.pagos-post-cierre-page .ppc-modal-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.pagos-post-cierre-page .ppc-modal-fecha {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(26, 111, 181, 0.3);
+    background: rgba(26, 111, 181, 0.08);
+    color: var(--ft-accent);
+    font-size: 14px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.pagos-post-cierre-page .ppc-estado {
+    white-space: nowrap;
+    line-height: 1.4;
+}
+
+.pagos-post-cierre-page .ppc-modal-badges {
+    justify-content: flex-start;
+    margin-top: 8px;
+}
+
+.pagos-post-cierre-page .ppc-modal-badges .ft-conteo {
+    gap: 5px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .pagos-post-cierre-page .ppc-fecha-card {
+        background: #252930;
+    }
+
+    .pagos-post-cierre-page .ppc-fecha-card:hover,
+    .pagos-post-cierre-page .ppc-fecha-card:focus {
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    }
+
+    .pagos-post-cierre-page .ppc-fecha-card.activa {
+        background: rgba(88, 166, 255, 0.08);
+        box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.35);
+    }
+
+    .pagos-post-cierre-page .ppc-fc-cal {
+        border-color: rgba(88, 166, 255, 0.3);
+        background: rgba(88, 166, 255, 0.08);
+    }
+
+    .pagos-post-cierre-page .ppc-fc-dia {
+        color: #58a6ff;
+    }
+
+    .pagos-post-cierre-page .ppc-sin-fechas .fa {
+        color: #3fb950;
+    }
+
+    .pagos-post-cierre-page .ppc-modal-fecha {
+        border-color: rgba(88, 166, 255, 0.35);
+        background: rgba(88, 166, 255, 0.12);
+        color: #58a6ff;
+    }
+
+    .pagos-post-cierre-page .ppc-alerta-ok {
+        background: rgba(63, 185, 80, 0.12);
+        border-color: rgba(63, 185, 80, 0.35);
+    }
+
+    .pagos-post-cierre-page .ppc-alerta-ok strong {
+        color: #3fb950;
+    }
+}

@@ -155,6 +155,7 @@ class Menu
     {
         return [
             $this->enlace('Cierre de día', '/Operaciones/CierreDiario/', ['AMGM', 'FECR', 'EZJL', 'GOBA']),
+            $this->enlace('Aplicación de pagos', '/Operaciones/PagosPostCierre/', ['AMGM', 'FECR', 'EZJL', 'GOBA']),
             $this->enlace('Reporte Cliente y Aval Consolidado', '/Operaciones/ReportePC', ['ADMIN', 'PHEE', 'MCDP', 'FECR', 'GOBA']),
             $this->enlace('Reporte Interés Devengado', '/Operaciones/ReporteInteresDevengado', ['AMGM', 'GOBA']),
             $this->enlace('Reporte Acreditado', '/Operaciones/ReporteAcreditado', ['ADMIN', 'CPAGO', 'GOBA', 'LGFR', 'MCDP', 'MAPH', 'VMSM', 'BAMA'])
