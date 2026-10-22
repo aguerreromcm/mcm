@@ -96,6 +96,7 @@ class AhorroConsulta extends Model
                 RA.ID
                 ,RA.CDGNS
                 ,RA.CANT_SOLICITADA
+                ,RA.MONTO_DEVENGO
                 ,RA.ESTATUS
                 ,TO_CHAR(RA.FECHA_SOLICITUD, 'DD/MM/YYYY') AS FECHA_SOLICITUD
                 ,TO_CHAR(RA.FECHA_ENTREGA, 'DD/MM/YYYY') AS FECHA_ENTREGA
@@ -143,6 +144,7 @@ class AhorroConsulta extends Model
                 RA.ID
                 ,RA.CDGNS
                 ,RA.CANT_SOLICITADA
+                ,RA.MONTO_DEVENGO
                 ,TO_CHAR(RA.FECHA_SOLICITUD, 'DD/MM/YYYY') AS FECHA_SOLICITUD
                 ,TO_CHAR(RA.FECHA_ENTREGA, 'DD/MM/YYYY') AS FECHA_ENTREGA
                 ,TO_CHAR(RA.FECHA_ENTREGA_REAL, 'DD/MM/YYYY HH24:MI:SS') AS FECHA_ENTREGA_REAL
@@ -238,6 +240,14 @@ class AhorroConsulta extends Model
                 ,CASE WHEN NOT CR_AD.CICLO IS NULL AND CR_AD.SITUACION <> 'L' THEN FNCALDIASMORA('EMPFIN', CR_AD.CDGNS, 'G', CR_AD.CICLO) ELSE 0 END AS DIAS_MORA_ADICIONAL
                 ,GET_NOMBRE_CLIENTE(CL.CODIGO) AS NOMBRE_CLIENTE
                 ,FN_GET_AHORRO(CR.CDGNS) AS SALDO_ACTUAL
+                -- Intereses registrados menos lo ya tomado por retiros vigentes, sin exceder el saldo
+                ,LEAST(
+                    GREATEST(
+                        NVL((SELECT SUM(IA.MONTO) FROM INTERES_AHORRO IA WHERE IA.CDGNS = CA.CDGNS AND IA.ESTATUS = 'A'), 0)
+                        - NVL((SELECT SUM(RA.MONTO_DEVENGO) FROM RETIROS_AHORRO RA WHERE RA.CDGNS = CA.CDGNS AND RA.ESTATUS NOT IN ('C', 'R', 'D')), 0)
+                    , 0)
+                    , GREATEST(FN_GET_AHORRO(CR.CDGNS), 0)
+                ) AS DEVENGO_DISPONIBLE
                 ,TO_CHAR(ADD_MONTHS(CA.FECHA_REGISTRO, 12), 'YYYY-MM-DD') AS ANIVERSARIO
             FROM CONTRATOS_AHORRO CA
             INNER JOIN CREDITOS CR ON CR.CDGNS = CA.CDGNS
@@ -294,11 +304,24 @@ class AhorroConsulta extends Model
             return self::Responde(false, 'La fecha de entrega no es válida.');
         }
 
+        // Primero se consume el devengo y después los depósitos
+        $saldo = self::BuscarSaldo(['cdgns' => $datos['cdgns']]);
+        if (!$saldo['success']) return $saldo;
+
+        $cantidad = round((float) $datos['cantidad_solicitada'], 2);
+        $devengoDisponible = round((float) $saldo['datos']['DEVENGO_DISPONIBLE'], 2);
+        $montoDevengo = min($cantidad, $devengoDisponible);
+
+        if ($saldo['datos']['SITUACION_ADICIONAL'] === 'E' && $cantidad > $devengoDisponible) {
+            return self::Responde(false, 'El cliente cuenta con un crédito adicional activo, solo puede retirar su devengo disponible ($' . number_format($devengoDisponible, 2) . ').');
+        }
+
         $qry = <<<SQL
             INSERT INTO RETIROS_AHORRO (
                 CDGNS
                 , CICLO
                 ,CANT_SOLICITADA
+                ,MONTO_DEVENGO
                 ,FECHA_SOLICITUD
                 ,FECHA_ENTREGA
                 ,OBSERVACIONES_ADMINISTRADORA
@@ -310,6 +333,7 @@ class AhorroConsulta extends Model
                 :cdgns
                 ,:ciclo
                 ,:cantidad_solicitada
+                ,:monto_devengo
                 ,TO_DATE(:fecha_solicitud, 'YYYY-MM-DD')
                 ,TO_DATE(:fecha_entrega, 'YYYY-MM-DD')
                 ,:observaciones_administradora
@@ -325,6 +349,7 @@ class AhorroConsulta extends Model
             'cdgns' => $datos['cdgns'],
             'ciclo' => $datos['ciclo'],
             'cantidad_solicitada' => $datos['cantidad_solicitada'],
+            'monto_devengo' => $montoDevengo,
             'fecha_solicitud' => $fechaSolicitud,
             'fecha_entrega' => $fechaEntrega,
             'observaciones_administradora' => $datos['observaciones_administradora'],

@@ -52,6 +52,8 @@ class JobsAhorro extends Model
                             SELECT CDGNS, MAX(TRUNC(FECHA_ENTREGA_REAL)) AS ULTIMO_RETIRO
                             FROM RETIROS_AHORRO
                             WHERE ESTATUS = 'E'
+                                -- Los retiros que solo toman devengo no reinician el periodo
+                                AND CANT_SOLICITADA > MONTO_DEVENGO
                             GROUP BY CDGNS
                         ) RA ON RA.CDGNS = CA.CDGNS
                         LEFT JOIN (

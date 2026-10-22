@@ -223,6 +223,129 @@ class AhorroSimple extends Controller
         View::render($vista);
     }
 
+    public function ReporteDevengos()
+    {
+        $extraFooter = <<<HTML
+            <script>
+                {$this->mensajes}
+                {$this->consultaServidor}
+                {$this->configuraTabla}
+                {$this->descargaExcel}
+                {$this->formatoMoneda}
+
+                const idTabla = "devengos"
+
+                const getParametros = () => {
+                    return {
+                        fechaI: $("#fechaI").val(),
+                        fechaF: $("#fechaF").val()
+                    }
+                }
+
+                const consultaDevengos = () => {
+                    const { fechaI, fechaF } = getParametros()
+                    if (!fechaI || !fechaF) return
+                    if (new Date(fechaI) > new Date(fechaF)) return showError("La fecha inicial no puede ser mayor a la fecha final.")
+
+                    consultaServidor("/AhorroSimple/GetReporteDevengos/", { fechaI, fechaF }, (resultado) => {
+                        if (!resultado.success) return showError(resultado.mensaje)
+                        resultadoOK(resultado.datos)
+                    })
+                }
+
+                const formatoFecha = (fecha) => fecha.split("-").reverse().join("/")
+
+                const resultadoOK = (datos) => {
+                    const { fechaI, fechaF } = getParametros()
+                    let depositado = 0
+                    let retirado = 0
+
+                    datos = datos.map((dato) => {
+                        const esDeposito = dato.TIPO === "DEPÓSITO"
+                        depositado += parseFloat(dato.DEPOSITADO) || 0
+                        retirado += parseFloat(dato.RETIRADO) || 0
+
+                        return [
+                            dato.FECHA,
+                            "<span class='ft-conteo " + (esDeposito ? "pgl-badge-ok" : "pgl-badge-warn") + "'>" + dato.TIPO + "</span>",
+                            dato.CDGNS,
+                            dato.NOMBRE_CLIENTE || "-",
+                            dato.SUCURSAL ? dato.SUCURSAL + " - " + dato.NOMBRE_SUCURSAL : "-",
+                            dato.DESCRIPCION,
+                            "$ " + formatoMoneda(dato.DEPOSITADO),
+                            "$ " + formatoMoneda(dato.RETIRADO)
+                        ]
+                    })
+
+                    $("#lblRango").text(formatoFecha(fechaI) + " al " + formatoFecha(fechaF))
+                    $("#totalDepositado").text("$ " + formatoMoneda(depositado))
+                    $("#totalRetirado").text("$ " + formatoMoneda(retirado))
+                    actualizaDatosTabla(idTabla, datos)
+                    $(".resultado").toggleClass("conDatos", true)
+                }
+
+                const descargaReporte = () => {
+                    const { fechaI, fechaF } = getParametros()
+                    if (new Date(fechaI) > new Date(fechaF)) return showError("La fecha inicial no puede ser mayor a la fecha final.")
+
+                    descargaExcel("/AhorroSimple/ExcelReporteDevengos/?" + new URLSearchParams({ fechaI, fechaF }).toString())
+                }
+
+                $(document).ready(() => {
+                    const hoy = new Date()
+                    const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
+                    const formato = (fecha) => fecha.getFullYear() + "-" + String(fecha.getMonth() + 1).padStart(2, "0") + "-" + String(fecha.getDate()).padStart(2, "0")
+                    $("#fechaI").val(formato(inicioMes))
+                    $("#fechaF").val(formato(hoy))
+
+                    $("#fechaI, #fechaF").on("change", consultaDevengos)
+                    $("#btnDescargarReporte").on("click", descargaReporte)
+
+                    configuraTabla(idTabla)
+                    consultaDevengos()
+                })
+            </script>
+        HTML;
+
+        $extraHeader = self::GetExtraHeader('Reporte Devengos Ahorro', [
+            '<link href="/css/folios-tarjeta.css" rel="stylesheet">',
+            '<link href="/css/pagos-con-gl.css" rel="stylesheet">',
+            '<link href="/css/aplicacion-pagos.css" rel="stylesheet">'
+        ]);
+
+        View::set('header', $this->_contenedor->header($extraHeader));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::render("ahorro_reporte_devengos");
+    }
+
+    public function GetReporteDevengos()
+    {
+        echo json_encode(AhorroSimpleDao::GetReporteDevengos($_POST));
+    }
+
+    public function ExcelReporteDevengos()
+    {
+        $estilos = \PHPSpreadsheet::GetEstilosExcel();
+
+        $columnas = [
+            \PHPSpreadsheet::ColumnaExcel('FECHA', 'Fecha', ['estilo' => $estilos['fecha']]),
+            \PHPSpreadsheet::ColumnaExcel('TIPO', 'Tipo'),
+            \PHPSpreadsheet::ColumnaExcel('CDGNS', 'No. Crédito'),
+            \PHPSpreadsheet::ColumnaExcel('NOMBRE_CLIENTE', 'Cliente'),
+            \PHPSpreadsheet::ColumnaExcel('NOMBRE_REGION', 'Región'),
+            \PHPSpreadsheet::ColumnaExcel('NOMBRE_SUCURSAL', 'Sucursal'),
+            \PHPSpreadsheet::ColumnaExcel('DESCRIPCION', 'Descripción'),
+            \PHPSpreadsheet::ColumnaExcel('DEPOSITADO', 'Devengo Depositado', ['estilo' => $estilos['moneda'], 'total' => true]),
+            \PHPSpreadsheet::ColumnaExcel('RETIRADO', 'Devengo Retirado', ['estilo' => $estilos['moneda'], 'total' => true]),
+        ];
+
+        $filas = AhorroSimpleDao::GetReporteDevengos($_GET);
+        if ($filas['success']) $filas = $filas['datos'];
+        else $filas = [];
+
+        \PHPSpreadsheet::DescargaExcel('Reporte Devengos Ahorro', 'Reporte', 'Devengos de Ahorro', $columnas, $filas);
+    }
+
     public function ValidaAdicional()
     {
         $extraHeader = self::GetExtraHeader('Consulta de Pagos');

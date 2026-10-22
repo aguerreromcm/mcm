@@ -1,63 +1,71 @@
 <?= $header; ?>
 
 <div class="right_col">
-    <div class="panel">
-        <div class="panel-header" style="padding: 10px;">
+    <div class="panel panel-default folios-tarjeta-page pagos-gl-page pagos-post-cierre-page">
+        <div class="panel-body">
             <div class="x_title">
-                <label style="font-size: large;">Consulta de Retiros de Ahorro</label>
+                <h3>Consulta de retiros de ahorro</h3>
                 <div class="clearfix"></div>
             </div>
-            <div class="card">
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-2">
-                            <div class="form-group">
-                                <input class="form-control" type="date" id="fechaI">
-                                <span>Fecha inicial</span>
-                            </div>
+
+            <div class="panel-card ft-toolbar">
+                <div class="ft-toolbar-inner">
+                    <div class="ft-search">
+                        <label class="ft-tb-lbl" for="fechaI">
+                            <i class="fa fa-calendar"></i> Fecha inicial
+                        </label>
+                        <div class="ft-search-line">
+                            <input class="form-control" type="date" id="fechaI">
                         </div>
-                        <div class="col-md-2">
-                            <div class="form-group">
-                                <input class="form-control" type="date" id="fechaF">
-                                <span>Fecha final</span>
-                            </div>
+                    </div>
+                    <div class="ft-search">
+                        <label class="ft-tb-lbl" for="fechaF">
+                            <i class="fa fa-calendar"></i> Fecha final
+                        </label>
+                        <div class="ft-search-line">
+                            <input class="form-control" type="date" id="fechaF">
                         </div>
-                        <div class="col-md-2">
-                            <div class="form-group">
-                                <button type="button" class="btn btn-primary" id="btnBuscar" style="margin-top: 0;">
-                                    <span class="fa fa-search">&nbsp;</span>Buscar
-                                </button>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group" style="text-align: right;">
-                                <button type="button" class="btn btn-success" id="btnNuevaSolicitud" style="margin-top: 0;" title="">
-                                    <span class="fa fa-plus">&nbsp;</span>Registrar Nueva Solicitud
-                                </button>
-                                <small id="avisoHorarioCaptura" class="text-muted" style="display: block; margin-top: 5px;"></small>
-                            </div>
-                        </div>
+                    </div>
+                    <div class="ft-toolbar-sep" aria-hidden="true"></div>
+                    <div class="ft-toolbar-hint">
+                        <p>Muestra las solicitudes registradas en el rango de fechas. Cada retiro toma primero el devengo disponible del cliente y el resto de sus depósitos.</p>
+                        <small id="avisoHorarioCaptura" class="text-muted" style="display: block; margin-top: 5px;"></small>
+                    </div>
+                    <div class="ft-toolbar-actions">
+                        <button type="button" class="btn btn-success" id="btnNuevaSolicitud" title="">
+                            <i class="fa fa-plus"></i> Registrar Nueva Solicitud
+                        </button>
                     </div>
                 </div>
             </div>
-        </div>
-        <hr>
-        <div class="panel-body resultado">
-            <div class="row">
-                <table class="table table-striped table-bordered table-hover" id="tablaRetiros">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Crédito</th>
-                            <th>Cantidad Solicitada</th>
-                            <th>Fechas</th>
-                            <th>Estatus</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    </tbody>
-                </table>
+
+            <div class="resultado">
+                <div class="panel-card" style="overflow: visible;">
+                    <div class="head">
+                        <h4><i class="fa fa-money"></i> Solicitudes de retiro</h4>
+                        <div class="pgl-head-badges">
+                            <span class="ft-conteo" id="lblRegistros"></span>
+                        </div>
+                    </div>
+                    <div class="body">
+                        <div class="ppc-tabla">
+                            <table class="table table-striped table-bordered table-hover" id="tablaRetiros" style="width: 100%;">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Crédito</th>
+                                        <th>Cantidad Solicitada</th>
+                                        <th>Fechas</th>
+                                        <th>Estatus</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -85,6 +93,8 @@
                                     <div class="form-group" style="display: flex; gap: 10px;">
                                         <input type="text" class="form-control" id="cdgns_buscar" maxlength="6" placeholder="Ingrese el crédito" required>
                                         <input type="hidden" id="saldo_ahorro_disponible">
+                                        <input type="hidden" id="devengo_ahorro_disponible">
+                                        <input type="hidden" id="solo_devengo">
                                         <input type="hidden" id="nueva_cdgns">
                                         <input type="hidden" id="nueva_ciclo">
                                         <input type="hidden" id="aniversario_ahorro">
@@ -100,6 +110,41 @@
                                 <div class="form-group">
                                     <label>Cliente</label>
                                     <input type="text" class="form-control" id="nombre_cliente" readonly>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Saldo Disponible</label>
+                                    <input type="text" class="form-control" id="info_saldo_disponible" readonly>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Devengo Disponible</label>
+                                    <input type="text" class="form-control" id="info_devengo_disponible" readonly>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Retiro de Devengo</label>
+                                    <input type="text" class="form-control" id="info_retiro_devengo" readonly>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Retiro de Depósitos</label>
+                                    <input type="text" class="form-control" id="info_retiro_depositos" readonly>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row" id="aviso_solo_devengo" style="display: none;">
+                            <div class="col-md-12">
+                                <div class="alert alert-warning" style="padding: 8px;">
+                                    El cliente cuenta con un crédito adicional activo, solo puede retirar su devengo disponible.
                                 </div>
                             </div>
                         </div>
@@ -239,13 +284,25 @@
                                 </div>
                             </div>
                             <div class="row">
-                                <div class="col-md-6">
+                                <div class="col-md-3">
                                     <div class="form-group">
                                         <label>Cantidad Solicitada</label>
                                         <input type="text" class="form-control" id="detalle_cantidad_solicitada" readonly>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Retiro de Devengo</label>
+                                        <input type="text" class="form-control" id="detalle_monto_devengo" readonly>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Retiro de Depósitos</label>
+                                        <input type="text" class="form-control" id="detalle_monto_depositos" readonly>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
                                     <div class="form-group">
                                         <label>Estatus</label>
                                         <input type="text" class="form-control" id="detalle_estatus" readonly>

@@ -5761,9 +5761,17 @@ html;
                     })
                 }
 
+                const getOrigenRetiro = (devengo, depositos) => {
+                    devengo = parseFloat(devengo) || 0
+                    depositos = parseFloat(depositos) || 0
+                    if (devengo <= 0) return "<br/><small class='text-muted'>Depósitos</small>"
+                    if (depositos <= 0) return "<br/><small class='text-muted'>Devengo</small>"
+                    return "<br/><small class='text-muted' style='white-space: nowrap;'>Devengo: $ " + formatoMoneda(devengo) + "<br/>Depósitos: $ " + formatoMoneda(depositos) + "</small>"
+                }
+
                 const resultadoOK = (datos) => {
                     datos = datos.map((dato) => {
-                        dato.CANT_SOLICITADA = "$ " + formatoMoneda(dato.CANT_SOLICITADA)
+                        dato.CANT_SOLICITADA = "$ " + formatoMoneda(dato.CANT_SOLICITADA) + getOrigenRetiro(dato.MONTO_DEVENGO, dato.MONTO_DEPOSITOS)
                         const region = dato.REGION + " - " + dato.NOMBRE_REGION
                         const sucursal = dato.SUCURSAL + " - " + dato.NOMBRE_SUCURSAL
 
@@ -5781,6 +5789,7 @@ html;
                         ]
                     })
 
+                    $("#lblRegistros").text(datos.length + " registro(s)")
                     actualizaDatosTabla(idTabla, datos)
                     $(".resultado").toggleClass("conDatos", true)
                 }
@@ -5814,7 +5823,13 @@ html;
             </script>
         HTML;
 
-        View::set('header', $this->_contenedor->header(self::GetExtraHeader("Retiros Ahorro")));
+        $extraHeader = self::GetExtraHeader("Retiros Ahorro", [
+            '<link href="/css/folios-tarjeta.css" rel="stylesheet">',
+            '<link href="/css/pagos-con-gl.css" rel="stylesheet">',
+            '<link href="/css/aplicacion-pagos.css" rel="stylesheet">'
+        ]);
+
+        View::set('header', $this->_contenedor->header($extraHeader));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::render("ahorro_retiros");
     }
@@ -5834,6 +5849,8 @@ html;
             \PHPSpreadsheet::ColumnaExcel('NOMBRE_SUCURSAL', 'Sucursal'),
             \PHPSpreadsheet::ColumnaExcel('CDGNS', 'No. Crédito'),
             \PHPSpreadsheet::ColumnaExcel('CANT_SOLICITADA', 'Monto', ['estilo' => $estilos['moneda'], 'total' => true]),
+            \PHPSpreadsheet::ColumnaExcel('MONTO_DEVENGO', 'Devengo', ['estilo' => $estilos['moneda'], 'total' => true]),
+            \PHPSpreadsheet::ColumnaExcel('MONTO_DEPOSITOS', 'Depósitos', ['estilo' => $estilos['moneda'], 'total' => true]),
             \PHPSpreadsheet::ColumnaExcel('FECHA_CREACION', 'Fecha Registro', ['estilo' => $estilos['fecha_hora']]),
             \PHPSpreadsheet::ColumnaExcel('FECHA_SOLICITUD', 'Fecha Solicitud', ['estilo' => $estilos['fecha']]),
             \PHPSpreadsheet::ColumnaExcel('FECHA_ENTREGA', 'Fecha Entrega Programada', ['estilo' => $estilos['fecha']]),
@@ -5875,9 +5892,17 @@ html;
                     })
                 }
 
+                const getOrigenRetiro = (devengo, depositos) => {
+                    devengo = parseFloat(devengo) || 0
+                    depositos = parseFloat(depositos) || 0
+                    if (devengo <= 0) return "<br/><small class='text-muted'>Depósitos</small>"
+                    if (depositos <= 0) return "<br/><small class='text-muted'>Devengo</small>"
+                    return "<br/><small class='text-muted' style='white-space: nowrap;'>Devengo: $ " + formatoMoneda(devengo) + "<br/>Depósitos: $ " + formatoMoneda(depositos) + "</small>"
+                }
+
                 const resultadoOK = (datos) => {
                     datos = datos.map((dato) => {
-                        dato.CANT_SOLICITADA = "$ " + formatoMoneda(dato.CANT_SOLICITADA)
+                        dato.CANT_SOLICITADA = "$ " + formatoMoneda(dato.CANT_SOLICITADA) + getOrigenRetiro(dato.MONTO_DEVENGO, dato.MONTO_DEPOSITOS)
                         const acciones = [
                             {
                                 icono: "fa-eye",
@@ -5924,6 +5949,7 @@ html;
                         ]
                     })
 
+                    $("#lblRegistros").text(datos.length + " registro(s)")
                     actualizaDatosTabla(idTabla, datos)
                     $(".resultado").toggleClass("conDatos", true)
                 }
@@ -5999,6 +6025,9 @@ html;
                         $("#detalle_fecha_entrega").val(datos.FECHA_ENTREGA || "");
                         $("#detalle_fecha_entrega_real").val(datos.FECHA_ENTREGA_REAL || "");
                         $("#detalle_cantidad_solicitada").val("$" + formatoMoneda(datos.CANT_SOLICITADA || 0));
+                        const devengo = parseFloat(datos.MONTO_DEVENGO) || 0;
+                        $("#detalle_monto_devengo").val("$" + formatoMoneda(devengo));
+                        $("#detalle_monto_depositos").val("$" + formatoMoneda((parseFloat(datos.CANT_SOLICITADA) || 0) - devengo));
                         $("#detalle_estatus").val(datos.ESTATUS_ETIQUETA || "")
 
                         if (["C", "R"].includes(datos.ESTATUS)) {
@@ -6132,7 +6161,13 @@ html;
             </script>
         HTML;
 
-        View::set('header', $this->_contenedor->header(self::GetExtraHeader("Cancelar Solicitudes de Retiro")));
+        $extraHeader = self::GetExtraHeader("Cancelar Solicitudes de Retiro", [
+            '<link href="/css/folios-tarjeta.css" rel="stylesheet">',
+            '<link href="/css/pagos-con-gl.css" rel="stylesheet">',
+            '<link href="/css/aplicacion-pagos.css" rel="stylesheet">'
+        ]);
+
+        View::set('header', $this->_contenedor->header($extraHeader));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::render("ahorro_consulta_admin");
     }

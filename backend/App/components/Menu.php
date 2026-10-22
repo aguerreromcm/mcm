@@ -105,6 +105,7 @@ class Menu
         return [
             $this->enlace('Alta Contrato', '/AhorroSimple/Contrato/', ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'QARO', 'MAPH']),
             $this->enlace('Estado de Cuenta Ahorro', '/AhorroSimple/EstadoCuenta/', ['ADMIN', 'CAJA', 'CPAGO', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'LGFR', 'MGJC', 'MAPH']),
+            $this->enlace('Reporte Devengos Ahorro', '/AhorroSimple/ReporteDevengos/', ['ADMIN', 'CAJA', 'CPAGO', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'LGFR', 'MGJC', 'MAPH']),
             $this->enlace('Valida Crédito Adicional', '/AhorroSimple/ValidaAdicional/', ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'MGJC', 'MAPH']),
             $this->enlace('Agregar Exepciones MXT', '/AhorroSimple/ExepcionesMXT/', ['ADMIN', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'MGJC', 'MAPH']),
             $this->enlace('Solicitudes Retiro', '/AhorroConsulta/', ['ADMIN', 'AMOCA', 'VAOY', 'TOOA', 'HTMP', 'JUJG', 'MGJC', 'MAPH']),
