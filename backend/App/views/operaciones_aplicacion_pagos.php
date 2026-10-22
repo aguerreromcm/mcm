@@ -100,6 +100,7 @@
                                     <i class="fa fa-check"></i>
                                     <span>Importar y conciliar</span>
                                 </button>
+                                <p class="pgl-money-note ppc-seleccion" id="lblSeleccion"></p>
                             </div>
                         </div>
 
@@ -107,6 +108,9 @@
                             <table class="table table-striped table-bordered table-hover" id="tablaPendientes" style="width: 100%;">
                                 <thead>
                                     <tr>
+                                        <th class="ppc-col-sel" data-orderable="false">
+                                            <input type="checkbox" id="chkTodosPendientes" title="Seleccionar todos">
+                                        </th>
                                         <th>Fecha</th>
                                         <th>Crédito</th>
                                         <th>Ciclo</th>
