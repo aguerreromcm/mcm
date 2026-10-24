@@ -3,6 +3,7 @@
 namespace App\components;
 
 use App\config\FtpExplorerConfig;
+use Core\App;
 
 /**
  * Clase Menu
@@ -356,9 +357,13 @@ class Menu
 
     private function ValidaPermisos($permisos)
     {
-        if (in_array('*', $permisos, true)) {
-            return true;
+        if (in_array('*', $permisos, true)) return true;
+
+        $config = parse_ini_file(dirname(__DIR__) . '/../app/config/configuracion.ini');
+        if (isset($config['EXCEPCIONES'])) {
+            if (in_array(array_map('trim', explode(',',$config['EXCEPCIONES'])), $permisos)) return true;
         }
+
         return in_array($this->perfil, $permisos) || in_array($this->usuario, $permisos);
     }
 }

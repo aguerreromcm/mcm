@@ -13,59 +13,107 @@ class JobsAhorro extends Model
     public static function GetCuentasAhorro($fecha)
     {
         $qry = <<<SQL
-            SELECT Y.CDGNS
-                , Y.TASA
-                , TO_CHAR(Y.INICIO, 'YYYY-MM-DD') AS INICIO
-                , TO_CHAR(Y.ANIVERSARIO - 1, 'YYYY-MM-DD') AS FIN
-                , Y.ANIVERSARIO - Y.INICIO AS DIAS
-            FROM (
-                SELECT X.CDGNS
-                    , X.TASA
-                    , X.INICIO
-                    -- Restar y sumar un día evita que ADD_MONTHS recorra los fines de mes (28/02 -> 29/02)
-                    , ADD_MONTHS(X.INICIO - 1, 12) + 1 AS ANIVERSARIO
-                FROM (
-                    SELECT CA.CDGNS
-                        , CA.TASA_ANUAL AS TASA
-                        , GREATEST(
-                            PD.PRIMER_DEPOSITO
-                            , NVL(AJ.ULTIMO_AJUSTE, PD.PRIMER_DEPOSITO)
-                            , NVL(RA.ULTIMO_RETIRO, PD.PRIMER_DEPOSITO)
-                            , NVL(IA.ULTIMO_INTERES, PD.PRIMER_DEPOSITO)
-                        ) + 1 AS INICIO
-                    FROM CONTRATOS_AHORRO CA
-                        INNER JOIN (
-                            SELECT CDGNS, MIN(TRUNC(FECHA)) AS PRIMER_DEPOSITO
-                            FROM PAGOSDIA
-                            WHERE ESTATUS = 'A'
-                                AND TIPO IN ('B', 'F', 'E')
-                            GROUP BY CDGNS
-                        ) PD ON PD.CDGNS = CA.CDGNS
-                        LEFT JOIN (
-                            SELECT CDGNS, MAX(TRUNC(FECHA)) AS ULTIMO_AJUSTE
-                            FROM PAGOSDIA
-                            WHERE ESTATUS = 'A'
-                                AND TIPO = 'A'
-                            GROUP BY CDGNS
-                        ) AJ ON AJ.CDGNS = CA.CDGNS
-                        LEFT JOIN (
-                            SELECT CDGNS, MAX(TRUNC(FECHA_ENTREGA_REAL)) AS ULTIMO_RETIRO
-                            FROM RETIROS_AHORRO
-                            WHERE ESTATUS = 'E'
-                                -- Los retiros que solo toman devengo no reinician el periodo
-                                AND CANT_SOLICITADA > MONTO_DEVENGO
-                            GROUP BY CDGNS
-                        ) RA ON RA.CDGNS = CA.CDGNS
-                        LEFT JOIN (
-                            SELECT CDGNS, MAX(FECHA_FIN) AS ULTIMO_INTERES
-                            FROM INTERES_AHORRO
-                            WHERE ESTATUS = 'A'
-                            GROUP BY CDGNS
-                        ) IA ON IA.CDGNS = CA.CDGNS
-                ) X
-            ) Y
-            WHERE Y.ANIVERSARIO <= TO_DATE(:fecha, 'YYYY-MM-DD')
-            ORDER BY Y.CDGNS
+            WITH MOVIMIENTOS AS (
+                SELECT CDGNS
+                    ,FECHA + 1 AS FECHA
+                    ,'D' AS TIPO
+                    ,MONTO
+                FROM PAGOSDIA
+                WHERE ESTATUS = 'A'
+                    AND TIPO IN (
+                        'B'
+                        ,'F'
+                        ,'E'
+                    )
+                UNION
+                SELECT CDGNS
+                    ,FECHA_ENTREGA_REAL + 1
+                    ,'R' AS TIPO
+                    ,- CANT_SOLICITADA
+                FROM RETIROS_AHORRO
+                WHERE ESTATUS = 'E'
+                    AND FECHA_ENTREGA_REAL IS NOT NULL
+                    AND CANT_SOLICITADA > MONTO_DEVENGO
+                UNION
+                SELECT CDGNS
+                    ,FECHA_FIN + 1
+                    ,'I' AS TIPO
+                    ,MONTO
+                FROM INTERES_AHORRO
+                WHERE ESTATUS = 'A'
+            ),
+            MOVIMIENTOS_ACUMULADOS AS (
+                SELECT CDGNS
+                    ,TIPO
+                    ,MONTO
+                    ,FECHA
+                    ,SUM(MONTO) OVER (
+                        PARTITION BY CDGNS ORDER BY FECHA
+                        ) AS ACUMULADO
+                FROM MOVIMIENTOS
+                ORDER BY CDGNS
+                    ,FECHA
+            ),
+            FECHAS_INICIALES AS (
+                SELECT MA.CDGNS
+                    ,MIN(CASE 
+                            WHEN MA.TIPO = 'D'
+                                THEN MA.FECHA
+                            END) AS PRIMER_DEPOSITO
+                    ,MAX(CASE 
+                            WHEN MA.TIPO = 'R'
+                                THEN MA.FECHA
+                            END) AS ULTIMO_RETIRO
+                    ,MAX(CASE 
+                            WHEN MA.TIPO = 'I'
+                                THEN MA.FECHA
+                            END) AS ULTIMO_INTERES
+                    ,MAX(CASE 
+                            WHEN TIPO = 'R'
+                                AND ACUMULADO = 0
+                                THEN FECHA
+                            END) AS ULTIMO_RETIRO_TOTAL
+                FROM MOVIMIENTOS_ACUMULADOS MA
+                GROUP BY CDGNS
+            ),
+            FECHAS_FINALES AS (
+                SELECT
+                    FI.CDGNS
+                    , (
+                            SELECT MIN(M.FECHA)
+                            FROM MOVIMIENTOS_ACUMULADOS M
+                            WHERE M.CDGNS = FI.CDGNS
+                            AND M.TIPO = 'D'
+                            AND M.FECHA > FI.ULTIMO_RETIRO_TOTAL
+                            ) AS REINICIO
+                    , GREATEST(
+                        NVL((
+                            SELECT MIN(M.FECHA)
+                            FROM MOVIMIENTOS_ACUMULADOS M
+                            WHERE M.CDGNS = FI.CDGNS
+                            AND M.TIPO = 'D'
+                            AND M.FECHA > FI.ULTIMO_RETIRO_TOTAL
+                            ),
+                            FI.PRIMER_DEPOSITO
+                        )
+                        , NVL(FI.ULTIMO_RETIRO, FI.PRIMER_DEPOSITO)
+                        , NVL(FI.ULTIMO_INTERES, FI.PRIMER_DEPOSITO)
+                    ) AS INICIO
+                FROM FECHAS_INICIALES FI
+            )
+            SELECT CA.CDGNS
+                ,CA.TASA_ANUAL AS TASA
+                , FI.PRIMER_DEPOSITO
+                , FI.ULTIMO_RETIRO
+                , FI.ULTIMO_INTERES
+                , FF.REINICIO
+                , TO_CHAR(FF.INICIO, 'YYYY-MM-DD') AS INICIO
+                , TO_CHAR(ADD_MONTHS(FF.INICIO - 1, 12), 'YYYY-MM-DD') AS FIN
+                , ADD_MONTHS(FF.INICIO, 12) - FF.INICIO AS DIAS
+            FROM CONTRATOS_AHORRO CA
+            INNER JOIN FECHAS_INICIALES FI ON FI.CDGNS = CA.CDGNS
+            INNER JOIN FECHAS_FINALES FF ON FF.CDGNS = CA.CDGNS
+            WHERE ADD_MONTHS(FF.INICIO - 1, 12) <= TO_DATE(:fecha, 'YYYY-MM-DD')
         SQL;
 
         try {

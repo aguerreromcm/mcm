@@ -10,8 +10,6 @@ use Jobs\models\JobsAhorro as JobsDao;
 
 class JobsAhorro extends Job
 {
-    const BASE_DIAS = 365;
-
     public function __construct()
     {
         parent::__construct("JobsAhorro");
@@ -33,8 +31,8 @@ class JobsAhorro extends Job
                 "cdgns" => $cuenta["CDGNS"],
                 "desde" => $cuenta["INICIO"],
                 "hasta" => $cuenta["FIN"],
-                "tasa" => $cuenta["TASA"],
-                "base" => self::BASE_DIAS,
+                "tasa"  => $cuenta["TASA"],
+                "base"  => $cuenta["DIAS"],
             ];
 
             $res = JobsDao::RegistraDevengos($datos);
