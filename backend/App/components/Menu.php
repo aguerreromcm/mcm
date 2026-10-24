@@ -27,12 +27,20 @@ class Menu
     /** @var bool Mostrar menú Herramientas (según config) */
     private $mostrarHerramientas;
 
+    /** @var array Permisos para el entorno de pruebas */
+    private $permisosPruebas;
+
     public function __construct($_perfil, $_usuario, $_ahorro, $mostrarHerramientas = false)
     {
         $this->perfil = $_perfil;
         $this->usuario = $_usuario;
         $this->ahorro = $_ahorro;
         $this->mostrarHerramientas = (bool) $mostrarHerramientas;
+
+        $config = App::getConfig();
+        if (isset($config['EXCEPCIONES'])) {
+            $this->permisosPruebas = array_map('trim', explode(',', $config['EXCEPCIONES'])) ?? [];
+        }
     }
 
     /**
@@ -359,10 +367,7 @@ class Menu
     {
         if (in_array('*', $permisos, true)) return true;
 
-        $config = parse_ini_file(dirname(__DIR__) . '/../app/config/configuracion.ini');
-        if (isset($config['EXCEPCIONES'])) {
-            if (in_array(array_map('trim', explode(',',$config['EXCEPCIONES'])), $permisos)) return true;
-        }
+        if (in_array($this->permisosPruebas, $permisos)) return true;
 
         return in_array($this->perfil, $permisos) || in_array($this->usuario, $permisos);
     }
