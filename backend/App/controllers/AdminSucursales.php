@@ -3250,12 +3250,13 @@ script;
             \PHPSpreadsheet::ColumnaExcel('EJECUTIVO_NOMBRE', 'Nombre ejecutivo'),
             \PHPSpreadsheet::ColumnaExcel('APERTURA', 'Apertura'),
             \PHPSpreadsheet::ColumnaExcel('TASA', 'Tasa'),
-            \PHPSpreadsheet::ColumnaExcel('INTERES', 'Interés', ['estilo' => $estilos['moneda'], 'total' => true]),
+            \PHPSpreadsheet::ColumnaExcel('INTERES', 'Devengo', ['estilo' => $estilos['moneda'], 'total' => true]),
             \PHPSpreadsheet::ColumnaExcel('ABONOS', 'Abonos', ['estilo' => $estilos['moneda'], 'total' => true]),
             \PHPSpreadsheet::ColumnaExcel('AJUSTES', 'Ajustes', ['estilo' => $estilos['moneda'], 'total' => true]),
             \PHPSpreadsheet::ColumnaExcel('RETIROS', 'Retiros', ['estilo' => $estilos['moneda'], 'total' => true]),
+            \PHPSpreadsheet::ColumnaExcel('DEVENGO_RETIRADO', 'Devengo retirado', ['estilo' => $estilos['moneda'], 'total' => true]),
             \PHPSpreadsheet::ColumnaExcel('SALDO_ACTUAL', 'Saldo actual', ['estilo' => $estilos['moneda'], 'total' => true]),
-            \PHPSpreadsheet::ColumnaExcel('TRANSITO', 'Tránsito', ['estilo' => $estilos['moneda'], 'total' => true]),
+            \PHPSpreadsheet::ColumnaExcel('TRANSITO', 'Retiros en tránsito', ['estilo' => $estilos['moneda'], 'total' => true]),
         ];
 
         $filas = AdminSucursalesDao::GetDetalleReporteAhorro($_GET);
