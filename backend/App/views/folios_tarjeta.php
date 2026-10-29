@@ -3,6 +3,7 @@ $creditoInicial = isset($credito) ? (string) $credito : '';
 $catalogoSucursalesJson = isset($catalogoSucursalesJson) ? (string) $catalogoSucursalesJson : '[]';
 $fechaMesHtml = isset($fechaMes) ? (string) $fechaMes : date('Y-m-01');
 $fechaHoyHtml = isset($fechaHoy) ? (string) $fechaHoy : date('Y-m-d');
+$diasPlazoHtml = isset($diasPlazoTarjeta) ? (int) $diasPlazoTarjeta : 5;
 echo $header;
 ?>
 
@@ -16,8 +17,8 @@ echo $header;
 
             <p class="text-muted ft-descripcion">
                 Consulte el histórico de Tarjetas de Pagos de un crédito y registre, cambie o agregue tarjetas.
-                Si una tarjeta se registró en el crédito equivocado, puede reasignarla a otro crédito dentro de los
-                7 días posteriores a su registro.
+                Si una tarjeta se registró por error, puede reasignarla a otro crédito o eliminarla dentro de los
+                <?php echo $diasPlazoHtml; ?> días posteriores a su registro.
             </p>
 
             <div class="panel-card ft-toolbar">
@@ -210,6 +211,35 @@ echo $header;
     </div>
 </div>
 
+<div class="modal fade" id="modal_elimina_tarjeta" tabindex="-1" role="dialog" aria-labelledby="modalEliminaTarjetaTitle">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">&times;</button>
+                <h4 class="modal-title" id="modalEliminaTarjetaTitle">Eliminar Tarjeta de Pagos</h4>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="idFolioElimina" value="">
+                <div class="ft-credito-modal" id="resumenModalElimina"></div>
+                <p class="text-muted">
+                    La tarjeta dejará de estar vigente en este crédito y el folio podrá registrarse en otro crédito.
+                    El movimiento queda en el histórico.
+                </p>
+                <div class="form-group">
+                    <label for="motivoElimina">Motivo *</label>
+                    <textarea class="form-control" id="motivoElimina" rows="3" maxlength="4000" placeholder="Ej. tarjeta registrada por error del ejecutivo"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="btnGuardarElimina">
+                    <i class="fa fa-trash"></i> Eliminar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade ft-modal" id="modal_filtros_historico" tabindex="-1" role="dialog" aria-labelledby="modalFiltrosHistoricoTitle">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
@@ -253,6 +283,7 @@ echo $header;
                             <option value="CAMBIO">Cambio</option>
                             <option value="ADICIONAL">Adicional</option>
                             <option value="REASIGNACION">Reasignación</option>
+                            <option value="ELIMINACION">Eliminación</option>
                         </select>
                     </div>
                 </div>
@@ -326,13 +357,15 @@ var ETIQUETA_MOV = {
     ALTA: 'Alta',
     CAMBIO: 'Cambio',
     ADICIONAL: 'Adicional',
-    REASIGNACION: 'Reasignación'
+    REASIGNACION: 'Reasignación',
+    ELIMINACION: 'Eliminación'
 };
 
 var CLASE_MOV = {
     CAMBIO: 'badge-mov-cambio',
     ADICIONAL: 'badge-mov-adicional',
-    REASIGNACION: 'badge-mov-reasigna'
+    REASIGNACION: 'badge-mov-reasigna',
+    ELIMINACION: 'badge-mov-elimina'
 };
 
 function escHtml(valor) {
@@ -407,11 +440,15 @@ function celdaMovimiento(f) {
     if (f.CREDITO_DESTINO) {
         html += '<span class="celda-secundaria">Reasignada al crédito ' + escHtml(f.CREDITO_DESTINO) + '</span>';
     }
-    if (f.ID_USUARIO_ORIGINAL) {
-        html += '<span class="celda-secundaria">Registro original: ' + escHtml(f.ID_USUARIO_ORIGINAL)
-            + ' · ' + escHtml(f.FECHA_ORIGINAL) + '</span>';
-    }
     return html;
+}
+
+function celdaEstado(f) {
+    if (f.ACTIVO === 'S') return '<span class="badge-vigente">Vigente</span>';
+    if (String(f.TIPO_MOV || '').toUpperCase() === 'ELIMINACION') {
+        return '<span class="badge-eliminada">Eliminada</span>';
+    }
+    return '<span class="badge-historico">Histórico</span>';
 }
 
 function celdaUsuario(idUsuario, nombreUsuario) {
@@ -457,7 +494,10 @@ function pintarFoliosActivos() {
             $item.append(
                 $('<button type="button" class="btn btn-default btn-xs ft-btn-reasignar" title="Reasignar a otro crédito">')
                     .attr('data-id', f.ID)
-                    .html('<i class="fa fa-share"></i> Reasignar')
+                    .html('<i class="fa fa-share"></i> Reasignar'),
+                $('<button type="button" class="btn btn-default btn-xs ft-btn-eliminar" title="Eliminar Tarjeta de Pagos registrada por error">')
+                    .attr('data-id', f.ID)
+                    .html('<i class="fa fa-trash"></i> Eliminar')
             );
         }
         $lista.append($item);
@@ -521,9 +561,7 @@ function pintarResultado(datos) {
     var bodyHist = $('#tablaHistorico tbody');
     bodyHist.empty();
     (datos.historico || []).forEach(function (f) {
-        var estado = f.ACTIVO === 'S'
-            ? '<span class="badge-vigente">Vigente</span>'
-            : '<span class="badge-historico">Histórico</span>';
+        var estado = celdaEstado(f);
         bodyHist.append(
             '<tr>'
             + '<td class="celda-principal">' + escHtml(f.CICLO) + '</td>'
@@ -707,6 +745,53 @@ function guardarReasigna() {
     });
 }
 
+function abrirModalElimina(idFolio) {
+    var tarjeta = null;
+    foliosActivos.forEach(function (f) {
+        if (String(f.ID) === String(idFolio)) tarjeta = f;
+    });
+    if (!tarjeta) {
+        return showWarning('La Tarjeta de Pagos ya no está vigente.');
+    }
+
+    $('#idFolioElimina').val(tarjeta.ID);
+    $('#motivoElimina').val('');
+    $('#resumenModalElimina').html(
+        '<strong>Folio:</strong> ' + escHtml(tarjeta.FOLIO)
+        + '<br><strong>Crédito:</strong> ' + escHtml(creditoActual)
+        + ' · Ciclo ' + escHtml(tarjeta.CICLO)
+        + '<br><strong>Registró:</strong> ' + escHtml(tarjeta.USUARIO || tarjeta.ID_USUARIO || 'N/D')
+        + ' · ' + escHtml(tarjeta.FECHA)
+    );
+
+    $('#modal_elimina_tarjeta').modal('show');
+    window.setTimeout(function () { $('#motivoElimina').focus(); }, 300);
+}
+
+function guardarElimina() {
+    var motivo = $('#motivoElimina').val().trim();
+    if (motivo === '') return showWarning('Capture el motivo de la eliminación.');
+
+    var payload = {
+        id_folio: $('#idFolioElimina').val(),
+        motivo: motivo
+    };
+
+    confirmarMovimiento(
+        'Eliminar Tarjeta de Pagos',
+        '¿Confirma eliminar la Tarjeta de Pagos del crédito ' + creditoActual + '?'
+    ).then(function (continuar) {
+        if (!continuar) return;
+        consultaServidor('/Creditos/EliminarFolioTarjeta/', payload, function (resultado) {
+            if (!resultado.success) return showError(resultado.mensaje);
+            $('#modal_elimina_tarjeta').modal('hide');
+            showSuccess(resultado.mensaje).then(function () {
+                buscarFolios(creditoActual);
+            });
+        });
+    });
+}
+
 function abrirModalHistoricoGeneral() {
     $('#modal_filtros_historico').modal('show');
 }
@@ -825,9 +910,7 @@ function pintarHistoricoGeneral(filas, filtros) {
     $body.empty();
 
     (filas || []).forEach(function (f) {
-        var estado = (f.ACTIVO === 'S' || f.ESTADO === 'Vigente')
-            ? '<span class="badge-vigente">Vigente</span>'
-            : '<span class="badge-historico">Histórico</span>';
+        var estado = celdaEstado(f);
         $body.append(
             '<tr>'
             + '<td class="celda-principal">' + escHtml(f.NO_CREDITO) + '</td>'
@@ -908,6 +991,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
     $('#btnGuardarReasigna').on('click', guardarReasigna);
+    $('#listaFoliosActivos').on('click', '.ft-btn-eliminar', function () {
+        abrirModalElimina($(this).attr('data-id'));
+    });
+    $('#btnGuardarElimina').on('click', guardarElimina);
     $('#btnHistoricoGeneral').on('click', abrirModalHistoricoGeneral);
     $('#btnConsultarHistoricoGeneral').on('click', consultarHistoricoGeneral);
     $('#btnExcelHistoricoGeneral').on('click', excelHistoricoGeneral);
