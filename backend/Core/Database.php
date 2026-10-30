@@ -23,7 +23,7 @@ class Database
 
     private function Conecta($s = null, $u = null, $p = null)
     {
-        $s = $this->configuracion[$s] ?? $s;
+        if ($s !== null) $s = $this->configuracion[$s] ?? $s;
         $servidor = $s ?? $this->configuracion['SERVIDOR'];
         $esquema = $this->configuracion['ESQUEMA'] ?? 'ESIACOM';
 
@@ -240,6 +240,7 @@ class Database
     public function EjecutaSP($sp, $parametros)
     {
         try {
+            $sp = (strpos($sp, 'CALL ') === false ? 'CALL ' : '') . $sp;
             $stmt = $this->db_activa->prepare($sp);
 
             foreach ($parametros as $key => $value) {

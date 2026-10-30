@@ -1640,124 +1640,57 @@ class JobsCredito extends Model
         }
     }
 
-    public static function CierreDia($datos)
+    public static function ResultadoCierreDia(string $fecha, string $proceso): ?array
     {
-        $fecha = isset($datos['fecha']) ? trim((string) $datos['fecha']) : '';
-        $usuario = isset($datos['usuario']) ? trim((string) $datos['usuario']) : '';
-        $regenerar = !empty($datos['regenerar']);
-
-        $sp = "CALL SP_PAGOS_CIERRE_DEVENGO(TO_DATE(:fecha, 'YYYY-MM-DD'), :usuario, :output)";
-
-        // ID_IMPORTACION se reutiliza entre intentos. ORDER BY la columna DATE (b.INICIO),
-        // nunca el alias TO_CHAR DD/MM (ordenaría 24/07 encima de 11/08).
         $qry = <<<SQL
             SELECT
-                TO_CHAR(b.FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CALCULO
-                ,b.USUARIO
-                ,TO_CHAR(b.INICIO, 'DD/MM/YYYY HH24:MI') AS INICIO
-                ,TO_CHAR(b.FIN, 'DD/MM/YYYY HH24:MI') AS FIN
-                ,b.EXITO
-                ,b.ID_IMPORTACION
-                ,b.ID_PROCESO
-                ,b.MENSAJE
-                ,b.CIERRE_REGISTROS
-                ,b.DEVENGO_REGISTROS
-                ,b.DEVENGO_MONTO
-                ,TO_CHAR(b.FECHA_CALCULO + 1, 'DD/MM/YYYY') AS DEVENGO_FECHA
-            FROM
-                BITACORA_CIERRE_DIARIO b
+                TO_CHAR(b.FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CALCULO,
+                b.USUARIO,
+                TO_CHAR(b.INICIO, 'DD/MM/YYYY HH24:MI') AS INICIO,
+                TO_CHAR(b.FIN, 'DD/MM/YYYY HH24:MI') AS FIN,
+                NVL(b.EXITO, 0) AS EXITO,
+                b.ID_IMPORTACION,
+                b.ID_PROCESO,
+                b.MENSAJE,
+                b.CIERRE_REGISTROS,
+                b.DEVENGO_REGISTROS,
+                b.DEVENGO_MONTO,
+                TO_CHAR(b.FECHA_CALCULO + 1, 'DD/MM/YYYY') AS DEVENGO_FECHA
+            FROM BITACORA_CIERRE_DIARIO b
             WHERE TRUNC(b.FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
-              AND b.ID_IMPORTACION IS NOT NULL
+              AND b.FIN IS NOT NULL
+              AND b.ID_PROCESO = :proceso
             ORDER BY b.INICIO DESC NULLS LAST
             FETCH FIRST 1 ROW ONLY
         SQL;
 
-        $parametros = [
-            'fecha' => $fecha,
-            'usuario' => $usuario
-        ];
-
         try {
-            $db = new Database();
-            $abierto = $db->queryOne("
-                SELECT COUNT(*) AS TOTAL
-                FROM BITACORA_CIERRE_DIARIO
-                WHERE FIN IS NULL
-                  AND ID_IMPORTACION IS NOT NULL
-            ");
-            if ($abierto && (int) ($abierto['TOTAL'] ?? 0) > 0) {
-                return self::Responde(false, 'Ya hay un cierre en ejecución.', null, 'Concurrencia SP');
-            }
-
-            if ($regenerar) {
-                // Devengo del cierre X se guarda en FECHA_CALC = X+1. TBL_CIERRE_DIA usa la fecha de cierre.
-                $fechaDevengo = date('Y-m-d', strtotime($fecha . ' +1 day'));
-                $sqlRegen = <<<PLSQL
-                    BEGIN
-                    DELETE FROM DEVENGO_DIARIO d
-                    WHERE TRUNC(d.FECHA_CALC) = TO_DATE(:f1, 'YYYY-MM-DD');
-                    DELETE FROM TBL_CIERRE_DIA t
-                    WHERE TRUNC(t.FECHA_CALC) = TO_DATE(:f2, 'YYYY-MM-DD');
-                    END;
-                PLSQL;
-                $db->db_activa->prepare($sqlRegen)->execute(['f1' => $fechaDevengo, 'f2' => $fecha]);
-            }
-
-            $db->EjecutaSP($sp, $parametros);
-            $res = $db->queryOne($qry, ['fecha' => $fecha]);
-            if (!$res) {
-                return self::Responde(false, 'Error en el proceso', null, 'No se encontró bitácora del SP para la fecha.');
-            }
-
-            $finTxt = trim((string) ($res['FIN'] ?? ''));
-            if ($finTxt === '' && (int) ($res['EXITO'] ?? 0) === 1) {
-                $db->db_activa->prepare(<<<SQL
-                    UPDATE BITACORA_CIERRE_DIARIO b
-                    SET b.FIN = SYSDATE
-                    WHERE TRUNC(b.FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
-                      AND b.ID_IMPORTACION IS NOT NULL
-                      AND b.FIN IS NULL
-                SQL)->execute(['fecha' => $fecha]);
-                $res = $db->queryOne($qry, ['fecha' => $fecha]);
-            }
-
-            return ((int) ($res['EXITO'] ?? 0) === 1) ?
-                self::Responde(true, 'Proceso exitoso', $res) :
-                self::Responde(false, 'Error en el proceso', $res);
+            $r = (new Database())->queryOne($qry, ['fecha' => $fecha, 'proceso' => $proceso]);
+            return is_array($r) ?
+                self::Responde(true, "Datos de cierre obtenidos", $r) :
+                self::Responde(false, "Datos de cierre no encontrados");
         } catch (\Throwable $e) {
-            return self::Responde(false, 'Error al ejecutar el SP de cierre de día.', null, $e->getMessage());
+            return self::Responde(false, "Datos de cierre no encontrados", null, $e->getMessage());
         }
     }
 
-    /**
-     * Libera candado PHP: filas abiertas sin ID_IMPORTACION (creadas por la app antes del Job).
-     *
-     * @param string $fecha Y-m-d
-     * @param int $exito
-     * @return bool
-     */
-    public static function CerrarCandadoCierreDia($fecha, $exito = 0)
+    public static function CierreDia($datos)
     {
-        $fecha = trim((string) $fecha);
-        if ($fecha === '') {
-            return false;
-        }
-
-        $qry = <<<SQL
-            UPDATE BITACORA_CIERRE_DIARIO
-            SET FIN = SYSDATE, EXITO = :exito
-            WHERE TRUNC(FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
-              AND FIN IS NULL
-              AND ID_IMPORTACION IS NULL
-        SQL;
-
         try {
             $db = new Database();
-            $stmt = $db->db_activa->prepare($qry);
-            $stmt->execute(['fecha' => $fecha, 'exito' => (int) $exito]);
-            return true;
-        } catch (\Exception $e) {
-            return false;
+            $abierto = $db->queryOne('SELECT COUNT(*) AS TOTAL FROM BITACORA_CIERRE_DIARIO WHERE FIN IS NULL');
+            if ($abierto && (int) ($abierto['TOTAL'] ?? 0) > 0)
+                return self::Responde(false, 'Ya hay un cierre en ejecución.', null, 'Concurrencia SP');
+
+            $fecha = isset($datos['fecha']) ? trim((string) $datos['fecha']) : '';
+            $usuario = isset($datos['usuario']) ? trim((string) $datos['usuario']) : '';
+
+            $sp = "CALL SP_PAGOS_CIERRE_DEVENGO(TO_DATE(:fecha, 'YYYY-MM-DD'), :usuario, :output)";
+
+            $id_proceso = $db->EjecutaSP($sp, ['fecha' => $fecha, 'usuario' => $usuario]);
+            return self::ResultadoCierreDia($fecha, $id_proceso);
+        } catch (\Throwable $e) {
+            return self::Responde(false, 'Error al ejecutar el SP de cierre de día.', null, $e->getMessage());
         }
     }
 
@@ -1779,14 +1712,15 @@ class JobsCredito extends Model
         SQL;
 
         $det = <<<SQL
-            SELECT SUM(CASE WHEN ESTATUS = 1 THEN NO_REGISTROS ELSE 0 END) AS PAGOS_REGISTROS,
-                 SUM(CASE WHEN ESTATUS = 1 THEN MONTO ELSE 0 END) AS PAGOS_MONTO,
-                 SUM(CASE WHEN ESTATUS = 2 THEN NO_REGISTROS ELSE 0 END) AS GARANTIAS_REGISTROS,
-                 SUM(CASE WHEN ESTATUS = 2 THEN MONTO ELSE 0 END) AS GARANTIAS_MONTO,
-                 SUM(CASE WHEN ESTATUS = 3 THEN NO_REGISTROS ELSE 0 END) AS INCIDENCIAS_REGISTROS,
-                 SUM(CASE WHEN ESTATUS = 3 THEN MONTO ELSE 0 END) AS INCIDENCIAS_MONTO
-            FROM IMPORTACIONPAGDET
-            WHERE ID_IMPORTACION = :id_importacion
+            SELECT SUM(DECODE(VALIDACION, 0, 1, 0)) AS PAGOS_REGISTROS
+                , SUM(DECODE(VALIDACION, 0, MONTO, 0)) AS PAGOS_MONTO
+                , SUM(DECODE(VALIDACION, 1, 1, 0)) AS GARANTIAS_REGISTROS
+                , SUM(DECODE(VALIDACION, 1, MONTO, 0)) AS GARANTIAS_MONTO
+                , SUM(DECODE(VALIDACION, 2, 1, 0)) AS INCIDENCIAS_REGISTROS
+                , SUM(DECODE(VALIDACION, 2, MONTO, 0)) AS INCIDENCIAS_MONTO
+            FROM RES_IMPOR
+            WHERE IDENTIFICADOR = :id_proceso
+            AND CTABANCARIA <> '12'
         SQL;
 
         $mp = <<<SQL
@@ -1816,7 +1750,7 @@ class JobsCredito extends Model
         try {
             $db = new Database();
             $res_pagos = $db->queryOne($pagos, ['fecha' => $datos['FECHA_CALCULO']]);
-            $res_det = $db->queryOne($det, ['id_importacion' => $datos['ID_IMPORTACION']]);
+            $res_det = $db->queryOne($det, ['id_proceso' => $datos['ID_PROCESO']]);
             $res_mp = $db->queryOne($mp, ['fecha' => $datos['FECHA_CALCULO']]);
             $res_garantias = $db->queryOne($garantias, ['id_proceso' => $datos['ID_PROCESO']]);
 
