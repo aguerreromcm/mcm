@@ -980,10 +980,20 @@ sql;
                 SELECT RA.CDGNS AS CREDITO
                     , SUM(DECODE(RA.ESTATUS, 'E', 0, RA.CANT_SOLICITADA)) AS TRANSITO
                     , SUM(DECODE(RA.ESTATUS, 'E', RA.CANT_SOLICITADA, 0)) AS RETIROS
+                    , SUM(DECODE(RA.ESTATUS, 'E', RA.MONTO_DEVENGO, 0)) AS DEVENGO_RETIRADO
                 FROM RETIROS_AHORRO RA
-                WHERE RA.ESTATUS IN ('P', 'V', 'E')
-                    AND TRUNC(RA.FECHA_ENTREGA_REAL) <= TO_DATE('{$fechaCorte}', 'YYYY-MM-DD')
+                WHERE (RA.ESTATUS = 'E' AND TRUNC(RA.FECHA_ENTREGA_REAL) <= TO_DATE('{$fechaCorte}', 'YYYY-MM-DD'))
+                    -- Los pendientes y validados aún no tienen entrega real, se toman por su fecha de registro
+                    OR (RA.ESTATUS IN ('P', 'V') AND TRUNC(RA.FECHA_CREACION) <= TO_DATE('{$fechaCorte}', 'YYYY-MM-DD'))
                 GROUP BY RA.CDGNS
+            )
+            , INTERESES AS (
+                SELECT IA.CDGNS AS CREDITO
+                    , SUM(IA.MONTO) AS INTERES
+                FROM INTERES_AHORRO IA
+                WHERE IA.ESTATUS = 'A'
+                    AND IA.FECHA_FIN <= TO_DATE('{$fechaCorte}', 'YYYY-MM-DD')
+                GROUP BY IA.CDGNS
             )
             , BASE AS (
                 SELECT DT.CREDITO
@@ -998,17 +1008,19 @@ sql;
                     , DECODE(CA.FECHA_REGISTRO, NULL, 'SIN CONTRATO', TO_CHAR(CA.FECHA_REGISTRO, 'DD/MM/YYYY')) AS APERTURA
                     , CA.FECHA_REGISTRO AS FECHA_ORD
                     , CA.TASA_ANUAL AS TASA
-                    , 0 AS INTERES
+                    , NVL(IA.INTERES, 0) AS INTERES
+                    , NVL(RT.DEVENGO_RETIRADO, 0) AS DEVENGO_RETIRADO
                     , NVL(DP.ABONOS, 0) AS ABONOS
                     , NVL(DP.AJUSTES, 0) AS AJUSTES
                     , NVL(RT.RETIROS, 0) AS RETIROS
                     , NVL(RT.TRANSITO, 0) AS TRANSITO
-                    , NVL(DP.ABONOS, 0) - NVL(DP.AJUSTES, 0) - NVL(RT.RETIROS, 0) AS SALDO_ACTUAL
+                    , NVL(DP.ABONOS, 0) + NVL(IA.INTERES, 0) - NVL(DP.AJUSTES, 0) - NVL(RT.RETIROS, 0) AS SALDO_ACTUAL
                     , CASE WHEN CA.FECHA_REGISTRO IS NULL THEN 1 ELSE 0 END AS SIN_CONTRATO
                 FROM DATOS DT
                     LEFT JOIN CONTRATOS_AHORRO CA ON CA.CDGNS = DT.CREDITO
                     LEFT JOIN DEPOSITOS DP ON DP.CREDITO = DT.CREDITO
                     LEFT JOIN RETIROS RT ON RT.CREDITO = DT.CREDITO
+                    LEFT JOIN INTERESES IA ON IA.CREDITO = DT.CREDITO
                 WHERE DP.ABONOS IS NOT NULL
             )
             , CREDITO_AGG AS (
@@ -1028,6 +1040,7 @@ sql;
                     , MAX(TRANSITO) AS TRANSITO
                     , MAX(SALDO_ACTUAL) AS SALDO_ACTUAL
                     , MAX(INTERES) AS INTERES
+                    , MAX(DEVENGO_RETIRADO) AS DEVENGO_RETIRADO
                     , MAX(TASA) AS TASA
                     , MAX(SIN_CONTRATO) AS SIN_CONTRATO
                 FROM BASE
@@ -1061,6 +1074,7 @@ sql;
                 , APERTURA
                 , TASA
                 , INTERES
+                , DEVENGO_RETIRADO
                 , ABONOS
                 , AJUSTES
                 , RETIROS
@@ -1148,6 +1162,7 @@ sql;
                 , APERTURA
                 , TASA
                 , INTERES
+                , DEVENGO_RETIRADO
                 , ABONOS
                 , AJUSTES
                 , RETIROS
@@ -1222,6 +1237,7 @@ sql;
                 , (SELECT NVL(SUM(TRANSITO), 0) FROM CREDITO_AGG DT WHERE 1 = 1 {$filtroSucursal}) AS TRANSITO
                 , (SELECT NVL(SUM(SALDO_ACTUAL), 0) FROM CREDITO_AGG DT WHERE 1 = 1 {$filtroSucursal}) AS SALDO_ACTUAL
                 , (SELECT NVL(SUM(INTERES), 0) FROM CREDITO_AGG DT WHERE 1 = 1 {$filtroSucursal}) AS INTERES
+                , (SELECT NVL(SUM(DEVENGO_RETIRADO), 0) FROM CREDITO_AGG DT WHERE 1 = 1 {$filtroSucursal}) AS DEVENGO_RETIRADO
                 , (
                     SELECT CASE
                         WHEN NVL(SUM(CASE WHEN TASA IS NOT NULL AND SALDO_ACTUAL > 0 THEN SALDO_ACTUAL ELSE 0 END), 0) = 0 THEN 0
@@ -1243,8 +1259,10 @@ sql;
                 , NVL(SUCURSAL_NOMBRE, 'SIN SUCURSAL') AS SUCURSAL_NOMBRE
                 , COUNT(*) AS CONTRATOS
                 , NVL(SUM(ABONOS), 0) AS ABONOS
+                , NVL(SUM(INTERES), 0) AS INTERES
                 , NVL(SUM(AJUSTES), 0) AS AJUSTES
                 , NVL(SUM(RETIROS), 0) AS RETIROS
+                , NVL(SUM(DEVENGO_RETIRADO), 0) AS DEVENGO_RETIRADO
                 , NVL(SUM(SALDO_ACTUAL), 0) AS SALDO_ACTUAL
             FROM CREDITO_AGG DT
             WHERE 1 = 1
@@ -1297,10 +1315,12 @@ sql;
             SELECT PERIODO
                 , SUM(ABONOS) AS ABONOS
                 , SUM(RETIROS) AS RETIROS
+                , SUM(INTERESES) AS INTERESES
             FROM (
                 SELECT TO_CHAR(PD.FECHA, 'YYYY-MM') AS PERIODO
                     , SUM(DECODE(PD.TIPO, 'A', 0, PD.MONTO)) AS ABONOS
                     , 0 AS RETIROS
+                    , 0 AS INTERESES
                 FROM PAGOSDIA PD
                     LEFT JOIN NS ON NS.CODIGO = PD.CDGNS
                     LEFT JOIN CO ON CO.CODIGO = NS.CDGCO
@@ -1314,6 +1334,7 @@ sql;
                 SELECT TO_CHAR(RA.FECHA_ENTREGA_REAL, 'YYYY-MM') AS PERIODO
                     , 0 AS ABONOS
                     , SUM(DECODE(RA.ESTATUS, 'E', RA.CANT_SOLICITADA, 0)) AS RETIROS
+                    , 0 AS INTERESES
                 FROM RETIROS_AHORRO RA
                     LEFT JOIN NS ON NS.CODIGO = RA.CDGNS
                     LEFT JOIN CO ON CO.CODIGO = NS.CDGCO
@@ -1322,6 +1343,19 @@ sql;
                         AND TO_DATE('{$fechaCorte}', 'YYYY-MM-DD')
                     {$filtroSucMov}
                 GROUP BY TO_CHAR(RA.FECHA_ENTREGA_REAL, 'YYYY-MM')
+                UNION ALL
+                SELECT TO_CHAR(IA.FECHA_FIN, 'YYYY-MM') AS PERIODO
+                    , 0 AS ABONOS
+                    , 0 AS RETIROS
+                    , SUM(IA.MONTO) AS INTERESES
+                FROM INTERES_AHORRO IA
+                    LEFT JOIN NS ON NS.CODIGO = IA.CDGNS
+                    LEFT JOIN CO ON CO.CODIGO = NS.CDGCO
+                WHERE IA.ESTATUS = 'A'
+                    AND IA.FECHA_FIN BETWEEN ADD_MONTHS(TRUNC(TO_DATE('{$fechaCorte}', 'YYYY-MM-DD'), 'MM'), -11)
+                        AND TO_DATE('{$fechaCorte}', 'YYYY-MM-DD')
+                    {$filtroSucMov}
+                GROUP BY TO_CHAR(IA.FECHA_FIN, 'YYYY-MM')
             )
             GROUP BY PERIODO
             ORDER BY PERIODO

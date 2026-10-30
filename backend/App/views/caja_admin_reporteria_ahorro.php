@@ -63,6 +63,15 @@
                         <div class="kpi__body">
                             <div class="lbl">Retiros</div>
                             <div class="num num--money" id="kpiRetiros">$ 0.00</div>
+                            <div class="kpi__sub" id="kpiRetirosDesglose">Devengo $ 0.00 · Depósitos $ 0.00</div>
+                        </div>
+                    </div>
+                    <div class="kpi kpi--accent">
+                        <div class="kpi__icon"><i class="ti ti-percentage"></i></div>
+                        <div class="kpi__body">
+                            <div class="lbl">Devengo</div>
+                            <div class="num num--money" id="kpiInteres">$ 0.00</div>
+                            <div class="kpi__sub" id="kpiDevengoRetirado">Retirado $ 0.00</div>
                         </div>
                     </div>
                 </div>
@@ -92,7 +101,7 @@
                     <div class="kpi kpi--mini kpi--clock">
                         <div class="kpi__icon"><i class="ti ti-clock-hour-4"></i></div>
                         <div class="kpi__body">
-                            <div class="lbl">En tránsito</div>
+                            <div class="lbl">Retiros en tránsito</div>
                             <div class="num num--money" id="kpiTransito">$ 0.00</div>
                         </div>
                     </div>
@@ -109,7 +118,7 @@
                                 </div>
                                 <span class="chart-card__badge">Últimos 12 meses</span>
                             </div>
-                            <p class="chart-card__subtitle">Abonos vs retiros por periodo</p>
+                            <p class="chart-card__subtitle">Abonos, retiros y devengo por periodo</p>
                             <div class="chart-card__canvas chart-card__canvas--trend ra-chart-box">
                                 <div class="ra-skeleton" id="skMensual"></div>
                                 <div class="ra-empty" id="emptyMensual" style="display:none;">Sin movimientos en el periodo</div>
@@ -153,6 +162,7 @@
                                         <th class="th-text">Sucursal</th>
                                         <th class="th-num">Contratos</th>
                                         <th class="th-monto">Abonos</th>
+                                        <th class="th-monto">Devengo</th>
                                         <th class="th-monto">Ajustes</th>
                                         <th class="th-monto">Retiros</th>
                                         <th class="th-monto">Saldo actual</th>
@@ -274,6 +284,7 @@
                                         <th class="th-text">Ejecutivo</th>
                                         <th class="th-text">Apertura</th>
                                         <th class="th-monto">Abonos</th>
+                                        <th class="th-monto">Devengo</th>
                                         <th class="th-monto">Retiros</th>
                                         <th class="th-monto">Saldo</th>
                                         <th class="th-monto">Tránsito</th>
@@ -324,6 +335,7 @@
                                 <th class="th-text">Sucursal</th>
                                 <th class="th-text">Apertura</th>
                                 <th class="th-monto">Abonos</th>
+                                <th class="th-monto">Devengo</th>
                                 <th class="th-monto">Retiros</th>
                                 <th class="th-monto">Saldo</th>
                                 <th class="th-monto">Tránsito</th>
@@ -382,7 +394,7 @@
         margin-bottom: 12px;
     }
     .reporte-ahorro-page .kpi-grid--hero {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(4, 1fr);
     }
     .reporte-ahorro-page .kpi-grid--mini {
         grid-template-columns: repeat(4, 1fr);
@@ -771,17 +783,19 @@
         table-layout: fixed;
     }
     .reporte-ahorro-page #tblDetalle > thead > tr > th:nth-child(1),
-    .reporte-ahorro-page #tblDetalle_wrapper table.dataTable thead th:nth-child(1) { width: 9%; }
+    .reporte-ahorro-page #tblDetalle_wrapper table.dataTable thead th:nth-child(1) { width: 8%; }
     .reporte-ahorro-page #tblDetalle > thead > tr > th:nth-child(2),
-    .reporte-ahorro-page #tblDetalle_wrapper table.dataTable thead th:nth-child(2) { width: 18%; }
+    .reporte-ahorro-page #tblDetalle_wrapper table.dataTable thead th:nth-child(2) { width: 13%; }
     .reporte-ahorro-page #tblDetalle > thead > tr > th:nth-child(3),
-    .reporte-ahorro-page #tblDetalle_wrapper table.dataTable thead th:nth-child(3) { width: 12%; }
+    .reporte-ahorro-page #tblDetalle_wrapper table.dataTable thead th:nth-child(3) { width: 13%; }
     .reporte-ahorro-page #tblDetalle > thead > tr > th:nth-child(4),
-    .reporte-ahorro-page #tblDetalle_wrapper table.dataTable thead th:nth-child(4) { width: 16%; }
+    .reporte-ahorro-page #tblDetalle_wrapper table.dataTable thead th:nth-child(4) { width: 13%; }
     .reporte-ahorro-page #tblDetalle > thead > tr > th:nth-child(5),
-    .reporte-ahorro-page #tblDetalle_wrapper table.dataTable thead th:nth-child(5) { width: 9%; }
+    .reporte-ahorro-page #tblDetalle_wrapper table.dataTable thead th:nth-child(5) { width: 11%; }
     .reporte-ahorro-page #tblDetalle > thead > tr > th:nth-child(n+6),
-    .reporte-ahorro-page #tblDetalle_wrapper table.dataTable thead th:nth-child(n+6) { width: 9%; text-align: center; }
+    .reporte-ahorro-page #tblDetalle_wrapper table.dataTable thead th:nth-child(n+6) { width: 8%; text-align: center; }
+    .reporte-ahorro-page #tblDetalle > thead > tr > th:nth-child(8),
+    .reporte-ahorro-page #tblDetalle_wrapper table.dataTable thead th:nth-child(8) { width: 10%; }
     .reporte-ahorro-page #tblDetalle > tbody > tr > td,
     .reporte-ahorro-page #tblDetalle_wrapper table.dataTable tbody td {
         padding: 9px 10px;

@@ -9,6 +9,9 @@ use Core\Model;
 
 class Creditos extends Model
 {
+    /** Días naturales posteriores al registro original en que una Tarjeta de Pagos puede reasignarse o eliminarse. */
+    const DIAS_PLAZO_TARJETA = 5;
+
     public static function ConsultaGarantias($datos)
     {
         $qryVal = <<<SQL
@@ -736,7 +739,7 @@ sql;
                 T.MOTIVO,
                 T.ACTIVO,
                 {$fechaMx} FECHA,
-                TRIM(O.CDGNS) CREDITO_ORIGEN,
+                CASE WHEN T.TIPO_MOV = 'REASIGNACION' THEN TRIM(O.CDGNS) END CREDITO_ORIGEN,
                 (
                     SELECT TRIM(D.CDGNS)
                     FROM FOLIO_TARJETA D
@@ -853,12 +856,20 @@ sql;
             ORDER BY FECHA DESC, ID DESC
         SQL;
 
+        // Un folio eliminado (con toda su cadena de movimientos) queda libre para otro crédito.
         $qryDup = <<<SQL
             SELECT COUNT(*) TOTAL
-            FROM FOLIO_TARJETA
-            WHERE CDGEM = 'EMPFIN'
-              AND CDGCO = :sucursal
-              AND FOLIO = :folio
+            FROM FOLIO_TARJETA T
+            WHERE T.CDGEM = 'EMPFIN'
+              AND T.CDGCO = :sucursal
+              AND T.FOLIO = :folio
+              AND NVL(T.ID_ORIGINAL, T.ID) NOT IN (
+                  SELECT E.ID_ORIGINAL
+                  FROM FOLIO_TARJETA E
+                  WHERE E.CDGEM = 'EMPFIN'
+                    AND E.TIPO_MOV = 'ELIMINACION'
+                    AND E.ID_ORIGINAL IS NOT NULL
+              )
         SQL;
 
         $qryInsert = <<<SQL
@@ -984,13 +995,13 @@ sql;
     }
 
     /**
-     * 'S' si la tarjeta (alias T) sigue dentro de los 5 días naturales posteriores a su
-     * registro original. Requiere LEFT JOIN FOLIO_TARJETA R ON R.ID = T.ID_ORIGINAL;
+     * 'S' si la tarjeta (alias T) sigue dentro del plazo de reasignación/eliminación
+     * (DIAS_PLAZO_TARJETA) posterior a su registro original. Requiere LEFT JOIN FOLIO_TARJETA R ON R.ID = T.ID_ORIGINAL;
      * FECHA ya está en hora de México.
      */
     private static function sqlEnPlazoReasignacion(): string
     {
-        return "CASE WHEN TRUNC(NVL(R.FECHA, T.FECHA)) + 5"
+        return "CASE WHEN TRUNC(NVL(R.FECHA, T.FECHA)) + " . self::DIAS_PLAZO_TARJETA
             . " >= TRUNC(SYSDATE)"
             . " THEN 'S' ELSE 'N' END";
     }
@@ -1094,7 +1105,7 @@ sql;
                 return self::Responde(false, 'La Tarjeta de Pagos ya no está vigente.');
             }
             if (trim((string) ($origen['EN_PLAZO'] ?? '')) !== 'S') {
-                return self::Responde(false, 'Solo se puede reasignar dentro de los 7 días posteriores al registro original de la Tarjeta de Pagos.');
+                return self::Responde(false, 'Solo se puede reasignar dentro de los ' . self::DIAS_PLAZO_TARJETA . ' días posteriores al registro original de la Tarjeta de Pagos.');
             }
             if (trim((string) ($origen['CDGNS'] ?? '')) === $creditoDestino) {
                 return self::Responde(false, 'El crédito destino debe ser distinto al crédito actual de la Tarjeta de Pagos.');
@@ -1165,6 +1176,105 @@ sql;
     }
 
     /**
+     * Da de baja una Tarjeta de Pagos vigente registrada por error. La fila queda como
+     * histórico y se inserta un movimiento ELIMINACION (inactivo) ligado al registro
+     * eliminado (ID_ORIGEN) y al original (ID_ORIGINAL); el folio queda libre.
+     */
+    public static function EliminarFolioTarjeta($datos)
+    {
+        $idFolio = trim((string) ($datos['id_folio'] ?? ''));
+        $motivo = trim((string) ($datos['motivo'] ?? ''));
+        $usuario = trim((string) ($datos['usuario'] ?? ''));
+
+        if ($idFolio === '' || !ctype_digit($idFolio)) {
+            return self::Responde(false, 'Seleccione la Tarjeta de Pagos a eliminar.');
+        }
+        if ($motivo === '') {
+            return self::Responde(false, 'Capture el motivo de la eliminación.');
+        }
+        if ($usuario === '') {
+            return self::Responde(false, 'Usuario no válido.');
+        }
+
+        $enPlazo = self::sqlEnPlazoReasignacion();
+
+        $qryOrigen = <<<SQL
+            SELECT
+                T.ID,
+                TRIM(T.CDGNS) CDGNS,
+                TRIM(T.CICLO) CICLO,
+                TRIM(T.FOLIO) FOLIO,
+                TRIM(T.CDGCO) CDGCO,
+                TRIM(T.CDGOCPE) CDGOCPE,
+                T.ACTIVO,
+                NVL(T.ID_ORIGINAL, T.ID) ID_ORIGINAL,
+                {$enPlazo} EN_PLAZO
+            FROM FOLIO_TARJETA T
+                LEFT JOIN FOLIO_TARJETA R ON R.ID = T.ID_ORIGINAL
+            WHERE T.ID = :id
+              AND T.CDGEM = 'EMPFIN'
+        SQL;
+
+        $qryDesactiva = <<<SQL
+            UPDATE FOLIO_TARJETA
+            SET ACTIVO = 'N'
+            WHERE ID = :id
+              AND CDGEM = 'EMPFIN'
+              AND ACTIVO = 'S'
+        SQL;
+
+        $qryInsert = <<<SQL
+            INSERT INTO FOLIO_TARJETA
+                (CDGEM, CDGNS, CICLO, FOLIO, CDGCO, CDGOCPE, CDGPE, TIPO_MOV, MOTIVO, ACTIVO, ID_ORIGEN, ID_ORIGINAL)
+            VALUES
+                ('EMPFIN', :credito, :ciclo, :folio, :sucursal, :asesor, :usuario, 'ELIMINACION', :motivo, 'N', :id_origen, :id_original)
+        SQL;
+
+        try {
+            $db = new Database();
+            $origen = $db->queryOne($qryOrigen, ['id' => $idFolio]);
+            if (!$origen) {
+                return self::Responde(false, 'La Tarjeta de Pagos a eliminar no existe.');
+            }
+            if (trim((string) ($origen['ACTIVO'] ?? '')) !== 'S') {
+                return self::Responde(false, 'La Tarjeta de Pagos ya no está vigente.');
+            }
+            if (trim((string) ($origen['EN_PLAZO'] ?? '')) !== 'S') {
+                return self::Responde(false, 'Solo se puede eliminar dentro de los ' . self::DIAS_PLAZO_TARJETA . ' días posteriores al registro original de la Tarjeta de Pagos.');
+            }
+
+            $db->IniciaTransaccion();
+            try {
+                if (!$db->actualizar($qryDesactiva, ['id' => $idFolio])) {
+                    $db->CancelaTransaccion();
+                    return self::Responde(false, 'La Tarjeta de Pagos ya no está vigente.');
+                }
+
+                $db->insertar($qryInsert, [
+                    'credito' => trim((string) ($origen['CDGNS'] ?? '')),
+                    'ciclo' => trim((string) ($origen['CICLO'] ?? '')),
+                    'folio' => trim((string) ($origen['FOLIO'] ?? '')),
+                    'sucursal' => trim((string) ($origen['CDGCO'] ?? '')),
+                    'asesor' => trim((string) ($origen['CDGOCPE'] ?? '')),
+                    'usuario' => $usuario,
+                    'motivo' => $motivo,
+                    'id_origen' => $idFolio,
+                    'id_original' => (string) ($origen['ID_ORIGINAL'] ?? $idFolio)
+                ]);
+
+                $db->ConfirmaTransaccion();
+            } catch (\Exception $tx) {
+                $db->CancelaTransaccion();
+                throw $tx;
+            }
+
+            return self::Responde(true, 'Tarjeta de Pagos ' . trim((string) ($origen['FOLIO'] ?? '')) . ' eliminada. El folio puede registrarse en otro crédito.');
+        } catch (\Exception $e) {
+            return self::Responde(false, 'Error al eliminar la Tarjeta de Pagos', null, $e->getMessage());
+        }
+    }
+
+    /**
      * Histórico general de Tarjeta de Pagos por rango de fecha de registro,
      * región, sucursal y/o tipo de movimiento.
      */
@@ -1209,7 +1319,7 @@ sql;
         }
 
         $filtroMov = '';
-        if (in_array($tipoMov, ['ALTA', 'CAMBIO', 'ADICIONAL', 'REASIGNACION'], true)) {
+        if (in_array($tipoMov, ['ALTA', 'CAMBIO', 'ADICIONAL', 'REASIGNACION', 'ELIMINACION'], true)) {
             $filtroMov = ' AND T.TIPO_MOV = :tipo_mov';
             $params['tipo_mov'] = $tipoMov;
         }
@@ -1224,14 +1334,14 @@ sql;
                 TRIM(T.CDGCO) ID_SUCURSAL,
                 GET_NOMBRE_SUCURSAL(T.CDGCO) SUCURSAL,
                 T.TIPO_MOV,
-                DECODE(T.TIPO_MOV, 'ALTA', 'Alta', 'CAMBIO', 'Cambio', 'ADICIONAL', 'Adicional', 'REASIGNACION', 'Reasignación', T.TIPO_MOV) MOVIMIENTO,
+                DECODE(T.TIPO_MOV, 'ALTA', 'Alta', 'CAMBIO', 'Cambio', 'ADICIONAL', 'Adicional', 'REASIGNACION', 'Reasignación', 'ELIMINACION', 'Eliminación', T.TIPO_MOV) MOVIMIENTO,
                 T.MOTIVO,
                 TRIM(T.CDGPE) ID_USUARIO,
                 GET_NOMBRE_EMPLEADO(T.CDGPE) USUARIO,
                 {$fechaMx} FECHA,
                 T.ACTIVO,
-                DECODE(T.ACTIVO, 'S', 'Vigente', 'Histórico') ESTADO,
-                TRIM(O.CDGNS) CREDITO_ORIGEN,
+                CASE WHEN T.ACTIVO = 'S' THEN 'Vigente' WHEN T.TIPO_MOV = 'ELIMINACION' THEN 'Eliminada' ELSE 'Histórico' END ESTADO,
+                CASE WHEN T.TIPO_MOV = 'REASIGNACION' THEN TRIM(O.CDGNS) END CREDITO_ORIGEN,
                 (
                     SELECT TRIM(D.CDGNS)
                     FROM FOLIO_TARJETA D

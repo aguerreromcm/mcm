@@ -613,4 +613,73 @@ sql;
             return  self::Responde(false, 'Error al actualizar los beneficiarios', null, $e->getMessage());
         }
     }
+
+    public static function GetReporteDevengos($datos)
+    {
+        $qry = <<<SQL
+            WITH MOVIMIENTOS AS (
+                SELECT IA.CDGNS
+                    ,IA.FECHA_FIN AS FECHA
+                    ,'DEPÓSITO' AS TIPO
+                    ,'INTERÉS ANUAL (' || TO_CHAR(IA.FECHA_INICIO, 'DD/MM/YYYY') || ' AL ' || TO_CHAR(IA.FECHA_FIN, 'DD/MM/YYYY') || ')' AS DESCRIPCION
+                    ,IA.MONTO AS DEPOSITADO
+                    ,0 AS RETIRADO
+                FROM INTERES_AHORRO IA
+                WHERE IA.ESTATUS = 'A'
+                    AND IA.MONTO > 0
+                    AND IA.FECHA_FIN BETWEEN TO_DATE(:fechaI, 'YYYY-MM-DD') AND TO_DATE(:fechaF, 'YYYY-MM-DD')
+                UNION ALL
+                SELECT RA.CDGNS
+                    ,TRUNC(RA.FECHA_ENTREGA_REAL) AS FECHA
+                    ,'RETIRO' AS TIPO
+                    ,'RETIRO ' || RA.ID || ' POR $' || TO_CHAR(RA.CANT_SOLICITADA, 'FM999,999,990.00') AS DESCRIPCION
+                    ,0 AS DEPOSITADO
+                    ,RA.MONTO_DEVENGO AS RETIRADO
+                FROM RETIROS_AHORRO RA
+                WHERE RA.ESTATUS = 'E'
+                    AND RA.MONTO_DEVENGO > 0
+                    AND TRUNC(RA.FECHA_ENTREGA_REAL) BETWEEN TO_DATE(:fechaI, 'YYYY-MM-DD') AND TO_DATE(:fechaF, 'YYYY-MM-DD')
+            )
+            , CREDITOS AS (
+                SELECT PRC.CDGNS
+                    ,PRC.CDGCL
+                    ,PRN.CDGCO
+                    ,ROW_NUMBER() OVER (PARTITION BY PRC.CDGNS ORDER BY TO_NUMBER(PRC.CICLO) DESC) AS ORDEN
+                FROM PRC
+                    INNER JOIN PRN ON PRN.CDGNS = PRC.CDGNS AND PRN.CICLO = PRC.CICLO
+                WHERE PRC.CDGNS IN (SELECT CDGNS FROM MOVIMIENTOS)
+                    AND PRC.CICLO NOT LIKE 'D%'
+                    AND PRC.CICLO NOT LIKE 'R%'
+            )
+            SELECT TO_CHAR(M.FECHA, 'DD/MM/YYYY') AS FECHA
+                ,M.TIPO
+                ,M.CDGNS
+                ,GET_NOMBRE_CLIENTE(CR.CDGCL) AS NOMBRE_CLIENTE
+                ,RG.NOMBRE AS NOMBRE_REGION
+                ,CO.CODIGO AS SUCURSAL
+                ,CO.NOMBRE AS NOMBRE_SUCURSAL
+                ,M.DESCRIPCION
+                ,M.DEPOSITADO
+                ,M.RETIRADO
+            FROM MOVIMIENTOS M
+                LEFT JOIN CREDITOS CR ON CR.CDGNS = M.CDGNS AND CR.ORDEN = 1
+                LEFT JOIN CO ON CO.CODIGO = CR.CDGCO
+                LEFT JOIN RG ON RG.CODIGO = CO.CDGRG
+            ORDER BY M.FECHA, M.CDGNS, M.TIPO
+        SQL;
+
+        $params = [
+            'fechaI' => $datos['fechaI'],
+            'fechaF' => $datos['fechaF']
+        ];
+
+        try {
+            $db = new Database();
+            $res = $db->queryAll($qry, $params);
+            if ($res === false) return self::Responde(false, 'Error al obtener los devengos de ahorro');
+            return self::Responde(true, 'Devengos de ahorro obtenidos', $res ?? []);
+        } catch (\Exception $e) {
+            return self::Responde(false, 'Error al obtener los devengos de ahorro', null, $e->getMessage());
+        }
+    }
 }

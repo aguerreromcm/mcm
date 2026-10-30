@@ -20,6 +20,9 @@ class AplicacionPagosService
     /** Días hacia atrás para detectar fechas con pagos pendientes. */
     const DIAS_DETECCION = 30;
 
+    /** Motivo del último adquirirCandado() fallido por no poder crear el archivo (vacío si estaba ocupado). */
+    private static $errorCandado = '';
+
     /**
      * Fechas recientes con pagos pendientes de importar.
      *
@@ -80,17 +83,33 @@ class AplicacionPagosService
     }
 
     /**
-     * Importa y concilia los pagos pendientes de la fecha en una sola transacción.
+     * Importa y concilia los pagos pendientes de la fecha. Los SP internos confirman cada pago,
+     * por lo que ante un error se detiene y conserva lo ya procesado.
      *
      * @param string $fecha Y-m-d
      * @param string $usuario
+     * @param array|null $claves Pagos a procesar ("CDGNS|CICLO|SECUENCIA"); null = todos los pendientes
      * @return array { success, mensaje, datos: { idImportacion, detalle, resumen, consulta } }
      */
-    public static function procesar($fecha, $usuario)
+    public static function procesar($fecha, $usuario, $claves = null)
     {
         $usuario = trim((string) $usuario);
         if ($usuario === '') {
             return Model::Responde(false, 'Usuario no identificado.', null, 'Usuario vacío');
+        }
+
+        $seleccion = null;
+        if ($claves !== null) {
+            $seleccion = [];
+            foreach ((array) $claves as $clave) {
+                $clave = trim((string) $clave);
+                if (preg_match('/^[0-9A-Za-z]+\|[0-9A-Za-z]+\|\d+$/', $clave)) {
+                    $seleccion[$clave] = true;
+                }
+            }
+            if (empty($seleccion)) {
+                return Model::Responde(false, 'Seleccione al menos un pago para importar y conciliar.', null, 'Sin selección');
+            }
         }
 
         $fechaNorm = PagosAplicacionRepository::coerceFechaYmD($fecha);
@@ -111,6 +130,9 @@ class AplicacionPagosService
 
         $candado = self::adquirirCandado();
         if ($candado === null) {
+            if (self::$errorCandado !== '') {
+                return Model::Responde(false, 'No fue posible iniciar el proceso: no se pudo crear el archivo de control. Revise los permisos de escritura de la carpeta de logs del sistema.', null, self::$errorCandado);
+            }
             return Model::Responde(false, 'Ya hay un proceso de aplicación de pagos en ejecución. Intente de nuevo en unos minutos.', null, 'Concurrencia');
         }
 
@@ -129,6 +151,16 @@ class AplicacionPagosService
             if (empty($pendientes)) {
                 $db->CancelaTransaccion();
                 return Model::Responde(false, 'No hay pagos pendientes de importar para la fecha seleccionada.', null, 'Sin pendientes');
+            }
+
+            if ($seleccion !== null) {
+                $pendientes = array_values(array_filter($pendientes, function ($p) use ($seleccion) {
+                    return isset($seleccion[$p['CDGNS'] . '|' . $p['CICLO'] . '|' . $p['SECUENCIA']]);
+                }));
+                if (empty($pendientes)) {
+                    $db->CancelaTransaccion();
+                    return Model::Responde(false, 'Los pagos seleccionados ya no están pendientes de importar. Consulte la fecha de nuevo.', null, 'Selección sin pendientes');
+                }
             }
 
             $idImportacion = $repo->siguienteIdImportacion($db);
@@ -364,9 +396,15 @@ class AplicacionPagosService
      */
     private static function adquirirCandado()
     {
+        self::$errorCandado = '';
         $archivo = defined('APPPATH') ? dirname(APPPATH) . '/logs/aplicacion_pagos.lock' : __DIR__ . '/../../logs/aplicacion_pagos.lock';
+        $dir = dirname($archivo);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0777, true);
+        }
         $fp = @fopen($archivo, 'c+');
         if (!is_resource($fp)) {
+            self::$errorCandado = 'No se pudo abrir el archivo de candado: ' . $archivo;
             return null;
         }
         if (!flock($fp, LOCK_EX | LOCK_NB)) {

@@ -403,13 +403,18 @@
     gap: 6px;
 }
 
-.folios-tarjeta-page .ft-btn-reasignar {
+.folios-tarjeta-page .ft-btn-reasignar,
+.folios-tarjeta-page .ft-btn-eliminar {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     margin: 0;
     border-radius: 6px;
     font-weight: 600;
+}
+
+.folios-tarjeta-page .ft-btn-eliminar {
+    color: #c0392b;
 }
 
 .folios-tarjeta-page .ft-encabezado-tabla {
@@ -492,6 +497,16 @@
     background: rgba(127, 143, 166, 0.15);
 }
 
+.folios-tarjeta-page .badge-eliminada {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #b91c1c;
+    background: #fee2e2;
+}
+
 .folios-tarjeta-page .badge-mov-alta {
     color: #1a6fb5;
     background: #e8f2fb;
@@ -510,6 +525,11 @@
 .folios-tarjeta-page .badge-mov-reasigna {
     color: #6d28d9;
     background: #ede9fe;
+}
+
+.folios-tarjeta-page .badge-mov-elimina {
+    color: #b91c1c;
+    background: #fee2e2;
 }
 
 .folios-tarjeta-page .ft-vacio {
@@ -536,7 +556,8 @@
 }
 
 #modal_folio_tarjeta .ft-credito-modal,
-#modal_reasigna_tarjeta .ft-credito-modal {
+#modal_reasigna_tarjeta .ft-credito-modal,
+#modal_elimina_tarjeta .ft-credito-modal {
     border: 1px solid var(--ft-borde);
     border-radius: 8px;
     padding: 10px 12px;
@@ -618,6 +639,16 @@
     .folios-tarjeta-page .badge-mov-reasigna {
         color: #d2a8ff;
         background: rgba(163, 113, 247, 0.16);
+    }
+
+    .folios-tarjeta-page .badge-mov-elimina,
+    .folios-tarjeta-page .badge-eliminada {
+        color: #ff7b72;
+        background: rgba(248, 81, 73, 0.16);
+    }
+
+    .folios-tarjeta-page .ft-btn-eliminar {
+        color: #ff7b72;
     }
 }
 
@@ -1043,10 +1074,12 @@
 
 .ft-modal .badge-vigente,
 .ft-modal .badge-historico,
+.ft-modal .badge-eliminada,
 .ft-modal .badge-mov-alta,
 .ft-modal .badge-mov-cambio,
 .ft-modal .badge-mov-adicional,
-.ft-modal .badge-mov-reasigna {
+.ft-modal .badge-mov-reasigna,
+.ft-modal .badge-mov-elimina {
     display: inline-block;
     padding: 3px 10px;
     border-radius: 999px;
@@ -1084,6 +1117,12 @@
 .ft-modal .badge-mov-reasigna {
     color: #6d28d9;
     background: #ede9fe;
+}
+
+.ft-modal .badge-mov-elimina,
+.ft-modal .badge-eliminada {
+    color: #b91c1c;
+    background: #fee2e2;
 }
 
 @media (max-width: 992px) {
@@ -1176,6 +1215,12 @@
     .ft-modal .badge-mov-reasigna {
         color: #d2a8ff;
         background: rgba(163, 113, 247, 0.18);
+    }
+
+    .ft-modal .badge-mov-elimina,
+    .ft-modal .badge-eliminada {
+        color: #ff7b72;
+        background: rgba(248, 81, 73, 0.18);
     }
 
     #modal_resultado_historico .dataTables_wrapper .dataTables_length,

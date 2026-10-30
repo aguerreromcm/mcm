@@ -178,6 +178,12 @@
         setTexto("kpiSaldo", moneda(r.SALDO_ACTUAL))
         setTexto("kpiAbonos", moneda(r.ABONOS))
         setTexto("kpiRetiros", moneda(r.RETIROS))
+        setTexto(
+            "kpiRetirosDesglose",
+            "Devengo " + moneda(r.DEVENGO_RETIRADO) + " · Depósitos " + moneda(num(r.RETIROS) - num(r.DEVENGO_RETIRADO))
+        )
+        setTexto("kpiInteres", moneda(r.INTERES))
+        setTexto("kpiDevengoRetirado", "Retirado " + moneda(r.DEVENGO_RETIRADO))
         setTexto("kpiTasa", "Tasa ponderada " + num(r.TASA_PROMEDIO).toFixed(2) + "%")
         setTexto("kpiTransito", moneda(r.TRANSITO))
         saldoTotalGlobal = num(r.SALDO_ACTUAL)
@@ -272,6 +278,26 @@
         return '<td class="cell-monto" data-order="' + v + '">' + inner + "</td>"
     }
 
+    const celdaRetiros = (retiros, devengoRetirado) => {
+        const total = num(retiros)
+        const devengo = num(devengoRetirado)
+        const depositos = total - devengo
+        let origen = ""
+        let busqueda = moneda(total)
+        if (total > 0) {
+            // El monto no se parte; si no cabe, solo baja de renglón después de la etiqueta
+            const sub = (texto) => '<div class="cell-sub" style="white-space: normal;">' + texto + "</div>"
+            const monto = (valor) => moneda(valor).replace(/ /g, "\u00a0")
+            if (devengo <= 0) origen = sub("Depósitos")
+            else if (depositos <= 0) origen = sub("Devengo")
+            else origen = sub("Devengo: " + monto(devengo)) + sub("Depósitos: " + monto(depositos))
+            const etiquetas = devengo <= 0 ? "Depósitos" : depositos <= 0 ? "Devengo" : "Devengo Depósitos"
+            // El buscador de DataTables distingue acentos; se agrega la etiqueta sin acento
+            busqueda += " " + etiquetas + " " + etiquetas.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        }
+        return '<td class="cell-monto" data-order="' + total + '" data-search="' + escHtml(busqueda) + '">' + moneda(total) + origen + "</td>"
+    }
+
     const celdaPct = (valor, total) => {
         const p = pct(num(valor), total)
         return '<td class="cell-pct" data-order="' + p + '">' + p.toFixed(1) + "%</td>"
@@ -309,8 +335,9 @@
                 (d.CONTRATOS || 0) +
                 "</td>" +
                 celdaMoneda(d.ABONOS) +
+                celdaMoneda(d.INTERES) +
                 celdaMoneda(d.AJUSTES) +
-                celdaMoneda(d.RETIROS) +
+                celdaRetiros(d.RETIROS, d.DEVENGO_RETIRADO) +
                 celdaMoneda(d.SALDO_ACTUAL, { strong: true }) +
                 celdaPct(d.SALDO_ACTUAL, saldoTotalGlobal) +
                 "</tr>"
@@ -423,7 +450,8 @@
             map[key] = {
                 PERIODO: key,
                 ABONOS: num(d.ABONOS),
-                RETIROS: num(d.RETIROS)
+                RETIROS: num(d.RETIROS),
+                INTERESES: num(d.INTERESES)
             }
         })
         const fin = fechaCorte ? new Date(fechaCorte + "T00:00:00") : new Date()
@@ -433,7 +461,7 @@
             const d = new Date(fin.getFullYear(), fin.getMonth() - i, 1)
             const key =
                 d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")
-            out.push(map[key] || { PERIODO: key, ABONOS: 0, RETIROS: 0 })
+            out.push(map[key] || { PERIODO: key, ABONOS: 0, RETIROS: 0, INTERESES: 0 })
         }
         return out
     }
@@ -473,6 +501,17 @@
                         data: serie.map((d) => num(d.RETIROS)),
                         borderColor: "#c0392b",
                         backgroundColor: "rgba(192,57,43,0.10)",
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        fill: true,
+                        tension: 0.35
+                    },
+                    {
+                        label: "Devengo",
+                        data: serie.map((d) => num(d.INTERESES)),
+                        borderColor: "#7c5cd6",
+                        backgroundColor: "rgba(124,92,214,0.10)",
                         borderWidth: 2,
                         pointRadius: 3,
                         pointHoverRadius: 5,
@@ -767,7 +806,8 @@
                 celdaSucursal(d.SUCURSAL, d.SUCURSAL_NOMBRE) +
                 celdaAperturaTasa(d.APERTURA, d.TASA) +
                 celdaMoneda(d.ABONOS) +
-                celdaMoneda(d.RETIROS) +
+                celdaMoneda(d.INTERES) +
+                celdaRetiros(d.RETIROS, d.DEVENGO_RETIRADO) +
                 celdaMoneda(d.SALDO_ACTUAL, { strong: true }) +
                 celdaMoneda(d.TRANSITO) +
                 "</tr>"
@@ -776,7 +816,7 @@
         $("#tblEjecutivoAhorro").DataTable({
             language: DT_ES,
             pageLength: 10,
-            order: [[6, "desc"]]
+            order: [[7, "desc"]]
         })
     }
 
@@ -983,7 +1023,8 @@
                 celdaCodigoNombre(d.EJECUTIVO, d.EJECUTIVO_NOMBRE) +
                 celdaAperturaTasa(d.APERTURA, d.TASA) +
                 celdaMoneda(d.ABONOS) +
-                celdaMoneda(d.RETIROS) +
+                celdaMoneda(d.INTERES) +
+                celdaRetiros(d.RETIROS, d.DEVENGO_RETIRADO) +
                 celdaMoneda(d.SALDO_ACTUAL, { strong: true }) +
                 celdaMoneda(d.TRANSITO) +
                 "</tr>"
@@ -994,7 +1035,7 @@
         $("#tblDetalle").DataTable({
             language: DT_ES,
             pageLength: 25,
-            order: [[7, "desc"]],
+            order: [[8, "desc"]],
             autoWidth: false,
             orderClasses: false
         })

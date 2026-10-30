@@ -61,15 +61,29 @@ class AhorroConsulta extends Controller
                         return [
                             item.ID,
                             item.CDGNS,
-                            "$ " + formatoMoneda(item.CANT_SOLICITADA),
+                            "$ " + formatoMoneda(item.CANT_SOLICITADA) + getOrigenRetiro(item.CANT_SOLICITADA, item.MONTO_DEVENGO),
                             getFechas(item.FECHA_CREACION, item.FECHA_SOLICITUD, item.FECHA_ENTREGA, ["V", "E"].includes(item.ESTATUS) ? item.ULTIMA_LLAMADA : null, item.ESTATUS === "C" ? item.FECHA_CANCELACION : null, item.ESTATUS === "R" ? item.FECHA_CANCELACION : null, item.ESTATUS === "E" ? item.FECHA_ENTREGA_REAL : null, item.ESTATUS === "D" ? item.FECHA_DEVOLUCION : null),
                             getBadge(item.ESTATUS),
                             menuAcciones(acciones)
                         ]
                     })
 
+                    $("#lblRegistros").text(datos.length + " registro(s)")
                     actualizaDatosTabla(idTabla, datos)
                     $(".resultado").toggleClass("conDatos", true)
+                }
+
+                // Primero se consume el devengo y después los depósitos
+                const desgloseRetiro = (cantidad, devengoDisponible) => {
+                    const devengo = Math.min(cantidad, Math.max(devengoDisponible, 0))
+                    return { devengo, depositos: Math.round((cantidad - devengo) * 100) / 100 }
+                }
+
+                const getOrigenRetiro = (cantidad, montoDevengo) => {
+                    const { devengo, depositos } = desgloseRetiro(parseFloat(cantidad) || 0, parseFloat(montoDevengo) || 0)
+                    if (devengo <= 0) return "<br/><small class='text-muted'>Depósitos</small>"
+                    if (depositos <= 0) return "<br/><small class='text-muted'>Devengo</small>"
+                    return "<br/><small class='text-muted' style='white-space: nowrap;'>Devengo: $ " + formatoMoneda(devengo) + "<br/>Depósitos: $ " + formatoMoneda(depositos) + "</small>"
                 }
 
                 const getFechas = (fechaCreacion, fechaSolicitud, fechaEntrega, fechaValidacion = null, fechaCancelacion = null, fechaRechazo = null, fechaEntregaReal = null, fechaDevolucion = null) => {
@@ -164,6 +178,9 @@ class AhorroConsulta extends Controller
                         $("#detalle_fecha_entrega").val(datos.FECHA_ENTREGA || "");
                         $("#detalle_fecha_entrega_real").val(datos.FECHA_ENTREGA_REAL || "");
                         $("#detalle_cantidad_solicitada").val("$" + formatoMoneda(datos.CANT_SOLICITADA || 0));
+                        const origen = desgloseRetiro(parseFloat(datos.CANT_SOLICITADA) || 0, parseFloat(datos.MONTO_DEVENGO) || 0);
+                        $("#detalle_monto_devengo").val("$" + formatoMoneda(origen.devengo));
+                        $("#detalle_monto_depositos").val("$" + formatoMoneda(origen.depositos));
                         $("#detalle_estatus").val(datos.ESTATUS_ETIQUETA || "");
 
                         if (["C", "R"].includes(datos.ESTATUS)) {
@@ -302,6 +319,10 @@ class AhorroConsulta extends Controller
                     $("#formNuevaSolicitud")[0].reset();
                     $("#nueva_cdgns").val("");
                     $("#saldo_ahorro_disponible").val("");
+                    $("#devengo_ahorro_disponible").val("");
+                    $("#solo_devengo").val("");
+                    $("#aviso_solo_devengo").hide();
+                    actualizaDesgloseRetiro();
                     aplicarPoliticaFechas();
 
                     $("#nueva_cantidad_solicitada").prop("disabled", true);
@@ -309,6 +330,19 @@ class AhorroConsulta extends Controller
                     $("#nueva_observaciones_administradora").prop("disabled", true);
                     $("#nueva_foto").prop("disabled", true);
                     $("#btnGuardarNuevaSolicitud").prop("disabled", true);
+                }
+
+                const actualizaDesgloseRetiro = () => {
+                    const cdgns = $("#nueva_cdgns").val();
+                    const devengo = parseaNumero($("#devengo_ahorro_disponible").val());
+                    const cantidad = parseFloat($("#nueva_cantidad_solicitada").val()) || 0;
+                    const desglose = desgloseRetiro(cantidad, devengo);
+                    const moneda = (valor) => cdgns ? "$" + formatoMoneda(valor) : "";
+
+                    $("#info_saldo_disponible").val(moneda(parseaNumero($("#saldo_ahorro_disponible").val())));
+                    $("#info_devengo_disponible").val(moneda(devengo));
+                    $("#info_retiro_devengo").val(moneda(desglose.devengo));
+                    $("#info_retiro_depositos").val(moneda(desglose.depositos));
                 }
 
                 const buscarCredito = () => {
@@ -326,7 +360,10 @@ class AhorroConsulta extends Controller
                         // Permisos temporales para pruebas de retiro de ahorro a 'FLHR'
                         if (("{$_SESSION['perfil']}" !== 'ADMIN' && "{$_SESSION['usuario']}" !== 'FLHR') && datos.CDGCO !== "{$_SESSION['cdgco']}") return showError("El crédito no pertenece a su sucursal, no es posible realizar retiros de ahorro.");
                         if (datos?.SITUACION_TRADICIONAL === 'L' && parseInt(datos?.DIAS_MORA_TRADICIONAL) > 1) return showError("El cliente tiene mora en su crédito tradicional, no es posible realizar retiros de ahorro.");
-                        if (datos?.SITUACION_ADICIONAL === 'E') return showError("El cliente cuenta con un crédito adicional activo, no es posible realizar retiros de ahorro.");
+                        // Con crédito adicional activo solo se permite retirar el devengo
+                        const soloDevengo = datos?.SITUACION_ADICIONAL === 'E';
+                        const devengo = parseFloat(datos?.DEVENGO_DISPONIBLE) || 0;
+                        if (soloDevengo && devengo <= 0) return showError("El cliente cuenta con un crédito adicional activo, no es posible realizar retiros de ahorro.");
                         if (parseInt(datos?.DIAS_MORA_ADICIONAL) > 1) return showError("El cliente tiene mora en su crédito adicional, no es posible realizar retiros de ahorro.");
                         
                         const saldo = parseaNumero(datos?.SALDO_ACTUAL);
@@ -338,6 +375,10 @@ class AhorroConsulta extends Controller
                         $("#nueva_ciclo").val(datos?.ULTIMO_CICLO_TRADICIONAL);
                         $("#aniversario_ahorro").val(datos?.ANIVERSARIO);
                         $("#saldo_ahorro_disponible").val(saldo);
+                        $("#devengo_ahorro_disponible").val(devengo);
+                        $("#solo_devengo").val(soloDevengo ? "1" : "");
+                        $("#aviso_solo_devengo").toggle(soloDevengo);
+                        actualizaDesgloseRetiro();
                         $("#nueva_cantidad_solicitada").prop("disabled", false);
                         $("#nueva_observaciones_administradora").prop("disabled", false);
                         $("#nueva_foto").prop("disabled", false);
@@ -358,6 +399,9 @@ class AhorroConsulta extends Controller
                         const cantidadSolicitada = parseaNumero($("#nueva_cantidad_solicitada").val());
                         const saldo = parseaNumero($("#saldo_ahorro_disponible").val());
                         if (cantidadSolicitada > saldo) return showError("La cantidad solicitada no puede ser mayor al saldo disponible ($" + formatoMoneda(saldo) + ")");
+                        const devengo = parseaNumero($("#devengo_ahorro_disponible").val());
+                        if ($("#solo_devengo").val() === "1" && cantidadSolicitada > devengo) return showError("El cliente cuenta con un crédito adicional activo, solo puede retirar su devengo disponible ($" + formatoMoneda(devengo) + ")");
+                        const desglose = desgloseRetiro(cantidadSolicitada, devengo);
                         
                         const cdgns = $("#nueva_cdgns").val().trim();
                         const fechaSolicitud = politicaRetiro.fecha_solicitud;
@@ -382,9 +426,15 @@ class AhorroConsulta extends Controller
 
                         let mensaje = document.createElement("div");
                         mensaje.innerHTML = "¿Confirma el registro del retiro de ahorro por la cantidad de <strong>$" + formatoMoneda(cantidadSolicitada) + "</strong> para el crédito <strong>" + cdgns + "</strong>?";
+                        mensaje.innerHTML += "<br/>Devengo: <strong>$" + formatoMoneda(desglose.devengo) + "</strong> | Depósitos: <strong>$" + formatoMoneda(desglose.depositos) + "</strong>";
                         
-                        if (new Date() < aniversario) {
-                            mensaje.innerHTML = "El ahorro aún no ha cumplido su aniversario<br/>se aplicaran las penalizaciones establecidas en las políticas.<br/>" + mensaje.innerHTML;
+                        // El retiro solo de devengo no aplica la política ni reinicia el periodo
+                        if (desglose.depositos > 0) {
+                            mensaje.innerHTML = "El retiro incluye depósitos, se reiniciará el periodo de cálculo de intereses.<br/>" + mensaje.innerHTML;
+
+                            if (new Date() < aniversario) {
+                                mensaje.innerHTML = "El ahorro aún no ha cumplido su aniversario<br/>se aplicaran las penalizaciones establecidas en las políticas.<br/>" + mensaje.innerHTML;
+                            }
                         }
                         
                         confirmarMovimiento("Registro de retiro de ahorro", null, mensaje)
@@ -416,7 +466,6 @@ class AhorroConsulta extends Controller
                     $("#fechaI").change(consultaSolicitudes)
                     $("#fechaF").change(consultaSolicitudes)
                     
-                    $("#btnBuscar").click(consultaSolicitudes)
                     $("#btnNuevaSolicitud").click(nuevaSolicitud)
                     $("#btnGuardarNuevaSolicitud").click(guardarNuevaSolicitud)
 
@@ -434,6 +483,7 @@ class AhorroConsulta extends Controller
                     $("#fechaF").val(new Date(fechaF).toISOString().split("T")[0]);
 
                     $("#btnBuscarCredito").click(buscarCredito)
+                    $("#nueva_cantidad_solicitada").on("input", actualizaDesgloseRetiro)
 
                     $("#modalNuevaSolicitud").on("hidden.bs.modal", function() {
                         if (intervaloPoliticaRetiro) {
@@ -449,7 +499,13 @@ class AhorroConsulta extends Controller
             </script>
         HTML;
 
-        View::set('header', $this->_contenedor->header(self::GetExtraHeader("Ahorro Consulta")));
+        $extraHeader = self::GetExtraHeader("Ahorro Consulta", [
+            '<link href="/css/folios-tarjeta.css" rel="stylesheet">',
+            '<link href="/css/pagos-con-gl.css" rel="stylesheet">',
+            '<link href="/css/aplicacion-pagos.css" rel="stylesheet">'
+        ]);
+
+        View::set('header', $this->_contenedor->header($extraHeader));
         View::set('footer', $this->_contenedor->footer($extraFooter));
         View::render("ahorro_consulta");
     }

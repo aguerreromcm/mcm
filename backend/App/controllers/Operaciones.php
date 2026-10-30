@@ -1061,6 +1061,26 @@ class Operaciones extends Controller
                     marcaFechaActiva()
                 }
 
+                const clavePago = (f) => f.CDGNS + "|" + f.CICLO + "|" + f.SECUENCIA
+
+                const checksPendientes = () => $($("#" + idTablaPendientes).DataTable().rows().nodes()).find("input.ppc-sel")
+
+                const clavesSeleccionadas = () => checksPendientes().filter(":checked").map(function () { return this.value }).get()
+
+                const actualizaSeleccion = () => {
+                    const filas = datosFecha ? (datosFecha.filas || []) : []
+                    const claves = new Set(clavesSeleccionadas())
+                    const elegidas = filas.filter((f) => claves.has(clavePago(f)))
+                    const monto = elegidas.reduce((s, f) => s + (parseFloat(f.MONTO) || 0), 0)
+
+                    $("#chkTodosPendientes").prop("checked", filas.length > 0 && elegidas.length === filas.length)
+                    $("#lblSeleccion").text(
+                        filas.length ? elegidas.length + " de " + filas.length + " seleccionado(s) · $" + formatoMoneda(monto) : ""
+                    )
+                    $("#btnProcesar").prop("disabled", !(datosFecha && datosFecha.puedeProcesar) || elegidas.length === 0)
+                    return { elegidas, monto }
+                }
+
                 const limpiarResultado = () => {
                     datosFecha = null
                     marcaFechaActiva()
@@ -1068,6 +1088,7 @@ class Operaciones extends Controller
                     $("#estadoInicial").show()
                     $("#btnProcesar").prop("disabled", true)
                     actualizaDatosTabla(idTablaPendientes, [])
+                    actualizaSeleccion()
                 }
 
                 const consultaPendientes = () => {
@@ -1110,9 +1131,9 @@ class Operaciones extends Controller
                     $("#alertaBloqueo").toggle(!sinPendientes && !datos.puedeProcesar)
                     $("#txtBloqueo").text(mensaje || "")
                     $("#alertaSinPendientes").toggle(sinPendientes)
-                    $("#btnProcesar").prop("disabled", !datos.puedeProcesar)
-
                     const filas = (datos.filas || []).map((f) => [
+                        '<input type="checkbox" class="ppc-sel" value="' + escHtml(clavePago(f)) + '"'
+                            + (datos.puedeProcesar ? " checked" : " disabled") + ' title="Incluir en la aplicación">',
                         f.FECHA_FMT,
                         escHtml(f.CDGNS),
                         escHtml(f.CICLO),
@@ -1122,6 +1143,8 @@ class Operaciones extends Controller
                         "$" + formatoMoneda(f.MONTO || 0)
                     ])
                     actualizaDatosTabla(idTablaPendientes, filas)
+                    $("#chkTodosPendientes").prop("disabled", !datos.puedeProcesar)
+                    actualizaSeleccion()
                     $(".resultado").toggleClass("conDatos", true)
                     $("#" + idTablaPendientes).DataTable().columns.adjust()
                 }
@@ -1164,15 +1187,18 @@ class Operaciones extends Controller
                     if (!datosFecha) return showWarning("Consulte primero una fecha.")
                     if (!datosFecha.puedeProcesar) return showWarning("Los pagos de esta fecha no se pueden procesar en este momento.")
 
-                    const resumen = datosFecha.resumen || {}
-                    const mensaje = "Se importarán y conciliarán " + (resumen.totalPagos || 0)
-                        + " pago(s) por $" + formatoMoneda(resumen.totalMonto || 0)
+                    const claves = clavesSeleccionadas()
+                    if (!claves.length) return showWarning("Seleccione al menos un pago para importar y conciliar.")
+
+                    const seleccion = actualizaSeleccion()
+                    const mensaje = "Se importarán y conciliarán " + seleccion.elegidas.length
+                        + " registro(s) por $" + formatoMoneda(seleccion.monto)
                         + " del " + formateaFecha(datosFecha.fecha)
                         + ". Esta acción no se puede deshacer."
 
                     confirmarMovimiento("¿Importar y conciliar pagos?", mensaje).then((continuar) => {
                         if (!continuar) return
-                        consultaServidor("/Operaciones/ProcesaPagosPostCierre/", { fecha: datosFecha.fecha }, (resultado) => {
+                        consultaServidor("/Operaciones/ProcesaPagosPostCierre/", { fecha: datosFecha.fecha, seleccion: 1, claves }, (resultado) => {
                             if (!resultado.success) return showError(resultado.mensaje)
                             const datos = resultado.datos || {}
                             if (datos.consulta) mostrarDatos(datos.consulta, "")
@@ -1190,6 +1216,11 @@ class Operaciones extends Controller
                         if (e.key === "Enter") consultaPendientes()
                     })
                     $("#btnProcesar").click(procesarPagos)
+                    $("#" + idTablaPendientes).on("change", "input.ppc-sel", actualizaSeleccion)
+                    $("#chkTodosPendientes").on("change", function () {
+                        checksPendientes().not(":disabled").prop("checked", this.checked)
+                        actualizaSeleccion()
+                    })
                     $("#modalResultadoProceso").on("shown.bs.modal", () => {
                         $("#" + idTablaResultado).DataTable().columns.adjust()
                     })
@@ -1261,7 +1292,8 @@ class Operaciones extends Controller
     }
 
     /**
-     * POST: fecha. Importa y concilia los pagos pendientes de una fecha ya cerrada.
+     * POST: fecha, seleccion=1, claves[] ("CDGNS|CICLO|SECUENCIA"). Importa y concilia los pagos
+     * seleccionados de una fecha ya cerrada; sin seleccion procesa todos los pendientes.
      */
     public function ProcesaPagosPostCierre()
     {
@@ -1269,7 +1301,13 @@ class Operaciones extends Controller
         try {
             $fecha = isset($_POST['fecha']) ? trim((string) $_POST['fecha']) : '';
             $usuario = isset($this->__usuario) ? (string) $this->__usuario : '';
-            $respuesta = AplicacionPagosService::procesar($fecha, $usuario);
+            $claves = null;
+            if (isset($_POST['claves']) && is_array($_POST['claves'])) {
+                $claves = $_POST['claves'];
+            } elseif (!empty($_POST['seleccion'])) {
+                $claves = [];
+            }
+            $respuesta = AplicacionPagosService::procesar($fecha, $usuario, $claves);
         } catch (\Throwable $e) {
             $respuesta = \Core\Model::Responde(false, 'Error al procesar los pagos.', null, $e->getMessage());
         }

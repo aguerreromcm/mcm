@@ -1,54 +1,71 @@
 <?= $header; ?>
 
 <div class="right_col">
-    <div class="panel">
-        <div class="panel-header" style="padding: 10px;">
+    <div class="panel panel-default folios-tarjeta-page pagos-gl-page pagos-post-cierre-page">
+        <div class="panel-body">
             <div class="x_title">
-                <label style="font-size: large;">Gestión de retiros</label>
+                <h3>Gestión de retiros</h3>
                 <div class="clearfix"></div>
             </div>
-            <div class="card">
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-2">
-                            <div class="form-group">
-                                <input class="form-control" type="date" id="fechaI" value="<?= $fechaI ?>">
-                                <span>Fecha inicial</span>
-                            </div>
+
+            <div class="panel-card ft-toolbar">
+                <div class="ft-toolbar-inner">
+                    <div class="ft-search">
+                        <label class="ft-tb-lbl" for="fechaI">
+                            <i class="fa fa-calendar"></i> Fecha inicial
+                        </label>
+                        <div class="ft-search-line">
+                            <input class="form-control" type="date" id="fechaI" value="<?= $fechaI ?>">
                         </div>
-                        <div class="col-md-2">
-                            <div class="form-group">
-                                <input class="form-control" type="date" id="fechaF" value="<?= $fechaF ?>">
-                                <span>Fecha final</span>
-                            </div>
+                    </div>
+                    <div class="ft-search">
+                        <label class="ft-tb-lbl" for="fechaF">
+                            <i class="fa fa-calendar"></i> Fecha final
+                        </label>
+                        <div class="ft-search-line">
+                            <input class="form-control" type="date" id="fechaF" value="<?= $fechaF ?>">
                         </div>
+                    </div>
+                    <div class="ft-toolbar-sep" aria-hidden="true"></div>
+                    <div class="ft-toolbar-hint">
+                        <p>Muestra las solicitudes registradas en el rango de fechas. Usa el menú de acciones para confirmar la entrega, devolver o cancelar un retiro.</p>
                     </div>
                 </div>
             </div>
-        </div>
-        <hr>
-        <div class="panel-body resultado">
-            <div class="row" style="padding-bottom: 25px;">
-                <table class="table table-striped table-bordered table-hover" id="retiros">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Crédito</th>
-                            <th>Cantidad Solicitada</th>
-                            <th>Fecha de solicitud</th>
-                            <th>Fecha de entrega programada</th>
-                            <th>Fecha de entrega real</th>
-                            <th>Fecha de devolución</th>
-                            <th>Región</th>
-                            <th>Sucursal</th>
-                            <th>Administradora</th>
-                            <th>Estatus</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    </tbody>
-                </table>
+
+            <div class="resultado">
+                <div class="panel-card" style="overflow: visible;">
+                    <div class="head">
+                        <h4><i class="fa fa-money"></i> Solicitudes de retiro</h4>
+                        <div class="pgl-head-badges">
+                            <span class="ft-conteo" id="lblRegistros"></span>
+                        </div>
+                    </div>
+                    <div class="body" style="padding-bottom: 25px;">
+                        <div class="ppc-tabla">
+                            <table class="table table-striped table-bordered table-hover" id="retiros" style="width: 100%;">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Crédito</th>
+                                        <th>Cantidad Solicitada</th>
+                                        <th>Fecha de solicitud</th>
+                                        <th>Fecha de entrega programada</th>
+                                        <th>Fecha de entrega real</th>
+                                        <th>Fecha de devolución</th>
+                                        <th>Región</th>
+                                        <th>Sucursal</th>
+                                        <th>Administradora</th>
+                                        <th>Estatus</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -178,13 +195,25 @@
                                 </div>
                             </div>
                             <div class="row">
-                                <div class="col-md-6">
+                                <div class="col-md-3">
                                     <div class="form-group">
                                         <label>Cantidad Solicitada</label>
                                         <input type="text" class="form-control" id="detalle_cantidad_solicitada" readonly>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Retiro de Devengo</label>
+                                        <input type="text" class="form-control" id="detalle_monto_devengo" readonly>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Retiro de Depósitos</label>
+                                        <input type="text" class="form-control" id="detalle_monto_depositos" readonly>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
                                     <div class="form-group">
                                         <label>Estatus</label>
                                         <input type="text" class="form-control" id="detalle_estatus" readonly>

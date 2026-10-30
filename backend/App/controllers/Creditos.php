@@ -717,6 +717,7 @@ HTML;
         View::set('catalogoSucursalesJson', json_encode($catalogoSucursales, JSON_UNESCAPED_UNICODE));
         View::set('fechaHoy', date('Y-m-d'));
         View::set('fechaMes', date('Y-m-01'));
+        View::set('diasPlazoTarjeta', CreditosDao::DIAS_PLAZO_TARJETA);
         View::render('folios_tarjeta');
     }
 
@@ -752,6 +753,17 @@ HTML;
             'usuario' => $this->__usuario
         ];
         echo json_encode(CreditosDao::ReasignarFolioTarjeta($datos));
+    }
+
+    public function EliminarFolioTarjeta()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        $datos = [
+            'id_folio' => $_POST['id_folio'] ?? '',
+            'motivo' => $_POST['motivo'] ?? '',
+            'usuario' => $this->__usuario
+        ];
+        echo json_encode(CreditosDao::EliminarFolioTarjeta($datos));
     }
 
     public function ConsultaHistoricoFoliosTarjeta()

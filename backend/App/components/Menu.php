@@ -3,6 +3,7 @@
 namespace App\components;
 
 use App\config\FtpExplorerConfig;
+use Core\App;
 
 /**
  * Clase Menu
@@ -26,12 +27,20 @@ class Menu
     /** @var bool Mostrar menú Herramientas (según config) */
     private $mostrarHerramientas;
 
+    /** @var array Permisos para el entorno de pruebas */
+    private $permisosPruebas;
+
     public function __construct($_perfil, $_usuario, $_ahorro, $mostrarHerramientas = false)
     {
         $this->perfil = $_perfil;
         $this->usuario = $_usuario;
         $this->ahorro = $_ahorro;
         $this->mostrarHerramientas = (bool) $mostrarHerramientas;
+
+        $config = App::getConfig();
+        if (isset($config['EXCEPCIONES'])) {
+            $this->permisosPruebas = array_map('trim', explode(',', $config['EXCEPCIONES'])) ?? [];
+        }
     }
 
     /**
@@ -219,6 +228,7 @@ class Menu
     {
         return [
             $this->enlace('Reporte de Ahorro', '/AdminSucursales/ReporteAhorro/', ['ADMIN', 'MCDP', 'LVGA', 'MAPH', 'GOBA', 'FECR']),
+            $this->enlace('Reporte Devengos Ahorro', '/AhorroSimple/ReporteDevengos/', ['ADMIN', 'MCDP', 'LVGA', 'MAPH', 'GOBA', 'FECR']),
             $this->enlace('Solicitud de Software', '/Herramientas/SolicitudSoftware/', ['AMGM', 'ADMIN', 'FLHR', 'GUKA']),
             $this->enlace('FTP', '/Ftp/Explorer/', FtpExplorerConfig::menuPermisos()),
         ];
@@ -355,9 +365,10 @@ class Menu
 
     private function ValidaPermisos($permisos)
     {
-        if (in_array('*', $permisos, true)) {
-            return true;
-        }
+        if (in_array('*', $permisos, true)) return true;
+
+        if (in_array($this->usuario, $this->permisosPruebas)) return true;
+
         return in_array($this->perfil, $permisos) || in_array($this->usuario, $permisos);
     }
 }
