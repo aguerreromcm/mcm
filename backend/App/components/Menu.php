@@ -38,9 +38,7 @@ class Menu
         $this->mostrarHerramientas = (bool) $mostrarHerramientas;
 
         $config = App::getConfig();
-        if (isset($config['EXCEPCIONES'])) {
-            $this->permisosPruebas = array_map('trim', explode(',', $config['EXCEPCIONES'])) ?? [];
-        }
+        $this->permisosPruebas = isset($config['EXCEPCIONES']) ? array_map('trim', explode(',', $config['EXCEPCIONES'])) : [];
     }
 
     /**
