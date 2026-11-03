@@ -158,18 +158,12 @@ class JobsAhorro extends Model
                     AND PD.ESTATUS = 'A'
                     AND PD.TIPO IN ('B', 'F', 'E', 'A')
                 UNION ALL
-                SELECT TRUNC(NVL(RA.FECHA_CREACION, RA.FECHA_SOLICITUD))
+                SELECT TRUNC(RA.FECHA_ENTREGA_REAL)
                     , -RA.CANT_SOLICITADA
                 FROM RETIROS_AHORRO RA
                 WHERE RA.CDGNS = :cdgns
-                    AND (RA.ESTATUS NOT IN ('C', 'R', 'D') OR COALESCE(RA.FECHA_CANCELACION, RA.FECHA_DEVOLUCION) IS NOT NULL)
-                UNION ALL
-                SELECT TRUNC(COALESCE(RA.FECHA_CANCELACION, RA.FECHA_DEVOLUCION))
-                    , RA.CANT_SOLICITADA
-                FROM RETIROS_AHORRO RA
-                WHERE RA.CDGNS = :cdgns
-                    AND RA.ESTATUS IN ('C', 'R', 'D')
-                    AND COALESCE(RA.FECHA_CANCELACION, RA.FECHA_DEVOLUCION) IS NOT NULL
+                    AND RA.ESTATUS = 'E'
+                    AND RA.FECHA_ENTREGA_REAL IS NOT NULL
                 UNION ALL
                 SELECT IA.FECHA_FIN
                     , IA.MONTO
