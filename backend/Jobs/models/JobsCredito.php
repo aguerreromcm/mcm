@@ -1771,13 +1771,11 @@ class JobsCredito extends Model
             UPDATE BITACORA_CIERRE_DIARIO
             SET CORREO = 1
             WHERE TRUNC(FECHA_CALCULO) = TO_DATE(:fecha, 'DD/MM/YYYY')
-                AND ID_IMPORTACION = :id_importacion
                 AND ID_PROCESO = :id_proceso
         SQL;
 
         $params = [
             'fecha' => $datos['FECHA_CALCULO'],
-            'id_importacion' => $datos['ID_IMPORTACION'],
             'id_proceso' => $datos['ID_PROCESO']
         ];
 
