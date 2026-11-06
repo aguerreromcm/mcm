@@ -225,8 +225,8 @@ class Menu
     private function opcionesReportes()
     {
         return [
-            $this->enlace('Reporte de Ahorro', '/AdminSucursales/ReporteAhorro/', ['ADMIN', 'MCDP', 'LVGA', 'MAPH', 'GOBA', 'FECR']),
-            $this->enlace('Reporte Devengos Ahorro', '/AhorroSimple/ReporteDevengos/', ['ADMIN', 'MCDP', 'LVGA', 'MAPH', 'GOBA', 'FECR']),
+            $this->enlace('Reporte de Ahorro', '/AdminSucursales/ReporteAhorro/', ['ADMIN', 'MCDP', 'LVGA', 'MAPH', 'GOBA', 'FECR', 'FLHR']),
+            $this->enlace('Reporte Devengos Ahorro', '/AhorroSimple/ReporteDevengos/', ['ADMIN', 'MCDP', 'LVGA', 'MAPH', 'GOBA', 'FECR', 'FLHR']),
             $this->enlace('Solicitud de Software', '/Herramientas/SolicitudSoftware/', ['AMGM', 'ADMIN', 'FLHR', 'GUKA']),
             $this->enlace('FTP', '/Ftp/Explorer/', FtpExplorerConfig::menuPermisos()),
         ];
