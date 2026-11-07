@@ -43,16 +43,48 @@ class CancelaRef extends Controller
                     return td
                 }
 
-                const getBotonCanelar = (credito, ciclo, secuencia) => {
-                    const btnCancelar = document.createElement("button")
+                const situaciones = {
+                    "L": "Liquidado",
+                    "E": "Entregado"
+                }
 
-                    btnCancelar.classList.add("btn", "btn-danger")
-                    btnCancelar.textContent = "Cancelar"
-                    btnCancelar.addEventListener("click", () => {
-                        cancelarRefinanciamiento(credito, ciclo, secuencia)
+                const crearSpan = (texto, clase) => {
+                    const span = document.createElement("span")
+                    if (clase) span.className = clase
+                    span.textContent = texto
+                    return span
+                }
+
+                const capitaliza = (texto) => texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase()
+
+                const getBadgeOperacion = (tipo, operacion) => crearSpan(capitaliza(operacion), "cr-badge " + (tipo === "R" ? "badge-mov-alta" : "badge-mov-reasigna"))
+
+                const getBadgeSituacion = (situacion) => crearSpan(situaciones[situacion] || situacion, "cr-badge " + (situacion === "L" ? "badge-vigente" : "badge-historico"))
+
+                const getBotonReversar = (movimiento) => {
+                    const btnReversar = document.createElement("button")
+
+                    btnReversar.classList.add("btn", "btn-danger", "btn-xs")
+                    btnReversar.innerHTML = "<i class='fa fa-undo'></i> Reversar"
+                    btnReversar.addEventListener("click", () => {
+                        reversarMovimiento(movimiento)
                     })
 
-                    return btnCancelar
+                    return btnReversar
+                }
+
+                const getMotivo = (motivo) => {
+                    const texto = crearSpan(motivo, "cr-motivo-texto")
+                    texto.insertAdjacentHTML("afterbegin", "<i class='fa fa-info-circle'></i>")
+                    return texto
+                }
+
+                const limpiarResultado = () => {
+                    $(".resultado").toggleClass("conDatos", false)
+                    $("#estadoInicial").show()
+                    $("#movimientos").DataTable().destroy()
+                    $("#movimientos tbody").empty()
+                    configuraTabla("movimientos")
                 }
 
                 const inputError = (mensaje) => {
@@ -61,110 +93,143 @@ class CancelaRef extends Controller
                 }
 
                 const resultadoError = (mensaje) => {
-                    $(".resultado").toggleClass("conDatos", false)
-                    
-                    showError(mensaje).then(() => {
-                        $("#refinanciamientos").DataTable().destroy()
-                        $("#refinanciamientos tbody").empty()
-                        configuraTabla("refinanciamientos")
-                    })
+                    limpiarResultado()
+                    showError(mensaje)
                 }
 
                 const resultadoOK = (datos) => {
-                    const situaciones = {
-                        "L": "Liquidado",
-                        "E": "Entregado"
-                    }
-
-                    $("#refinanciamientos").DataTable().destroy()
-                    $("#refinanciamientos tbody").empty()
+                    $("#movimientos").DataTable().destroy()
+                    $("#movimientos tbody").empty()
 
                     datos.forEach((dato) => {
-                        const { CLIENTE, CREDITO, CICLO, SITUACION, SALDO_TOTAL, FECHA, NOMBRE, EJECUTIVO, MONTO, OPERACION, REGISTRO, SECUENCIA, ESTATUS, ULTIMO_CICLO } = dato
+                        const { CLIENTE, CREDITO, CICLO, SITUACION, SALDO_TOTAL, FECHA, NOMBRE, EJECUTIVO, MONTO, TIPO, OPERACION, REGISTRO, MOTIVO } = dato
 
                         const tr = document.createElement("tr")
                         tr.appendChild(crearTD(CLIENTE))
                         tr.appendChild(crearTD(NOMBRE))
                         tr.appendChild(crearTD(CREDITO))
                         tr.appendChild(crearTD(CICLO))
-                        tr.appendChild(crearTD(situaciones[SITUACION]))
+                        tr.appendChild(crearTD(getBadgeSituacion(SITUACION)))
                         tr.appendChild(crearTD("$ " + formatoMoneda(SALDO_TOTAL)))
-                        tr.appendChild(crearTD(OPERACION))
+                        tr.appendChild(crearTD(getBadgeOperacion(TIPO, OPERACION)))
                         tr.appendChild(crearTD(FECHA))
                         tr.appendChild(crearTD("$ " + formatoMoneda(MONTO)))
                         tr.appendChild(crearTD(EJECUTIVO))
                         tr.appendChild(crearTD(REGISTRO))
-                        const btn = (ESTATUS === "A" && SITUACION === "L" && CICLO === ULTIMO_CICLO && SALDO_TOTAL > 0) ? getBotonCanelar(CREDITO, CICLO, SECUENCIA) : document.createTextNode("")
-                        tr.appendChild(crearTD(btn))
-                        
-                        $("#refinanciamientos tbody").append(tr)
+                        tr.appendChild(crearTD(MOTIVO ? getMotivo(MOTIVO) : getBotonReversar(dato)))
+
+                        $("#movimientos tbody").append(tr)
                     })
 
-                    configuraTabla("refinanciamientos")
-
+                    configuraTabla("movimientos")
+                    $("#estadoInicial").hide()
                     $(".resultado").toggleClass("conDatos", true)
                 }
 
-                const buscarRefinanciemientos = () => {
+                const buscarMovimientos = (recarga = false) => {
                     $("#noCredito").toggleClass("incorrecto", false)
                     const credito = $("#noCredito").val()
 
                     if (credito === "") return inputError("Debe ingresar un número de crédito.")
                     if (credito.length !== 6) return inputError("El número de crédito debe tener 6 dígitos.")
 
-                    consultaServidor("/cancelaRef/GetRefinanciamientos", { credito }, (resultado) => {
+                    consultaServidor("/cancelaRef/GetMovimientos", { credito }, (resultado) => {
                         if (!resultado.success) return resultadoError(resultado.mensaje)
                         
                         const { datos } = resultado
-                        if (datos.length === 0) return resultadoError("No se encontraron refinanciamientos para el crédito " + credito + ".")
+                        if (datos.length === 0 && recarga) return limpiarResultado()
+                        if (datos.length === 0) return resultadoError("No se encontraron refinanciamientos ni descuentos activos para el crédito " + credito + ".")
 
                         resultadoOK(datos)
                     })
                 }
 
-                const cancelarRefinanciamiento = (credito, ciclo, secuencia) => {
-                    const advertencia = document.createElement("p")
-                    advertencia.innerHTML = "Se ajustara el devengo del periodo y se reactivara el crédito.<br><b>¿Está seguro de continuar con la cancelación del refinanciamiento del crédito " + credito + " para el ciclo " + ciclo + "?</b>"
+                const getContenidoReverso = (movimiento, comentario) => {
+                    const { CREDITO, CICLO, OPERACION, FECHA, MONTO, CAPITAL, INTERES } = movimiento
+                    const contenido = document.createElement("div")
+                    const total = parseFloat(CAPITAL) + parseFloat(INTERES)
+                    const diferencia = parseFloat(MONTO) - total
 
-                    confirmarMovimiento("Cancelación de refinanciamiento", null, advertencia)
+                    contenido.innerHTML = "Se registrará el ajuste de reverso, se reactivará el ciclo y se cancelará el movimiento.<br><br>"
+                        + "<b>Crédito:</b> " + CREDITO + " &nbsp; <b>Ciclo:</b> " + CICLO + "<br>"
+                        + "<b>Operación:</b> " + OPERACION + " &nbsp; <b>Fecha:</b> " + FECHA + "<br>"
+                        + "<b>Monto del movimiento:</b> $ " + formatoMoneda(MONTO) + "<br>"
+                        + "<b>Capital a reversar:</b> $ " + formatoMoneda(CAPITAL) + " &nbsp; <b>Interés a reversar:</b> $ " + formatoMoneda(INTERES) + "<br>"
+                        + "<b>Total a reversar:</b> $ " + formatoMoneda(total) + "<br>"
+                        + (diferencia > 1 ? "<span class='text-danger'>El total a reversar es $ " + formatoMoneda(diferencia) + " menor al monto del movimiento.</span><br>" : "")
+                        + "<br><b>¿Está seguro de continuar con el reverso?</b><br><br>"
+
+                    const txtComentario = document.createElement("textarea")
+                    txtComentario.classList.add("form-control")
+                    txtComentario.rows = 3
+                    txtComentario.maxLength = 1000
+                    txtComentario.placeholder = "Comentario (obligatorio)"
+                    txtComentario.value = comentario
+                    contenido.appendChild(txtComentario)
+
+                    return contenido
+                }
+
+                const reversarMovimiento = (movimiento, comentarioPrevio = "") => {
+                    const { CREDITO, CICLO, SECUENCIA, TIPO, FECHA, OPERACION } = movimiento
+                    const contenido = getContenidoReverso(movimiento, comentarioPrevio)
+
+                    confirmarMovimiento("Reverso de " + OPERACION.toLowerCase(), null, contenido)
                     .then((continuar) => {
                         if (!continuar) return
 
-                        consultaServidor("/cancelaRef/CancelaRefinanciamiento", { credito, ciclo, secuencia }, (resultado) => {
-                            if (!resultado.success) return showError(resultado.mensaje)
+                        const comentario = contenido.querySelector("textarea").value.trim()
+                        if (comentario === "") return showError("El comentario es obligatorio.").then(() => reversarMovimiento(movimiento))
+                        if (new TextEncoder().encode(comentario).length > 1000) return showError("El comentario es demasiado largo, el máximo es de 1000 caracteres (las letras con acento y la ñ cuentan como 2).").then(() => reversarMovimiento(movimiento, comentario))
 
-                            showSuccess(resultado.mensaje).then(() => {
-                                $("#buscarRef").click()
-                            })
+                        consultaServidor("/cancelaRef/ReversaMovimiento", { credito: CREDITO, ciclo: CICLO, secuencia: SECUENCIA, tipo: TIPO, fecha: FECHA, comentario }, (resultado) => {
+                            if (!resultado.success) return showError(resultado.mensaje).then(() => buscarMovimientos(true))
+
+                            showSuccess(resultado.mensaje).then(() => buscarMovimientos(true))
                         })
                     })
                 }
 
                 $(document).ready(() => {
-                    configuraTabla("refinanciamientos")
+                    configuraTabla("movimientos")
 
                     $("#noCredito").on("keypress", (e) => {
                         if (e.key < "0" || e.key > "9") e.preventDefault()
-                        if (e.key === "Enter") buscarRefinanciemientos()
+                        if (e.key === "Enter") buscarMovimientos()
                     })
-                    $("#buscarRef").on("click", buscarRefinanciemientos)
+                    $("#buscarRef").on("click", () => buscarMovimientos())
                 })
             </script>
         HTML;
 
 
-        View::set('header', $this->_contenedor->header($this->GetExtraHeader('Cancelación de Refinanciamientos')));
+        $extraHeader = $this->GetExtraHeader('Cancelación de Refinanciamientos y Descuentos', [
+            '<link href="/css/folios-tarjeta.css" rel="stylesheet">',
+            '<link href="/css/pagos-con-gl.css" rel="stylesheet">'
+        ]);
+
+        View::set('header', $this->_contenedor->header($extraHeader));
         View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::set('diasReverso', CancelaRefDao::DIAS_REVERSO);
         View::render("cancela_refinanciamientos");
     }
 
-    public function GetRefinanciamientos()
+    public function GetMovimientos()
     {
-        echo json_encode(CancelaRefDao::GetRefinanciamientos($_POST));
+        echo json_encode(CancelaRefDao::GetMovimientos($_POST));
     }
 
-    public function CancelaRefinanciamiento()
+    public function ReversaMovimiento()
     {
-        echo json_encode(CancelaRefDao::CancelaRefinanciamiento($_POST));
+        $datos = [
+            'credito' => $_POST['credito'] ?? '',
+            'ciclo' => $_POST['ciclo'] ?? '',
+            'secuencia' => $_POST['secuencia'] ?? '',
+            'tipo' => $_POST['tipo'] ?? '',
+            'fecha' => $_POST['fecha'] ?? '',
+            'comentario' => $_POST['comentario'] ?? '',
+            'usuario' => $this->__usuario
+        ];
+        echo json_encode(CancelaRefDao::ReversaMovimiento($datos));
     }
 }
