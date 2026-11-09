@@ -51,6 +51,7 @@
                                                     <th>Correo</th>
                                                     <th>Área/Puesto</th>
                                                     <th>Sucursal</th>
+                                                    <th></th>
                                                 </tr>
                                             </thead>
                                             <tbody>

@@ -504,7 +504,7 @@ sql;
                 CORREO_DIRECTORIO
         SQL;
 
-        $filtros = [];
+        $filtros = ["ESTATUS = 'A'"];
         $prm = [];
 
         if (isset($datos['area'])) {
@@ -632,6 +632,34 @@ sql;
             return self::Responde(true, 'Correo registrado correctamente');
         } catch (\Exception $e) {
             return self::Responde(false, 'Error al registrar correo', null, $e->getMessage());
+        }
+    }
+
+    public static function BajaCorreo($datos)
+    {
+        $qrys = [
+            <<<SQL
+                DELETE FROM CORREO_DIRECTORIO_GRUPO
+                WHERE ID_CORREO = :correo
+            SQL,
+            <<<SQL
+                UPDATE CORREO_DIRECTORIO
+                SET ESTATUS = 'I', USUARIO_MODIFICACION = :usuario
+                WHERE ID = :correo
+            SQL
+        ];
+
+        $prm = [
+            ['correo' => $datos['correo']],
+            ['correo' => $datos['correo'], 'usuario' => $datos['usuario']]
+        ];
+
+        try {
+            $db = new Database();
+            $db->insertaMultiple($qrys, $prm);
+            return self::Responde(true, 'Correo dado de baja correctamente');
+        } catch (\Exception $e) {
+            return self::Responde(false, 'Error al dar de baja el correo', null, $e->getMessage());
         }
     }
 

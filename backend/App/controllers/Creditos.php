@@ -1228,13 +1228,15 @@ HTML;
 
                         const correos = respuesta.datos.map((correo) => {
                             const checador = "<input type='checkbox' name='correo' value='" + correo.ID + "'onchange='compruebaCorreoGrupo(event)'>"
+                            const baja = "<button type='button' class='btn btn-danger btn-sm' title='Dar de baja' onclick='bajaCorreo(\"" + correo.ID + "\", \"" + correo.CORREO + "\")'><span class='glyphicon glyphicon-trash'></span></button>"
 
                             return [
                                 checador,
                                 correo.NOMBRE,
                                 correo.CORREO,
                                 correo.AREA,
-                                correo.SUCURSAL
+                                correo.SUCURSAL,
+                                baja
                             ]
 
                             $("#tblCorreos tbody").append(fila)
@@ -1353,6 +1355,37 @@ HTML;
                     $("#guardarDireccion").prop("disabled", true)
 
                     $("#modalCorreo").modal("hide")
+                }
+
+                const bajaCorreo = (id, correo) => {
+                    confirmarMovimiento("Administración de correos", "¿Esta seguro de dar de baja el correo " + correo + "? También se quitará de todos los grupos a los que pertenece.")
+                    .then((continuar) => {
+                        if (!continuar) return
+                        consultaServidor("/Creditos/BajaCorreo", { correo: id, usuario: "{$_SESSION['usuario']}" }, (respuesta) => {
+                            if (!respuesta.success) return showError("Ocurrio un error al dar de baja el correo.")
+
+                            showSuccess("Correo dado de baja correctamente.")
+                            actualizaFiltros()
+                            actualizaListaGrupos()
+                        })
+                    })
+                }
+
+                const actualizaFiltros = () => {
+                    consultaServidor("/Creditos/GetParametros", null, (respuesta) => {
+                        if (!respuesta.success) return showError("Ocurrio un error al actualizar los filtros.")
+
+                        const area = $("#areaFiltro").val()
+                        const sucursal = $("#sucursalFiltro").val()
+
+                        $("#areaFiltro").html(respuesta.datos.area)
+                        $("#sucursalFiltro").html(respuesta.datos.sucursal)
+
+                        $("#areaFiltro").val($("#areaFiltro option[value='" + area + "']").length ? area : "*")
+                        $("#sucursalFiltro").val($("#sucursalFiltro option[value='" + sucursal + "']").length ? sucursal : "*")
+
+                        getCorreos()
+                    })
                 }
 
                 const validaCorreo = (correo) => {
@@ -1550,6 +1583,11 @@ HTML;
     public function AgregaCorreo()
     {
         echo json_encode(CreditosDao::AgregaCorreo($_POST));
+    }
+
+    public function BajaCorreo()
+    {
+        echo json_encode(CreditosDao::BajaCorreo($_POST));
     }
 
     public function AgregaGrupo()

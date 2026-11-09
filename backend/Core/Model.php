@@ -73,6 +73,7 @@ class Model
                 CORREO_DIRECTORIO
             WHERE
                 USUARIO IN ($usuarios)
+                AND ESTATUS = 'A'
         SQL;
 
         try {
@@ -100,6 +101,7 @@ class Model
                 JOIN CORREO_DIRECTORIO CD ON CD.ID = CDG.ID_CORREO
             WHERE
                 SUBSTR(CG.GRUPO, 1, 3) IN ($sucursales)
+                AND CD.ESTATUS = 'A'
         SQL;
 
         try {
@@ -122,6 +124,7 @@ class Model
                 JOIN CORREO_DIRECTORIO CD ON CD.ID = CDG.ID_CORREO
             WHERE
                 CAG.ID_APLICACION = :aplicacion
+                AND CD.ESTATUS = 'A'
         SQL;
 
         $prm = [
