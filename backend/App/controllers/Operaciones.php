@@ -803,9 +803,9 @@ class Operaciones extends Controller
         if (!is_file($archivo)) {
             return '';
         }
-        $contenido = @file_get_contents($archivo, false, null, -2048);
+        $contenido = @file_get_contents($archivo);
 
-        return is_string($contenido) ? trim($contenido) : '';
+        return is_string($contenido) ? trim(substr($contenido, -2048)) : '';
     }
 
     ////////////////////////////////////////////////////////////////////
