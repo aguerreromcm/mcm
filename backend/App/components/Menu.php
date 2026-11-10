@@ -130,7 +130,7 @@ class Menu
             $this->enlace('Actualización de Créditos', '/Creditos/ActualizaCredito/', ['ADMIN', 'GOBA', 'MAPH']),
             $this->enlace('Reasignación', '/Creditos/Reasignacion/', ['ADMIN', 'CAMAG', 'GOBA', 'MAPH']),
             $this->enlace('Tarjeta de Pagos', '/Creditos/FoliosTarjeta/', ['ADMIN', 'AMGM']),
-            $this->enlace('Cancelación de Ref', '/CancelaRef/', ['ADMIN', 'CAMAG', 'GOBA', 'MAPH']),
+            $this->enlace('Cancela Ref y Des', '/CancelaRef/', ['ADMIN', 'CAMAG', 'GOBA', 'MAPH']),
             $this->enlace('Corrección Mov Ajustes', '/CorreccionAjustes/', ['ADMIN', 'CAMAG', 'GOBA', 'MAPH']),
             $this->enlace('Consulta Clientes Solicitudes', '/Cultiva/', ['ADMIN', 'CAMAG', 'GOBA', 'MAPH']),
         ];
