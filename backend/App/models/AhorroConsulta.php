@@ -23,7 +23,7 @@ class AhorroConsulta extends Model
 
         $minutos = ((int) $fechaHora->format('H')) * 60 + (int) $fechaHora->format('i');
 
-        return $minutos >= 8 * 60 && $minutos <= 14 * 60;
+        return $minutos >= 8 * 60 && $minutos <= 20 * 60;
     }
 
     public static function getSiguienteDiaHabil(\DateTime $fecha)
