@@ -5,126 +5,220 @@ namespace App\services;
 defined("APPPATH") or die("Access denied");
 
 use Core\Model;
-use Core\App;
 use App\repositories\CierreDiaRepository;
+use App\repositories\PagosAplicacionRepository;
+use Jobs\models\JobsCredito as JobsDao;
 
 /**
  * Service: lógica de negocio del Cierre de Día.
- * Validaciones, control de concurrencia, regeneración (admin + contraseña), generación de resumen y envío de correo.
+ * Validaciones, control de concurrencia y regeneración (admin + contraseña), más el histórico, el resumen
+ * de movimientos del día y el resumen del correo de cierre que muestra la pantalla de cierre.
  */
 class CierreDiaService
 {
+    /** Días que muestra el histórico: la fecha consultada y los 6 anteriores. */
+    const DIAS_HISTORICO = 7;
+
+    /** Categorías del resumen de pagos del día. */
+    const CATEGORIAS_PAGOS = ['pagos', 'garantias', 'ajustes', 'no_identificados', 'incidencias'];
+
     /**
-     * Datos para la pantalla: últimos 7 cierres en bitácora, estado de ejecución y tiempo estimado.
-     * Las métricas salen de la bitácora (SP); si faltan, se completa con consultas agregadas livianas.
+     * Estado de ejecución para la carga inicial de la pantalla. No consulta histórico ni movimientos:
+     * esa información se obtiene hasta que el usuario consulta una fecha.
      *
-     * @param bool $conResumenesExternos Si true y faltan métricas en bitácora, consulta TBL_CIERRE_DIA/DEVENGO
-     * @return array { success, mensaje, datos: { ultimos5, ejecutando, inicio, usuario, tiempoEstimado } }
+     * @return array { success, mensaje, datos: { ejecutando, inicio, usuario, segundos, fechaCierre, tiempoEstimado, jobActivo } }
      */
-    public static function obtenerDatosPantalla($conResumenesExternos = true)
+    public static function estadoEjecucion()
     {
         $repo = new CierreDiaRepository();
-        $ultimos5 = $repo->getUltimos7Cierres();
-        $fechasFaltantes = [];
-        foreach ($ultimos5 as $fila) {
-            $enProceso = !empty($fila['EN_PROCESO']) && (int) $fila['EN_PROCESO'] === 1;
-            $exito = isset($fila['EXITO']) ? (int) $fila['EXITO'] : 0;
-            $fechaIso = isset($fila['FECHA_CIERRE_ISO']) ? trim((string) $fila['FECHA_CIERRE_ISO']) : '';
-            if ($fechaIso === '') {
-                continue;
-            }
-            if ($enProceso) {
-                continue;
-            }
-            // Errores: ceros en pantalla; no consultar tablas operativas.
-            if (!$enProceso && $exito !== 1) {
-                continue;
-            }
-            // Éxito: siempre por fecha de cierre (TBL_CIERRE_DIA / DEVENGO). El SP reutiliza
-            // ID_IMPORTACION y deja las mismas cifras en bitácora en todos los renglones.
-            if ($exito === 1) {
-                $fechasFaltantes[] = $fechaIso;
-                continue;
-            }
-            // En proceso: bitácora del SP en vivo; respaldo solo si faltan columnas.
-            $tieneMetricas = array_key_exists('REGISTROS_PROCESADOS', $fila)
-                || array_key_exists('CREDITOS_DEVENGO', $fila)
-                || array_key_exists('DEVENGO_MONTO_NUM', $fila);
-            if (!$tieneMetricas) {
-                $fechasFaltantes[] = $fechaIso;
-            }
-        }
-
-        $mapCierre = [];
-        $mapDevengo = [];
-        if ($conResumenesExternos && !empty($fechasFaltantes)) {
-            $resumenes = $repo->getResumenesPorFechas($fechasFaltantes);
-            $mapCierre = isset($resumenes['cierre']) && is_array($resumenes['cierre']) ? $resumenes['cierre'] : [];
-            $mapDevengo = isset($resumenes['devengo']) && is_array($resumenes['devengo']) ? $resumenes['devengo'] : [];
-        }
-
-        foreach ($ultimos5 as &$fila) {
-            $fechaIso = isset($fila['FECHA_CIERRE_ISO']) ? (string) $fila['FECHA_CIERRE_ISO'] : '';
-            unset($fila['FECHA_CIERRE_ISO']);
-
-            $enProceso = !empty($fila['EN_PROCESO']) && (int) $fila['EN_PROCESO'] === 1;
-            $exito = isset($fila['EXITO']) ? (int) $fila['EXITO'] : 0;
-
-            if ($enProceso) {
-                $fila['REGISTROS_PROCESADOS'] = '-';
-                $fila['CREDITOS_DEVENGO'] = '-';
-                $fila['MONTO_INTERESES_DEVENGADOS'] = '-';
-                unset($fila['DEVENGO_MONTO_NUM'], $fila['EN_PROCESO']);
-                $fila['ESTADO_TEXTO'] = 'Procesando';
-                continue;
-            }
-
-            $mostrarMetricas = $exito === 1;
-
-            if ($mostrarMetricas) {
-                $registros = (int) ($mapCierre[$fechaIso] ?? 0);
-                $creditos = (int) ($mapDevengo[$fechaIso]['creditos'] ?? 0);
-                $monto = (float) ($mapDevengo[$fechaIso]['monto'] ?? 0);
-            } else {
-                $registros = array_key_exists('REGISTROS_PROCESADOS', $fila)
-                    ? (int) $fila['REGISTROS_PROCESADOS']
-                    : 0;
-                $creditos = array_key_exists('CREDITOS_DEVENGO', $fila)
-                    ? (int) $fila['CREDITOS_DEVENGO']
-                    : 0;
-                $monto = array_key_exists('DEVENGO_MONTO_NUM', $fila)
-                    ? (float) $fila['DEVENGO_MONTO_NUM']
-                    : 0.0;
-            }
-            unset($fila['DEVENGO_MONTO_NUM']);
-
-            $fila['REGISTROS_PROCESADOS'] = $registros;
-            $fila['CREDITOS_DEVENGO'] = $creditos;
-            $fila['MONTO_INTERESES_DEVENGADOS'] = '$ ' . number_format($monto, 2);
-
-            unset($fila['EN_PROCESO']);
-            if ($exito === 1) {
-                $fila['ESTADO_TEXTO'] = 'Finalizado';
-            } else {
-                $fila['ESTADO_TEXTO'] = 'Error';
-            }
-        }
-        unset($fila);
         $enEjecucion = $repo->validaCierreEnEjecucion();
         $jobActivo = CierreDiaJobLock::jobActivo();
-        $ejecutando = !empty($enEjecucion) || $jobActivo;
-        $tiempoEstimado = $repo->tiempoEstimado();
 
         return Model::Responde(true, 'OK', [
-            'ultimos5' => $ultimos5,
-            'ejecutando' => $ejecutando,
-            'inicio' => !empty($enEjecucion) ? ($enEjecucion['INICIO'] ?? null) : null,
-            'usuario' => !empty($enEjecucion) ? ($enEjecucion['USUARIO'] ?? null) : null,
-            'segundos' => !empty($enEjecucion) ? (int) ($enEjecucion['SEGUNDOS'] ?? 0) : 0,
-            'fechaCierre' => !empty($enEjecucion) ? ($enEjecucion['FECHA_CIERRE_ISO'] ?? null) : null,
-            'tiempoEstimado' => $tiempoEstimado,
+            'ejecutando' => !empty($enEjecucion) || $jobActivo,
+            'inicio' => $enEjecucion['INICIO'] ?? null,
+            'usuario' => $enEjecucion['USUARIO'] ?? null,
+            'segundos' => (int) ($enEjecucion['SEGUNDOS'] ?? 0),
+            'fechaCierre' => $enEjecucion['FECHA_CIERRE_ISO'] ?? null,
+            'tiempoEstimado' => $repo->tiempoEstimado(),
             'jobActivo' => $jobActivo,
         ]);
+    }
+
+    /**
+     * Estado del cierre de una fecha: si ya concluyó con éxito y si hay algún cierre en ejecución.
+     *
+     * @param string $fecha Y-m-d
+     * @return array { ejecutado, enEjecucion }
+     */
+    public static function estadoCierreFecha($fecha)
+    {
+        $repo = new CierreDiaRepository();
+        $sp = $repo->getEstatusSpPorFecha($fecha);
+        $ejecutado = $sp !== null
+            && (int) ($sp['EN_PROCESO'] ?? 0) === 0
+            && (int) ($sp['EXITO'] ?? 0) === 1;
+
+        return [
+            'ejecutado' => $ejecutado,
+            'enEjecucion' => !empty($repo->validaCierreEnEjecucion()) || CierreDiaJobLock::jobActivo(),
+        ];
+    }
+
+    /**
+     * Histórico de la fecha consultada y los días anteriores según BITACORA_CIERRE_DIARIO.
+     * Los días sin registro en bitácora se devuelven como pendientes de procesar.
+     *
+     * @param string $fecha Y-m-d
+     * @return array { success, mensaje, datos: { fecha, dias: [...] } }
+     */
+    public static function historico($fecha)
+    {
+        $fechaNorm = PagosAplicacionRepository::coerceFechaYmD($fecha);
+        if ($fechaNorm === null) {
+            return Model::Responde(false, 'Seleccione una fecha válida.', null, 'Fecha inválida');
+        }
+
+        $inicio = date('Y-m-d', strtotime($fechaNorm . ' -' . (self::DIAS_HISTORICO - 1) . ' days'));
+        $repo = new CierreDiaRepository();
+        $porFecha = [];
+        foreach ($repo->getHistoricoBitacora($inicio, $fechaNorm) as $fila) {
+            $porFecha[(string) ($fila['FECHA_ISO'] ?? '')] = $fila;
+        }
+
+        $dias = [];
+        for ($i = 0; $i < self::DIAS_HISTORICO; $i++) {
+            $dia = date('Y-m-d', strtotime($fechaNorm . ' -' . $i . ' days'));
+            $fila = $porFecha[$dia] ?? null;
+            $base = [
+                'fecha' => $dia,
+                'fechaFmt' => date('d/m/Y', strtotime($dia)),
+                'consultada' => $i === 0,
+            ];
+
+            if ($fila === null) {
+                $dias[] = $base + [
+                    'estado' => 'pendiente',
+                    'estadoTexto' => 'Pendiente de procesar',
+                    'usuario' => null,
+                    'inicio' => null,
+                    'fin' => null,
+                    'registrosCierre' => null,
+                    'creditosDevengo' => null,
+                    'montoDevengo' => null,
+                    'mensaje' => '',
+                ];
+                continue;
+            }
+
+            $enProceso = (int) ($fila['EN_PROCESO'] ?? 0) === 1;
+            $exito = (int) ($fila['EXITO'] ?? 0) === 1;
+            if ($enProceso) {
+                $estado = ['procesando', 'Procesando'];
+            } elseif ($exito) {
+                $estado = ['finalizado', 'Finalizado'];
+            } else {
+                $estado = ['error', 'Error'];
+            }
+            $metrica = function ($valor, $decimales = false) use ($enProceso) {
+                if ($enProceso || $valor === null || $valor === '') {
+                    return null;
+                }
+                return $decimales ? round((float) $valor, 2) : (int) $valor;
+            };
+
+            $dias[] = $base + [
+                'estado' => $estado[0],
+                'estadoTexto' => $estado[1],
+                'usuario' => $fila['USUARIO'] ?? null,
+                'inicio' => $fila['INICIO'] ?? null,
+                'fin' => $fila['FIN'] ?? null,
+                'registrosCierre' => $metrica($fila['CIERRE_REGISTROS'] ?? null),
+                'creditosDevengo' => $metrica($fila['DEVENGO_REGISTROS'] ?? null),
+                'montoDevengo' => $metrica($fila['DEVENGO_MONTO'] ?? null, true),
+                'mensaje' => (string) ($fila['MENSAJE'] ?? ''),
+            ];
+        }
+
+        return Model::Responde(true, 'OK', ['fecha' => $fechaNorm, 'dias' => $dias]);
+    }
+
+    /**
+     * Resumen del día por categoría (pagos, garantías, ajustes, no identificados e incidencias)
+     * con lo aplicado y lo pendiente.
+     *
+     * @param string $fecha Y-m-d
+     * @return array { success, mensaje, datos: { fecha, resumen } }
+     */
+    public static function resumenPagos($fecha)
+    {
+        $fechaNorm = PagosAplicacionRepository::coerceFechaYmD($fecha);
+        if ($fechaNorm === null) {
+            return Model::Responde(false, 'Seleccione una fecha válida.', null, 'Fecha inválida');
+        }
+
+        try {
+            $resumen = (new CierreDiaRepository())->getResumenPagosDia($fechaNorm);
+        } catch (\Throwable $e) {
+            return Model::Responde(false, 'Error al consultar el resumen de pagos.', null, $e->getMessage());
+        }
+
+        foreach ($resumen as $categoria => $r) {
+            $resumen[$categoria]['pendientes'] = max(0, $r['total'] - $r['aplicados']);
+            $resumen[$categoria]['montoPendiente'] = round($r['monto'] - $r['montoAplicado'], 2);
+        }
+
+        return Model::Responde(true, 'OK', ['fecha' => $fechaNorm, 'resumen' => $resumen]);
+    }
+
+    /**
+     * Detalle de una categoría del resumen de pagos del día.
+     *
+     * @param string $fecha Y-m-d
+     * @param string $categoria
+     * @return array { success, mensaje, datos: { fecha, categoria, filas } }
+     */
+    public static function detallePagos($fecha, $categoria)
+    {
+        $fechaNorm = PagosAplicacionRepository::coerceFechaYmD($fecha);
+        if ($fechaNorm === null) {
+            return Model::Responde(false, 'Seleccione una fecha válida.', null, 'Fecha inválida');
+        }
+        $categoria = trim((string) $categoria);
+        if (!in_array($categoria, self::CATEGORIAS_PAGOS, true)) {
+            return Model::Responde(false, 'Categoría no válida.', null, 'Categoría inválida');
+        }
+
+        try {
+            $filas = (new CierreDiaRepository())->getDetallePagosDia($fechaNorm, $categoria);
+        } catch (\Throwable $e) {
+            return Model::Responde(false, 'Error al consultar el detalle.', null, $e->getMessage());
+        }
+
+        foreach ($filas as $i => $f) {
+            $filas[$i]['MONTO'] = round((float) ($f['MONTO'] ?? 0), 2);
+            $filas[$i]['APLICADO'] = (int) ($f['APLICADO'] ?? 0) === 1;
+            if (isset($f['DESCRIPCION'])) {
+                $filas[$i]['DESCRIPCION'] = self::limpiarMotivo($f['DESCRIPCION']);
+            }
+            if (isset($f['MSGRESUL'])) {
+                $filas[$i]['MSGRESUL'] = self::limpiarMotivo($f['MSGRESUL']);
+            }
+        }
+
+        return Model::Responde(true, 'OK', ['fecha' => $fechaNorm, 'categoria' => $categoria, 'filas' => $filas]);
+    }
+
+    /**
+     * Quita el prefijo «Resultado de la validación:» y los saltos de línea que dejan los SP de importación.
+     *
+     * @param string|null $texto
+     * @return string
+     */
+    public static function limpiarMotivo($texto)
+    {
+        $texto = preg_replace('/^\s*Resultado de la validaci\S*n:\s*/iu', '', (string) $texto);
+        return trim(preg_replace('/\s+/u', ' ', $texto));
     }
 
     /**
@@ -292,160 +386,40 @@ class CierreDiaService
     }
 
     /**
-     * Libera el candado PHP de la fecha (p. ej. si el Job no pudo arrancar tras adquirirlo).
+     * Resumen del cierre de una fecha: mismo contenido y mismos datos que el correo que envía el Job al concluir,
+     * sin el encabezado ni el pie de la notificación.
      *
-     * @param string $fecha Y-m-d
-     * @param int $exito
-     * @return bool
-     */
-    public static function liberarCandadoInicio($fecha, $exito = 0)
-    {
-        $repo = new CierreDiaRepository();
-        return $repo->cerrarCandadoInicio($fecha, (int) $exito);
-    }
-
-    /**
-     * Registra el inicio del cierre y deja listo para que el Job ejecute SP_PAGOS_CIERRE_DEVENGO.
-     * No ejecuta el SP aquí (proceso pesado); el controlador lanzará el Job.
-     *
-     * @param string $fecha Y-m-d
-     * @param string $usuario
-     * @param int $regenerar 0 o 1 (solo UI/admin; el SP unificado no recibe este flag)
-     * @return array { success, mensaje }
-     */
-    public static function registrarInicioYResponder($fecha, $usuario, $regenerar = 0)
-    {
-        return self::iniciarProcesoCierre($fecha, $usuario, '', $regenerar);
-    }
-
-    /**
-     * Ejecuta el cierre diario en la misma petición (sin Job en segundo plano).
-     *
-     * @param string $fechaCierre Y-m-d
-     * @param string $usuario
-     * @param int $regenerar 0 o 1: si no es 0, borra devengo y TBL_CIERRE_DIA del día antes del SP (regenerar)
-     * @return array { success, mensaje }
-     */
-    public static function ejecutarCierreDiario($fechaCierre, $usuario, $regenerar = 0)
-    {
-        $repo = new CierreDiaRepository();
-        try {
-            $repo->ejecutarSpPagosCierreDevengo($fechaCierre, $usuario, $regenerar !== 0);
-            self::finalizarCierre($fechaCierre, 1);
-            return Model::Responde(true, 'El cierre de día se ha completado correctamente.');
-        } catch (\Throwable $e) {
-            self::finalizarCierre($fechaCierre, 0);
-            return Model::Responde(false, 'Error al ejecutar el cierre: ' . $e->getMessage(), null, $e->getMessage());
-        }
-    }
-
-    /**
-     * Finaliza el cierre: registra fin en bitácora, obtiene resumen y envía correo.
-     * Lo invoca el Job al terminar el SP (o ejecutarCierreDiario cuando se ejecuta en la misma petición).
-     *
-     * @param string $fechaCierre Y-m-d (fecha del cierre)
-     * @param int $exito 1 = éxito, 0 = error
-     */
-    public static function finalizarCierre($fechaCierre, $exito = 1)
-    {
-        $repo = new CierreDiaRepository();
-        $repo->registrarFin($fechaCierre, $exito);
-
-        if ($exito !== 1) {
-            return;
-        }
-
-        try {
-            $resumen = CierreDiaResumenPresenter::construir($fechaCierre);
-        } catch (\Throwable $e) {
-            return;
-        }
-
-        $configCierre = self::getConfigCierreDia();
-        $soloFlujo = self::isSoloFlujo($configCierre);
-        $correosDesarrollo = isset($configCierre['CORREOS_DESARROLLO']) ? trim((string) $configCierre['CORREOS_DESARROLLO']) : '';
-
-        $destinatarios = [];
-        if ($soloFlujo) {
-            if ($correosDesarrollo === '') {
-                return;
-            }
-            $destinatarios = array_unique(array_map('trim', explode(',', $correosDesarrollo)));
-            $destinatarios = array_values(array_filter($destinatarios, function ($e) { return $e !== ''; }));
-            if (empty($destinatarios)) {
-                return;
-            }
-        } else {
-            $destinatarios = $repo->getDestinatariosResumenCierreParametrosPld();
-        }
-
-        if (empty($destinatarios)) {
-            return;
-        }
-
-        $fechaFmt = $resumen['fechaCierreFmt'] ?? date('d/m/Y', strtotime($fechaCierre));
-        $html = CierreDiaResumenPresenter::htmlCorreo($resumen);
-
-        if (!class_exists('Mensajero')) {
-            @include_once dirname(dirname(__DIR__)) . '/libs/PHPMailer/Mensajero.php';
-        }
-        if (class_exists('Mensajero')) {
-            \Mensajero::EnviarCorreo(
-                $destinatarios,
-                'Resumen de cierre de día - ' . $fechaFmt,
-                \Mensajero::Notificaciones($html),
-                [],
-                !$soloFlujo
-            );
-        }
-    }
-
-    /**
-     * Resumen unificado de cierre (modal y correo): proceso, pagos, conciliación y devengo.
-     *
-     * @param string $fechaYmd Y-m-d fecha operativa / de cierre
-     * @return array Respuesta Model::Responde
+     * @param string $fechaYmd Y-m-d
+     * @return array Respuesta Model::Responde con datos { asunto, html }
      */
     public static function obtenerResumenCierreDia($fechaYmd)
     {
-        $fechaYmd = trim((string) $fechaYmd);
-        if ($fechaYmd === '') {
-            return Model::Responde(false, 'Indique la fecha operativa.');
-        }
-        try {
-            $datos = CierreDiaResumenPresenter::construir($fechaYmd);
-
-            return Model::Responde(true, 'OK', $datos);
-        } catch (\InvalidArgumentException $e) {
+        $fechaNorm = PagosAplicacionRepository::coerceFechaYmD($fechaYmd);
+        if ($fechaNorm === null) {
             return Model::Responde(false, 'Fecha no válida.');
+        }
+
+        $idProceso = (new CierreDiaRepository())->getIdProcesoCierre($fechaNorm);
+        if ($idProceso === null) {
+            return Model::Responde(false, 'No hay un cierre concluido para el ' . date('d/m/Y', strtotime($fechaNorm)) . '.');
+        }
+
+        try {
+            $resultado = JobsDao::ResultadoCierreDia($fechaNorm, $idProceso);
+            if (empty($resultado['success'])) {
+                return Model::Responde(false, $resultado['mensaje'] ?? 'No se encontró el resultado del cierre.');
+            }
+
+            $datos = $resultado['datos'];
+            $lineas = preg_split('/\r\n|\r|\n/', trim((string) ($datos['MENSAJE'] ?? '')));
+            $datos['MENSAJE'] = end($lineas);
+
+            return Model::Responde(true, 'OK', [
+                'asunto' => 'Cierre del día ' . $datos['FECHA_CALCULO'],
+                'html' => CierreDiaCorreoPresenter::plantilla($datos),
+            ]);
         } catch (\Throwable $e) {
             return Model::Responde(false, 'Error al obtener el resumen de cierre.', null, $e->getMessage());
         }
-    }
-
-    /**
-     * Lee la sección [cierre_dia] del configuracion.ini (getConfig() devuelve array plano sin secciones).
-     *
-     * @return array
-     */
-    private static function getConfigCierreDia()
-    {
-        if (!function_exists('parse_ini_file')) {
-            return [];
-        }
-        $ini = @parse_ini_file(dirname(__DIR__) . '/config/configuracion.ini', true);
-        return isset($ini['cierre_dia']) && is_array($ini['cierre_dia']) ? $ini['cierre_dia'] : [];
-    }
-
-    /**
-     * Indica si CIERRE_DIA_SOLO_FLUJO está activo (true, 1, "true", "1").
-     *
-     * @param array $configCierre Sección [cierre_dia]
-     * @return bool
-     */
-    private static function isSoloFlujo(array $configCierre)
-    {
-        $val = isset($configCierre['CIERRE_DIA_SOLO_FLUJO']) ? trim((string) $configCierre['CIERRE_DIA_SOLO_FLUJO']) : '';
-        return $val !== '' && (filter_var($val, FILTER_VALIDATE_BOOLEAN) || strtolower($val) === 'true' || $val === '1');
     }
 }

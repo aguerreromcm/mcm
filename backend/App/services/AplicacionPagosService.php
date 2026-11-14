@@ -6,35 +6,18 @@ defined("APPPATH") or die("Access denied");
 
 use Core\Database;
 use Core\Model;
-use App\repositories\CierreDiaRepository;
 use App\repositories\PagosAplicacionRepository;
 use App\repositories\AplicacionPagosRepository;
 
 /**
- * Service: importación y conciliación de pagos registrados después del cierre de día.
+ * Service: importación y conciliación de pagos (P y X) registrados después del cierre de día.
  * Ejecuta únicamente la parte de importación/conciliación de SP_PAGOS_CIERRE_DEVENGO
  * (sin TBL_CIERRE_DIA ni devengo), para fechas cuyo cierre ya concluyó con éxito.
  */
 class AplicacionPagosService
 {
-    /** Días hacia atrás para detectar fechas con pagos pendientes. */
-    const DIAS_DETECCION = 30;
-
     /** Motivo del último adquirirCandado() fallido por no poder crear el archivo (vacío si estaba ocupado). */
     private static $errorCandado = '';
-
-    /**
-     * Fechas recientes con pagos pendientes de importar.
-     *
-     * @return array { success, mensaje, datos: { fechas } }
-     */
-    public static function fechasConPendientes()
-    {
-        $repo = new AplicacionPagosRepository();
-        $fechas = $repo->getFechasConPendientes(self::DIAS_DETECCION);
-
-        return Model::Responde(true, 'OK', ['fechas' => $fechas]);
-    }
 
     /**
      * Pagos pendientes de la fecha, estado del cierre y si se pueden procesar.
@@ -59,7 +42,7 @@ class AplicacionPagosService
             return Model::Responde(false, 'Error al consultar los pagos pendientes.', null, $e->getMessage());
         }
 
-        $estado = self::estadoCierre($fechaNorm);
+        $estado = CierreDiaService::estadoCierreFecha($fechaNorm);
         $resumen = self::resumenPendientes($filas);
         $puedeProcesar = $estado['ejecutado'] && !$estado['enEjecucion'] && $resumen['totalPagos'] > 0;
 
@@ -120,7 +103,7 @@ class AplicacionPagosService
             return Model::Responde(false, 'No se puede procesar una fecha futura.', null, 'Fecha futura');
         }
 
-        $estado = self::estadoCierre($fechaNorm);
+        $estado = CierreDiaService::estadoCierreFecha($fechaNorm);
         if ($estado['enEjecucion']) {
             return Model::Responde(false, 'Hay un cierre de día en ejecución. Espere a que termine para procesar los pagos.', null, 'Cierre en ejecución');
         }
@@ -282,7 +265,7 @@ class AplicacionPagosService
 
     /**
      * Interpreta el resultado de SP_IMPORTA_CONCILIA:
-     * 1 = pago importado y conciliado (o garantía identificada); 0/6 = importado sin conciliar; otro = incidencia.
+     * 1 = pago importado y conciliado; 0/6 = importado sin conciliar; otro = incidencia.
      *
      * @param array $pago
      * @param array $res
@@ -296,7 +279,7 @@ class AplicacionPagosService
 
         if ($val === 1) {
             return [
-                'estado' => $pago['TIPO'] === 'G' ? 'Garantía importada' : 'Importado y conciliado',
+                'estado' => 'Importado y conciliado',
                 'correcto' => true,
                 'mensaje' => '',
             ];
@@ -338,16 +321,16 @@ class AplicacionPagosService
             'totalMonto' => 0.0,
             'pagos' => 0,
             'montoPagos' => 0.0,
-            'garantias' => 0,
-            'montoGarantias' => 0.0,
+            'electronicos' => 0,
+            'montoElectronicos' => 0.0,
         ];
         foreach ($filas as $f) {
             $monto = (float) ($f['MONTO'] ?? 0);
             $resumen['totalPagos']++;
             $resumen['totalMonto'] += $monto;
-            if (($f['TIPO'] ?? '') === 'G') {
-                $resumen['garantias']++;
-                $resumen['montoGarantias'] += $monto;
+            if (($f['TIPO'] ?? '') === 'X') {
+                $resumen['electronicos']++;
+                $resumen['montoElectronicos'] += $monto;
             } else {
                 $resumen['pagos']++;
                 $resumen['montoPagos'] += $monto;
@@ -355,30 +338,9 @@ class AplicacionPagosService
         }
         $resumen['totalMonto'] = round($resumen['totalMonto'], 2);
         $resumen['montoPagos'] = round($resumen['montoPagos'], 2);
-        $resumen['montoGarantias'] = round($resumen['montoGarantias'], 2);
+        $resumen['montoElectronicos'] = round($resumen['montoElectronicos'], 2);
 
         return $resumen;
-    }
-
-    /**
-     * Estado del cierre de la fecha: si ya concluyó con éxito y si hay algún cierre en ejecución.
-     *
-     * @param string $fecha Y-m-d
-     * @return array { ejecutado, enEjecucion }
-     */
-    private static function estadoCierre($fecha)
-    {
-        $repo = new CierreDiaRepository();
-        $sp = $repo->getEstatusSpPorFecha($fecha);
-        $ejecutado = $sp !== null
-            && (int) ($sp['EN_PROCESO'] ?? 0) === 0
-            && (int) ($sp['EXITO'] ?? 0) === 1;
-        $enEjecucion = !empty($repo->validaCierreEnEjecucion()) || CierreDiaJobLock::jobActivo();
-
-        return [
-            'ejecutado' => $ejecutado,
-            'enEjecucion' => $enEjecucion,
-        ];
     }
 
     /**

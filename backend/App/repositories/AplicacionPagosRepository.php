@@ -20,23 +20,7 @@ class AplicacionPagosRepository
     const EMPRESA = 'EMPFIN';
 
     /**
-     * Ejecuta un callable capturando cualquier echo (p. ej. Database::muestraError) para no contaminar respuestas JSON.
-     *
-     * @param callable $fn
-     * @return mixed
-     */
-    private function sinSalida(callable $fn)
-    {
-        ob_start();
-        try {
-            return $fn();
-        } finally {
-            ob_end_clean();
-        }
-    }
-
-    /**
-     * Pagos de la fecha sin ID_IMPORTACION (mismo criterio que el cursor c_PAGOS del cierre).
+     * Pagos (P) y pagos electrónicos (X) de la fecha sin ID_IMPORTACION (mismo criterio que el cursor c_PAGOS del cierre).
      *
      * @param string $fecha Y-m-d
      * @param Database|null $db Conexión con transacción iniciada (opcional)
@@ -68,7 +52,7 @@ class AplicacionPagosRepository
                     AND NS.CODIGO = PGD.CDGNS
             WHERE
                 PGD.ESTATUS = 'A'
-                AND PGD.TIPO IN ('P', 'G', 'X')
+                AND PGD.TIPO IN ('P', 'X')
                 AND PGD.MONTO != 0
                 AND TRUNC(PGD.FECHA) = TO_DATE(:fecha, 'YYYY-MM-DD')
                 AND PGD.ID_IMPORTACION IS NULL
@@ -98,66 +82,6 @@ class AplicacionPagosRepository
         }
 
         return $filas;
-    }
-
-    /**
-     * Fechas recientes con cierre concluido con éxito que aún tienen pagos pendientes de importar.
-     *
-     * @param int $dias Días hacia atrás a revisar
-     * @return array Lista de { FECHA, FECHA_FMT, PAGOS, MONTO }
-     */
-    public function getFechasConPendientes($dias = 30)
-    {
-        $qry = <<<SQL
-            SELECT
-                TO_CHAR(TRUNC(PGD.FECHA), 'YYYY-MM-DD') AS FECHA,
-                TO_CHAR(TRUNC(PGD.FECHA), 'DD/MM/YYYY') AS FECHA_FMT,
-                COUNT(*) AS PAGOS,
-                NVL(SUM(PGD.MONTO), 0) AS MONTO
-            FROM
-                PAGOSDIA PGD
-            WHERE
-                PGD.ESTATUS = 'A'
-                AND PGD.TIPO IN ('P', 'G', 'X')
-                AND PGD.MONTO != 0
-                AND PGD.ID_IMPORTACION IS NULL
-                AND PGD.FECHA >= TRUNC(SYSDATE) - :dias
-                AND PGD.FECHA < TRUNC(SYSDATE) + 1
-                AND EXISTS (
-                    SELECT 1
-                    FROM BITACORA_CIERRE_DIARIO B
-                    WHERE TRUNC(B.FECHA_CALCULO) = TRUNC(PGD.FECHA)
-                      AND B.ID_IMPORTACION IS NOT NULL
-                      AND B.FIN IS NOT NULL
-                      AND NVL(B.EXITO, 0) = 1
-                )
-            GROUP BY
-                TRUNC(PGD.FECHA)
-            ORDER BY
-                TRUNC(PGD.FECHA) DESC
-        SQL;
-
-        return $this->sinSalida(function () use ($qry, $dias) {
-            try {
-                $db = new Database();
-                if ($db->db_activa === null) {
-                    return [];
-                }
-                $stmt = $db->db_activa->prepare($qry);
-                $stmt->execute(['dias' => max(1, (int) $dias)]);
-                $filas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-                if (!is_array($filas)) {
-                    return [];
-                }
-                foreach ($filas as $i => $row) {
-                    $filas[$i]['PAGOS'] = (int) ($row['PAGOS'] ?? 0);
-                    $filas[$i]['MONTO'] = round((float) ($row['MONTO'] ?? 0), 2);
-                }
-                return $filas;
-            } catch (\Throwable $e) {
-                return [];
-            }
-        });
     }
 
     /**
@@ -383,10 +307,10 @@ class AplicacionPagosRepository
             FROM RES_IMPOR
             WHERE IDENTIFICADOR = :identificador
         SQL;
-        $stmtTipo = $db->db_activa->prepare($sqlTipo);
-
         // 0 = pagos, 1 = garantías, 2 = no identificados → ESTATUS 1, 2, 3
         for ($tipo = 0; $tipo <= 2; $tipo++) {
+            // pdo_oci de PHP 8.5 termina el proceso al volver a ejecutar un SELECT preparado: se prepara en cada vuelta.
+            $stmtTipo = $db->db_activa->prepare($sqlTipo);
             $stmtTipo->execute(['tipo1' => $tipo, 'tipo2' => $tipo, 'identificador' => (string) $identificador]);
             $row = $stmtTipo->fetch(\PDO::FETCH_ASSOC);
             $filasTipo = (int) ($row['FILAS'] ?? 0);

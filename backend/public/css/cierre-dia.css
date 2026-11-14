@@ -1,0 +1,829 @@
+/* Cierre de día — complementa folios-tarjeta.css, pagos-con-gl.css y aplicacion-pagos.css (mismo diseño que Cultiva) */
+
+.cierre-dia-page .cd-descripcion {
+    margin: 0 0 16px;
+}
+
+/* Barras superiores: consulta a la izquierda y cierre a la derecha */
+.cierre-dia-page .cd-toolbar-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0 16px;
+}
+
+.cierre-dia-page .cd-toolbar-row .cd-toolbar-cierre {
+    margin-left: auto;
+}
+
+.cierre-dia-page .cd-toolbar.ft-toolbar {
+    display: inline-block;
+    width: auto;
+    max-width: 100%;
+    vertical-align: top;
+}
+
+.cierre-dia-page .cd-toolbar .ft-toolbar-inner {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    width: auto;
+    max-width: 100%;
+    gap: 0 10px;
+    padding: 12px 14px 12px 18px;
+}
+
+.cierre-dia-page .cd-field {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    flex: 0 0 auto;
+    min-width: 0;
+}
+
+.cierre-dia-page .cd-toolbar .ft-tb-lbl,
+.cierre-dia-page .cd-lbl-spacer {
+    display: block;
+    height: 16px;
+    margin: 0 0 6px;
+    line-height: 16px;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.cierre-dia-page .cd-lbl-spacer {
+    visibility: hidden;
+}
+
+.cierre-dia-page .cd-field-fecha {
+    flex: 0 0 170px;
+    width: 170px;
+}
+
+.cierre-dia-page .cd-control,
+.cierre-dia-page .cd-field-acciones .btn {
+    box-sizing: border-box;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 32px;
+    margin: 0;
+}
+
+.cierre-dia-page .cd-field-fecha .form-control {
+    width: 100%;
+    font-weight: 600;
+    padding: 0 10px;
+}
+
+.cierre-dia-page .cd-acciones-line {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    align-items: center;
+    height: 34px;
+}
+
+.cierre-dia-page .cd-field-acciones .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 14px;
+    font-weight: 600;
+    border-radius: 8px;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.cierre-dia-page .cd-field-acciones .btn-primary {
+    background: linear-gradient(180deg, #2480cc 0%, var(--ft-accent) 100%);
+    border-color: var(--ft-accent);
+    box-shadow: 0 2px 6px rgba(26, 111, 181, 0.25);
+}
+
+.cierre-dia-page .cd-field-acciones .btn-success {
+    box-shadow: 0 2px 6px rgba(46, 125, 82, 0.2);
+}
+
+/* Pestañas */
+.cierre-dia-page .cd-tabs-wrap {
+    padding: 0;
+}
+
+.cierre-dia-page .cd-tabs-head {
+    padding-bottom: 0;
+    align-items: flex-end;
+}
+
+.cierre-dia-page .cd-tabs {
+    border-bottom: none;
+    margin: 0;
+    padding: 0 8px;
+}
+
+.cierre-dia-page .cd-tabs > li > a {
+    border: none;
+    border-radius: 8px 8px 0 0;
+    color: var(--ft-muted);
+    font-weight: 600;
+    font-size: 13px;
+    padding: 10px 16px;
+}
+
+.cierre-dia-page .cd-tabs > li.active > a,
+.cierre-dia-page .cd-tabs > li.active > a:hover,
+.cierre-dia-page .cd-tabs > li.active > a:focus {
+    color: var(--ft-accent);
+    background: var(--ft-surface);
+    border: none;
+    border-bottom: 2px solid var(--ft-accent);
+}
+
+.cierre-dia-page .cd-tab-intro {
+    margin: 0 0 14px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--ft-muted);
+}
+
+.cierre-dia-page .cd-tab-intro-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px 16px;
+}
+
+.cierre-dia-page .cd-tab-intro-row .cd-tab-intro {
+    flex: 1 1 420px;
+}
+
+.cierre-dia-page .cd-sin-consulta {
+    margin-bottom: 0;
+    box-shadow: none;
+}
+
+/* Barra de acciones sobre las tablas */
+.cierre-dia-page .cd-barra-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    margin-bottom: 14px;
+}
+
+/* Resumen de pre cierre: registros, refinanciamientos y descuentos */
+.cierre-dia-page .cd-resumen-pre {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.cierre-dia-page .cd-resumen-item {
+    --cd-resumen-color: #738091;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 200px;
+    padding: 8px 16px 8px 10px;
+    border: 1px solid var(--ft-border-soft);
+    border-left: 3px solid var(--cd-resumen-color);
+    border-radius: 10px;
+    background: var(--ft-bloque-bg);
+}
+
+.cierre-dia-page .cd-resumen-refinanciamiento {
+    --cd-resumen-color: #1a6fb5;
+}
+
+.cierre-dia-page .cd-resumen-descuento {
+    --cd-resumen-color: #d08a00;
+}
+
+.cierre-dia-page .cd-resumen-icono {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--cd-resumen-color);
+    background: rgba(127, 143, 166, 0.12);
+}
+
+.cierre-dia-page .cd-resumen-etiqueta {
+    display: block;
+    margin-bottom: 2px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ft-muted);
+}
+
+.cierre-dia-page .cd-resumen-valor {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-variant-numeric: tabular-nums;
+}
+
+.cierre-dia-page .cd-resumen-valor b {
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--ft-dark);
+}
+
+.cierre-dia-page .cd-resumen-valor small {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ft-muted);
+}
+
+.cierre-dia-page .cd-barra-acciones-der {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+.cierre-dia-page .cd-seleccion {
+    font-size: 12px;
+    color: var(--ft-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.cierre-dia-page .cd-barra-acciones .pgl-btn-aplicar {
+    min-height: 36px;
+}
+
+.cierre-dia-page .cd-tabla-scroll,
+.cd-tabla-scroll {
+    width: 100%;
+    overflow-x: auto;
+    margin-bottom: 8px;
+}
+
+.cierre-dia-page #tablaPrecierre > tbody > tr > td,
+.cierre-dia-page #tablaAplicarPagos > tbody > tr > td,
+.cierre-dia-page #tablaHistorico > tbody > tr > td {
+    white-space: nowrap;
+}
+
+.cierre-dia-page .table td.cd-num,
+.cierre-dia-page .table th.cd-num {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.cierre-dia-page .table td.cd-col-check,
+.cierre-dia-page .table th.cd-col-check {
+    width: 42px;
+    text-align: center;
+}
+
+.cierre-dia-page .table input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+.cierre-dia-page .cd-aviso-saldo {
+    margin-left: 6px;
+    color: #b45309;
+    cursor: help;
+}
+
+.cierre-dia-page .cd-saldo-despues {
+    font-weight: 700;
+}
+
+/* Etiquetas */
+.cierre-dia-page .cd-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.cierre-dia-page .cd-badge-ok {
+    color: #2e7d52;
+    background: #e8f5ee;
+}
+
+.cierre-dia-page .cd-badge-warn {
+    color: #b45309;
+    background: #fef3c7;
+}
+
+.cierre-dia-page .cd-badge-danger {
+    color: #b42318;
+    background: #fee4e2;
+}
+
+.cierre-dia-page .cd-badge-info {
+    color: #1a6fb5;
+    background: #e8f2fb;
+}
+
+.cierre-dia-page .cd-badge-muted {
+    color: #5b6b7f;
+    background: rgba(127, 143, 166, 0.14);
+}
+
+/* Tarjetas del resumen de pagos */
+.cierre-dia-page .cd-cards {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.cierre-dia-page .cd-card {
+    --cd-card-color: var(--ft-accent);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    padding: 16px 16px 14px 20px;
+    border: 1px solid var(--ft-border-soft);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #ffffff 0%, #f7fafc 100%);
+    color: var(--ft-dark);
+    text-align: left;
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.cierre-dia-page .cd-card::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--cd-card-color);
+}
+
+.cierre-dia-page .cd-card:hover,
+.cierre-dia-page .cd-card:focus {
+    border-color: var(--cd-card-color);
+    box-shadow: 0 4px 14px rgba(16, 24, 40, 0.1);
+    transform: translateY(-1px);
+    outline: none;
+}
+
+.cierre-dia-page .cd-card-garantias { --cd-card-color: #0f8a8a; }
+.cierre-dia-page .cd-card-ajustes { --cd-card-color: #7c4dcc; }
+.cierre-dia-page .cd-card-no_identificados { --cd-card-color: #d08a00; }
+.cierre-dia-page .cd-card-incidencias { --cd-card-color: #c8323f; }
+
+.cierre-dia-page .cd-card-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cierre-dia-page .cd-card-icon {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--cd-card-color);
+    background: rgba(127, 143, 166, 0.12);
+}
+
+.cierre-dia-page .cd-card-titulo {
+    flex: 1 1 auto;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--ft-muted);
+}
+
+.cierre-dia-page .cd-card-ver {
+    color: var(--ft-muted);
+    opacity: 0.7;
+}
+
+.cierre-dia-page .cd-card:hover .cd-card-ver {
+    color: var(--cd-card-color);
+    opacity: 1;
+}
+
+.cierre-dia-page .cd-card-numero {
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+
+.cierre-dia-page .cd-card-monto {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ft-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.cierre-dia-page .cd-card-barra {
+    display: block;
+    height: 6px;
+    margin-top: 4px;
+    border-radius: 999px;
+    background: rgba(127, 143, 166, 0.18);
+    overflow: hidden;
+}
+
+.cierre-dia-page .cd-card-barra > span {
+    display: block;
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background: var(--cd-card-color);
+    transition: width 0.3s ease;
+}
+
+.cierre-dia-page .cd-card-estados {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 4px 10px;
+    font-size: 12px;
+    color: var(--ft-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.cierre-dia-page .cd-card-estados .fa-check {
+    color: #2e7d52;
+}
+
+.cierre-dia-page .cd-card-estados .fa-clock-o {
+    color: #b45309;
+}
+
+/* Histórico */
+.cierre-dia-page #tablaHistorico tr.cd-fila-consultada > td {
+    background: rgba(26, 111, 181, 0.06);
+    font-weight: 600;
+}
+
+.cierre-dia-page .cd-dia-semana {
+    display: block;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--ft-muted);
+}
+
+.cierre-dia-page .cd-acciones-fila {
+    white-space: nowrap;
+}
+
+.cierre-dia-page .cd-acciones-fila .btn + .btn {
+    margin-left: 4px;
+}
+
+.cd-bitacora {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid rgba(127, 143, 166, 0.35);
+    border-radius: 10px;
+    max-height: 60vh;
+    overflow: auto;
+}
+
+.cd-bitacora li {
+    display: flex;
+    gap: 12px;
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(127, 143, 166, 0.22);
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.cd-bitacora li:last-child {
+    border-bottom: none;
+}
+
+.cd-bitacora .cd-bitacora-hora {
+    flex: 0 0 auto;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.75;
+}
+
+/* Post cierre */
+.cierre-dia-page .cd-post-opciones {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.cierre-dia-page .cd-post-opcion {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    width: 100%;
+    padding: 16px 18px;
+    border: 1px solid var(--ft-border-soft);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #ffffff 0%, #f7fafc 100%);
+    color: var(--ft-dark);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.cierre-dia-page .cd-post-opcion:hover,
+.cierre-dia-page .cd-post-opcion:focus {
+    border-color: var(--ft-accent);
+    box-shadow: 0 4px 14px rgba(26, 111, 181, 0.12);
+    transform: translateY(-1px);
+    outline: none;
+}
+
+.cierre-dia-page .cd-post-opcion.activa {
+    border-color: var(--ft-accent);
+    box-shadow: 0 0 0 2px rgba(26, 111, 181, 0.25);
+    background: rgba(26, 111, 181, 0.04);
+}
+
+.cierre-dia-page .cd-post-icono {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 auto;
+    border-radius: 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: var(--ft-accent);
+    background: linear-gradient(180deg, rgba(26, 111, 181, 0.14) 0%, rgba(26, 111, 181, 0.04) 100%);
+    border: 1px solid rgba(26, 111, 181, 0.22);
+}
+
+.cierre-dia-page .cd-post-texto strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.cierre-dia-page .cd-post-texto span {
+    display: block;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--ft-muted);
+}
+
+.cierre-dia-page .cd-post-panel {
+    display: none;
+    padding-top: 16px;
+    border-top: 1px solid var(--ft-border-soft);
+}
+
+.cierre-dia-page .cd-post-panel.activo {
+    display: block;
+    animation: pglFadeUp 0.28s ease-out;
+}
+
+.cierre-dia-page .cd-post-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin-bottom: 14px;
+}
+
+.cierre-dia-page .cd-post-head h4 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ft-dark);
+}
+
+.cierre-dia-page .cd-post-head h4 i {
+    color: var(--ft-accent);
+    margin-right: 4px;
+}
+
+.cierre-dia-page .cd-gl-buscar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px 16px;
+    margin-bottom: 16px;
+}
+
+.cierre-dia-page .cd-gl-buscar .ft-search-line .form-control {
+    width: 10rem;
+}
+
+.cierre-dia-page .cd-gl-buscar .cd-tab-intro {
+    flex: 1 1 280px;
+    margin: 0;
+}
+
+.cierre-dia-page .cd-gl-badges {
+    margin-bottom: 12px;
+}
+
+.cd-modal-info {
+    border: 1px solid rgba(127, 143, 166, 0.35);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    background: rgba(127, 143, 166, 0.06);
+}
+
+.cd-modal-filtro {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin-bottom: 12px;
+}
+
+.cd-modal-filtro select {
+    max-width: 14rem;
+}
+
+/* Resumen de cierre: plantilla del correo (sus colores vienen en línea) */
+.cd-modal-correo {
+    width: 700px;
+    max-width: calc(100% - 20px);
+}
+
+.cd-correo-resumen {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+@media (prefers-color-scheme: dark) {
+    .cierre-dia-page .cd-card,
+    .cierre-dia-page .cd-post-opcion {
+        background: linear-gradient(180deg, #2a3038 0%, #252930 100%);
+    }
+
+    .cierre-dia-page .cd-card:hover,
+    .cierre-dia-page .cd-card:focus,
+    .cierre-dia-page .cd-post-opcion:hover,
+    .cierre-dia-page .cd-post-opcion:focus {
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    }
+
+    .cierre-dia-page .cd-post-opcion.activa {
+        background: rgba(88, 166, 255, 0.08);
+        box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.35);
+    }
+
+    .cierre-dia-page .cd-post-icono {
+        background: rgba(88, 166, 255, 0.12);
+        border-color: rgba(88, 166, 255, 0.28);
+        color: #79c0ff;
+    }
+
+    .cierre-dia-page .cd-badge-ok {
+        color: #3fb950;
+        background: rgba(63, 185, 80, 0.14);
+    }
+
+    .cierre-dia-page .cd-badge-warn {
+        color: #f0b429;
+        background: rgba(240, 180, 41, 0.16);
+    }
+
+    .cierre-dia-page .cd-badge-danger {
+        color: #f85149;
+        background: rgba(248, 81, 73, 0.16);
+    }
+
+    .cierre-dia-page .cd-badge-info {
+        color: #79c0ff;
+        background: rgba(88, 166, 255, 0.16);
+    }
+
+    .cierre-dia-page .cd-badge-muted {
+        color: #8b949e;
+        background: rgba(139, 148, 158, 0.14);
+    }
+
+    .cierre-dia-page #tablaHistorico tr.cd-fila-consultada > td {
+        background: rgba(88, 166, 255, 0.08);
+    }
+
+    .cierre-dia-page .cd-aviso-saldo {
+        color: #f0b429;
+    }
+
+    .cierre-dia-page .cd-resumen-item {
+        --cd-resumen-color: #8b949e;
+    }
+
+    .cierre-dia-page .cd-resumen-refinanciamiento {
+        --cd-resumen-color: #58a6ff;
+    }
+
+    .cierre-dia-page .cd-resumen-descuento {
+        --cd-resumen-color: #f0b429;
+    }
+
+    /* La plantilla del correo trae colores en línea; solo !important los reemplaza */
+    .cd-correo-resumen {
+        color: #e6edf3;
+    }
+
+    .cd-correo-resumen [style*="background: #f8fafc"] {
+        background: #2d333b !important;
+    }
+
+    .cd-correo-resumen [style*="background: linear-gradient"] {
+        background: linear-gradient(180deg, #363d47 0%, #2d333b 100%) !important;
+    }
+
+    .cd-correo-resumen [style*="background: #dbe3ef"] {
+        background: #3d444d !important;
+    }
+
+    .cd-correo-resumen [style*="border: 1px solid #dbe3ef"] {
+        border-color: #3d444d !important;
+    }
+
+    .cd-correo-resumen [style*="color: #0f172a"] {
+        color: #e6edf3 !important;
+    }
+
+    .cd-correo-resumen [style*="color: #334155"] {
+        color: #c9d1d9 !important;
+    }
+
+    .cd-correo-resumen [style*="color: #475569"],
+    .cd-correo-resumen [style*="color: #64748b"] {
+        color: #8b949e !important;
+    }
+}
+
+@media (max-width: 1200px) {
+    .cierre-dia-page .cd-cards {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 991px) {
+    .cierre-dia-page .cd-post-opciones {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .cierre-dia-page .cd-toolbar-row {
+        display: block;
+    }
+
+    .cierre-dia-page .cd-toolbar.ft-toolbar {
+        display: block;
+        width: 100%;
+    }
+
+    .cierre-dia-page .cd-toolbar .ft-toolbar-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+    }
+
+    .cierre-dia-page .cd-field,
+    .cierre-dia-page .cd-field-fecha {
+        width: 100%;
+        max-width: none;
+        flex: 1 1 auto;
+    }
+
+    .cierre-dia-page .cd-acciones-line,
+    .cierre-dia-page .cd-field-acciones .btn {
+        width: 100%;
+    }
+
+    .cierre-dia-page .cd-cards {
+        grid-template-columns: 1fr;
+    }
+}

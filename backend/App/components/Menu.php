@@ -124,7 +124,6 @@ class Menu
     {
         return [
             $this->enlace('Control de Garantías', '/Creditos/ControlGarantias/', ['ADMIN', 'GARAN', 'GOBA', 'MAPH', 'AMOCA', 'MMPA']),
-            $this->enlace('Pagos con GL', '/Creditos/PagosConGL/', ['ADMIN', 'GARAN', 'GOBA', 'MAPH', 'AMOCA', 'MMPA']),
             $this->enlace('Calculo Descuento Telaraña', '/Promociones/Telarana/', ['ADMIN', 'GOBA', 'MAPH']),
             $this->enlace('Registro Telaraña', '/Validaciones/RegistroTelarana/', ['ADMIN', 'GOBA', 'MAPH']),
             $this->enlace('Actualización de Créditos', '/Creditos/ActualizaCredito/', ['ADMIN', 'GOBA', 'MAPH']),
@@ -161,8 +160,7 @@ class Menu
     private function opcionesOperaciones()
     {
         return [
-            $this->enlace('Cierre de día', '/Operaciones/CierreDiario/', ['AMGM', 'FECR', 'EZJL', 'GOBA']),
-            $this->enlace('Aplicación de pagos', '/Operaciones/PagosPostCierre/', ['AMGM', 'FECR', 'EZJL', 'GOBA']),
+            $this->enlace('Cierre de día', '/Operaciones/CierreDiario/', ['AMGM', 'FECR', 'EZJL', 'GOBA', 'ADMIN', 'GARAN', 'MAPH', 'AMOCA', 'MMPA']),
             $this->enlace('Reporte Cliente y Aval Consolidado', '/Operaciones/ReportePC', ['ADMIN', 'PHEE', 'MCDP', 'FECR', 'GOBA']),
             $this->enlace('Reporte Interés Devengado', '/Operaciones/ReporteInteresDevengado', ['AMGM', 'GOBA']),
             $this->enlace('Reporte Acreditado', '/Operaciones/ReporteAcreditado', ['ADMIN', 'CPAGO', 'GOBA', 'LGFR', 'MCDP', 'MAPH', 'VMSM', 'BAMA'])

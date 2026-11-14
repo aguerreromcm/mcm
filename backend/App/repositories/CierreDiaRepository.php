@@ -8,7 +8,8 @@ use Core\Database;
 
 /**
  * Repository: acceso a datos del Cierre de Día.
- * Consultas a BITACORA_CIERRE_DIARIO, TBL_CIERRE_DIA (resúmenes/correo), DEVENGO_DIARIO y SP_PAGOS_CIERRE_DEVENGO.
+ * Consultas a BITACORA_CIERRE_DIARIO (concurrencia, estatus e histórico), TBL_CIERRE_DIA y DEVENGO_DIARIO (resumen
+ * del job de prueba de correo) y el resumen de movimientos del día (PAGOSDIA, PDI y RES_IMPOR) de la pantalla de cierre.
  * Concurrencia (cierre en curso): BITACORA_CIERRE_DIARIO. «Cierre ya ejecutado»: bitácora EXITO=1 o IMPORTACIONPAG (FEC_PAGO).
  * Sin lógica de negocio; solo SQL y llamadas a procedimientos.
  */
@@ -76,13 +77,14 @@ class CierreDiaRepository
                     return [];
                 }
 
-                // Solo el renglón del SP (ID_IMPORTACION). Un INSERT de PHP sin actividad no cuenta como proceso.
+                // Solo el renglón del SP (siempre trae ID_PROCESO; ID_IMPORTACION queda NULL en días sin pagos).
+                // Un INSERT de PHP sin ID_PROCESO no cuenta como proceso.
                 $qryConCierrePendiente = <<<SQL
                 SELECT COUNT(*) AS TOTAL
                 FROM BITACORA_CIERRE_DIARIO
                 WHERE FIN IS NULL
                   AND INICIO IS NOT NULL
-                  AND ID_IMPORTACION IS NOT NULL
+                  AND ID_PROCESO IS NOT NULL
             SQL;
 
                 $cnt = $db->queryOne($qryConCierrePendiente);
@@ -103,7 +105,7 @@ class CierreDiaRepository
                 FROM BITACORA_CIERRE_DIARIO
                 WHERE FIN IS NULL
                   AND INICIO IS NOT NULL
-                  AND ID_IMPORTACION IS NOT NULL
+                  AND ID_PROCESO IS NOT NULL
                 ORDER BY INICIO DESC
                 FETCH FIRST 1 ROW ONLY
             SQL;
@@ -152,81 +154,264 @@ class CierreDiaRepository
     }
 
     /**
-     * Últimos 7 cierres en bitácora (más recientes primero; incluye en proceso y finalizados).
-     * Prefiere filas del SP (con métricas / ID_IMPORTACION) y omite candados PHP ya cerrados sin importación.
+     * Cierres registrados en bitácora entre dos fechas: un renglón por fecha de cierre.
+     * Si hay varias ejecuciones del mismo día se toma la más reciente del SP (ID_PROCESO); los candados PHP
+     * (sin ID_PROCESO) solo se usan cuando no hay renglón del SP.
      *
-     * Importante: ORDER BY debe usar columnas de tabla (alias b.), nunca el alias TO_CHAR(FECHA_CALCULO,'DD/MM/YYYY'):
-     * ordenar el texto DD/MM/YYYY deja fuera fechas recientes (p. ej. agosto tras julio).
-     *
-     * @return array Lista de filas con FECHA_CALCULO, INICIO, FIN, USUARIO, EXITO, métricas
+     * @param string $fechaInicio Y-m-d
+     * @param string $fechaFin Y-m-d
+     * @return array Filas con FECHA_ISO, INICIO, FIN, USUARIO, EXITO, EN_PROCESO, métricas y MENSAJE
      */
-    public function getUltimos7Cierres()
+    public function getHistoricoBitacora($fechaInicio, $fechaFin)
     {
-        // Producción (SP): columnas de métricas e ID_IMPORTACION.
         $inicioMx = $this->sqlFechaHora('b.INICIO');
         $finMx = $this->sqlFechaHora('b.FIN');
-        $qryConMetricas = <<<SQL
-            SELECT * FROM (
+        $qry = <<<SQL
+            SELECT
+                FECHA_ISO,
+                INICIO,
+                FIN,
+                USUARIO,
+                EXITO,
+                EN_PROCESO,
+                CIERRE_REGISTROS,
+                DEVENGO_REGISTROS,
+                DEVENGO_MONTO,
+                MENSAJE
+            FROM (
                 SELECT
-                    TO_CHAR(b.FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CALCULO,
-                    TO_CHAR(b.FECHA_CALCULO, 'YYYY-MM-DD') AS FECHA_CIERRE_ISO,
+                    TO_CHAR(TRUNC(b.FECHA_CALCULO), 'YYYY-MM-DD') AS FECHA_ISO,
                     {$inicioMx} AS INICIO,
                     {$finMx} AS FIN,
                     b.USUARIO,
                     NVL(b.EXITO, 0) AS EXITO,
                     CASE WHEN b.FIN IS NULL THEN 1 ELSE 0 END AS EN_PROCESO,
-                    CASE WHEN b.FIN IS NULL THEN NULL ELSE NVL(b.CIERRE_REGISTROS, 0) END AS REGISTROS_PROCESADOS,
-                    CASE WHEN b.FIN IS NULL THEN NULL ELSE NVL(b.DEVENGO_REGISTROS, 0) END AS CREDITOS_DEVENGO,
-                    CASE WHEN b.FIN IS NULL THEN NULL ELSE NVL(b.DEVENGO_MONTO, 0) END AS DEVENGO_MONTO_NUM
+                    b.CIERRE_REGISTROS,
+                    b.DEVENGO_REGISTROS,
+                    b.DEVENGO_MONTO,
+                    b.MENSAJE,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY TRUNC(b.FECHA_CALCULO)
+                        ORDER BY CASE WHEN b.ID_PROCESO IS NULL THEN 1 ELSE 0 END, b.INICIO DESC NULLS LAST
+                    ) AS RN
                 FROM BITACORA_CIERRE_DIARIO b
-                WHERE b.ID_IMPORTACION IS NOT NULL
-                ORDER BY b.INICIO DESC NULLS LAST, b.FECHA_CALCULO DESC
-            ) WHERE ROWNUM <= 7
+                WHERE b.FECHA_CALCULO >= TO_DATE(:inicio, 'YYYY-MM-DD')
+                  AND b.FECHA_CALCULO < TO_DATE(:fin, 'YYYY-MM-DD') + 1
+            )
+            WHERE RN = 1
         SQL;
 
-        $qryBasico = <<<SQL
-            SELECT * FROM (
-                SELECT
-                    TO_CHAR(b.FECHA_CALCULO, 'DD/MM/YYYY') AS FECHA_CALCULO,
-                    TO_CHAR(b.FECHA_CALCULO, 'YYYY-MM-DD') AS FECHA_CIERRE_ISO,
-                    {$inicioMx} AS INICIO,
-                    {$finMx} AS FIN,
-                    b.USUARIO,
-                    NVL(b.EXITO, 0) AS EXITO,
-                    CASE WHEN b.FIN IS NULL THEN 1 ELSE 0 END AS EN_PROCESO
-                FROM BITACORA_CIERRE_DIARIO b
-                WHERE b.FIN IS NOT NULL
-                   OR b.INICIO = (
-                        SELECT MAX(s.INICIO)
-                        FROM BITACORA_CIERRE_DIARIO s
-                        WHERE s.FIN IS NULL
-                          AND TRUNC(s.FECHA_CALCULO) = TRUNC(b.FECHA_CALCULO)
-                   )
-                ORDER BY b.INICIO DESC NULLS LAST, b.FECHA_CALCULO DESC
-            ) WHERE ROWNUM <= 7
-        SQL;
-
-        return $this->sinSalida(function () use ($qryConMetricas, $qryBasico) {
+        return $this->sinSalida(function () use ($qry, $fechaInicio, $fechaFin) {
             try {
                 $db = new Database();
-                $filas = $db->queryAll($qryConMetricas);
+                $filas = $db->queryAll($qry, ['inicio' => $fechaInicio, 'fin' => $fechaFin]);
                 return is_array($filas) ? $filas : [];
             } catch (\Exception $e) {
-                try {
-                    $db = new Database();
-                    $filas = $db->queryAll($qryBasico);
-                    return is_array($filas) ? $filas : [];
-                } catch (\Exception $e2) {
-                    return [];
-                }
+                return [];
             }
         });
     }
 
-    /** @deprecated Use getUltimos7Cierres() */
-    public function getUltimos5Cierres()
+    /**
+     * Resumen de movimientos del día por categoría: pagos (P, X), garantías (G) y ajustes (D, R) de PAGOSDIA,
+     * pagos no identificados (PDI) e incidencias de importación (RES_IMPOR, cuenta del cierre).
+     * Un movimiento de PAGOSDIA está aplicado cuando tiene ID_IMPORTACION; un no identificado cuando ya se
+     * identificó (IP/IG); una incidencia cuando su pago no identificado ya se identificó.
+     *
+     * @param string $fecha Y-m-d
+     * @return array [ categoria => ['total', 'monto', 'aplicados', 'montoAplicado'] ]
+     */
+    public function getResumenPagosDia($fecha)
     {
-        return $this->getUltimos7Cierres();
+        $qryPagosDia = <<<SQL
+            SELECT
+                CASE WHEN PGD.TIPO IN ('P', 'X') THEN 'pagos' WHEN PGD.TIPO = 'G' THEN 'garantias' ELSE 'ajustes' END AS CATEGORIA,
+                COUNT(*) AS TOTAL,
+                NVL(SUM(PGD.MONTO), 0) AS MONTO,
+                SUM(CASE WHEN PGD.ID_IMPORTACION IS NULL THEN 0 ELSE 1 END) AS APLICADOS,
+                NVL(SUM(CASE WHEN PGD.ID_IMPORTACION IS NULL THEN 0 ELSE PGD.MONTO END), 0) AS MONTO_APLICADO
+            FROM PAGOSDIA PGD
+            WHERE PGD.CDGEM = 'EMPFIN'
+              AND PGD.ESTATUS = 'A'
+              AND PGD.TIPO IN ('P', 'X', 'G', 'D', 'R')
+              AND PGD.MONTO != 0
+              AND PGD.FECHA >= TO_DATE(:f1, 'YYYY-MM-DD')
+              AND PGD.FECHA < TO_DATE(:f2, 'YYYY-MM-DD') + 1
+            GROUP BY CASE WHEN PGD.TIPO IN ('P', 'X') THEN 'pagos' WHEN PGD.TIPO = 'G' THEN 'garantias' ELSE 'ajustes' END
+        SQL;
+
+        $qryNoIdentificados = <<<SQL
+            SELECT
+                'no_identificados' AS CATEGORIA,
+                COUNT(*) AS TOTAL,
+                NVL(SUM(P.CANTIDAD), 0) AS MONTO,
+                NVL(SUM(CASE WHEN P.ESTATUS IN ('IP', 'IG') THEN 1 ELSE 0 END), 0) AS APLICADOS,
+                NVL(SUM(CASE WHEN P.ESTATUS IN ('IP', 'IG') THEN P.CANTIDAD ELSE 0 END), 0) AS MONTO_APLICADO
+            FROM PDI P
+            WHERE P.CDGEM = 'EMPFIN'
+              AND P.ESTATUS IN ('RE', 'IP', 'IG')
+              AND P.FDEPOSITO >= TO_DATE(:f1, 'YYYY-MM-DD')
+              AND P.FDEPOSITO < TO_DATE(:f2, 'YYYY-MM-DD') + 1
+        SQL;
+
+        $qryIncidencias = <<<SQL
+            SELECT
+                'incidencias' AS CATEGORIA,
+                COUNT(*) AS TOTAL,
+                NVL(SUM(MONTO), 0) AS MONTO,
+                NVL(SUM(APLICADA), 0) AS APLICADOS,
+                NVL(SUM(APLICADA * MONTO), 0) AS MONTO_APLICADO
+            FROM (
+                {$this->sqlIncidenciasImportacion()}
+            )
+        SQL;
+
+        $resumen = [];
+        foreach (['pagos', 'garantias', 'ajustes', 'no_identificados', 'incidencias'] as $categoria) {
+            $resumen[$categoria] = ['total' => 0, 'monto' => 0.0, 'aplicados' => 0, 'montoAplicado' => 0.0];
+        }
+
+        $db = new Database();
+        if ($db->db_activa === null) {
+            throw new \RuntimeException('No hay conexión a la base de datos.');
+        }
+
+        $consultas = [
+            [$qryPagosDia, ['f1' => $fecha, 'f2' => $fecha]],
+            [$qryNoIdentificados, ['f1' => $fecha, 'f2' => $fecha]],
+            [$qryIncidencias, ['fechaPago' => date('d/m/Y', strtotime($fecha)), 'fdep' => $fecha]],
+        ];
+        foreach ($consultas as $consulta) {
+            $stmt = $db->db_activa->prepare($consulta[0]);
+            $stmt->execute($consulta[1]);
+            foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [] as $row) {
+                $categoria = (string) ($row['CATEGORIA'] ?? '');
+                if (!isset($resumen[$categoria])) {
+                    continue;
+                }
+                $resumen[$categoria] = [
+                    'total' => (int) ($row['TOTAL'] ?? 0),
+                    'monto' => round((float) ($row['MONTO'] ?? 0), 2),
+                    'aplicados' => (int) ($row['APLICADOS'] ?? 0),
+                    'montoAplicado' => round((float) ($row['MONTO_APLICADO'] ?? 0), 2),
+                ];
+            }
+        }
+
+        return $resumen;
+    }
+
+    /**
+     * Detalle de una categoría del resumen de pagos del día.
+     *
+     * @param string $fecha Y-m-d
+     * @param string $categoria pagos|garantias|ajustes|no_identificados|incidencias
+     * @return array
+     */
+    public function getDetallePagosDia($fecha, $categoria)
+    {
+        $tiposPorCategoria = [
+            'pagos' => "'P', 'X'",
+            'garantias' => "'G'",
+            'ajustes' => "'D', 'R'",
+        ];
+
+        if (isset($tiposPorCategoria[$categoria])) {
+            $qry = <<<SQL
+                SELECT
+                    PGD.CDGNS,
+                    PGD.CICLO,
+                    NVL(TRIM(PGD.NOMBRE), '') AS NOMBRE,
+                    PGD.SECUENCIA,
+                    PGD.TIPO,
+                    TIPO_OPERACION(PGD.TIPO) AS OPERACION,
+                    PGD.MONTO,
+                    CASE WHEN PGD.ID_IMPORTACION IS NULL THEN 0 ELSE 1 END AS APLICADO
+                FROM PAGOSDIA PGD
+                WHERE PGD.CDGEM = 'EMPFIN'
+                  AND PGD.ESTATUS = 'A'
+                  AND PGD.TIPO IN ({$tiposPorCategoria[$categoria]})
+                  AND PGD.MONTO != 0
+                  AND PGD.FECHA >= TO_DATE(:f1, 'YYYY-MM-DD')
+                  AND PGD.FECHA < TO_DATE(:f2, 'YYYY-MM-DD') + 1
+                ORDER BY APLICADO, PGD.CDGNS, PGD.SECUENCIA
+            SQL;
+            $params = ['f1' => $fecha, 'f2' => $fecha];
+        } elseif ($categoria === 'no_identificados') {
+            $qry = <<<SQL
+                SELECT
+                    P.SECUENCIA,
+                    P.REFERENCIA,
+                    P.CDGCB,
+                    P.CANTIDAD AS MONTO,
+                    P.DESCRIPCION,
+                    P.CDGCLNS,
+                    P.CICLO,
+                    P.CDGPE_IDEN,
+                    CASE WHEN P.ESTATUS IN ('IP', 'IG') THEN 1 ELSE 0 END AS APLICADO
+                FROM PDI P
+                WHERE P.CDGEM = 'EMPFIN'
+                  AND P.ESTATUS IN ('RE', 'IP', 'IG')
+                  AND P.FDEPOSITO >= TO_DATE(:f1, 'YYYY-MM-DD')
+                  AND P.FDEPOSITO < TO_DATE(:f2, 'YYYY-MM-DD') + 1
+                ORDER BY APLICADO, P.SECUENCIA
+            SQL;
+            $params = ['f1' => $fecha, 'f2' => $fecha];
+        } elseif ($categoria === 'incidencias') {
+            $qry = <<<SQL
+                SELECT REFERENCIA, MONTO, MSGRESUL, APLICADA AS APLICADO
+                FROM (
+                    {$this->sqlIncidenciasImportacion()}
+                )
+                ORDER BY APLICADO, REFERENCIA
+            SQL;
+            $params = ['fechaPago' => date('d/m/Y', strtotime($fecha)), 'fdep' => $fecha];
+        } else {
+            return [];
+        }
+
+        $db = new Database();
+        if ($db->db_activa === null) {
+            throw new \RuntimeException('No hay conexión a la base de datos.');
+        }
+
+        $stmt = $db->db_activa->prepare($qry);
+        $stmt->execute($params);
+        $filas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        return is_array($filas) ? $filas : [];
+    }
+
+    /**
+     * Incidencias de importación del día (RES_IMPOR de la cuenta del cierre con código distinto de éxito).
+     * Una incidencia se da por aplicada cuando su pago no identificado ya se identificó en PDI
+     * (se relaciona por fecha, referencia, monto y cuenta: SECUEPDI no siempre se registra).
+     * Parámetros: :fechaPago (DD/MM/YYYY) y :fdep (YYYY-MM-DD).
+     *
+     * @return string
+     */
+    private function sqlIncidenciasImportacion()
+    {
+        return <<<SQL
+            SELECT
+                RI.REFERENCIA,
+                RI.MONTO,
+                RI.MSGRESUL,
+                CASE WHEN EXISTS (
+                    SELECT 1
+                    FROM PDI P
+                    WHERE P.CDGEM = 'EMPFIN'
+                      AND P.FDEPOSITO = TO_DATE(:fdep, 'YYYY-MM-DD')
+                      AND P.REFERENCIA = RI.REFERENCIA
+                      AND P.CANTIDAD = RI.MONTO
+                      AND P.CDGCB = RI.CTABANCARIA
+                      AND P.ESTATUS IN ('IP', 'IG')
+                ) THEN 1 ELSE 0 END AS APLICADA
+            FROM RES_IMPOR RI
+            WHERE RI.CTABANCARIA = '02'
+              AND RI.FECHAPAGO = :fechaPago
+              AND RI.VALIDACION NOT IN (0, 1, 6, 8, 9)
+        SQL;
     }
 
     /**
@@ -270,8 +455,38 @@ class CierreDiaRepository
     }
 
     /**
+     * ID_PROCESO del cierre concluido más reciente de la fecha (el que usa el Job para armar el correo).
+     *
+     * @param string $fechaCierre Y-m-d
+     * @return string|null
+     */
+    public function getIdProcesoCierre($fechaCierre)
+    {
+        $qry = <<<SQL
+            SELECT b.ID_PROCESO
+            FROM BITACORA_CIERRE_DIARIO b
+            WHERE TRUNC(b.FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
+              AND b.FIN IS NOT NULL
+              AND b.ID_PROCESO IS NOT NULL
+            ORDER BY b.INICIO DESC NULLS LAST
+            FETCH FIRST 1 ROW ONLY
+        SQL;
+
+        return $this->sinSalida(function () use ($qry, $fechaCierre) {
+            try {
+                $db = new Database();
+                $r = $db->queryOne($qry, ['fecha' => $fechaCierre]);
+
+                return is_array($r) && !empty($r['ID_PROCESO']) ? (string) $r['ID_PROCESO'] : null;
+            } catch (\Exception $e) {
+                return null;
+            }
+        });
+    }
+
+    /**
      * Estatus del renglón que el SP escribe en bitácora para la fecha; el candado PHP
-     * (sin ID_IMPORTACION) no cuenta como ejecución del procedimiento.
+     * (sin ID_PROCESO) no cuenta como ejecución del procedimiento.
      *
      * @param string $fechaCierre Y-m-d
      * @return array|null { USUARIO, INICIO, FIN, EXITO, EN_PROCESO } o null si el SP no dejó registro
@@ -296,7 +511,7 @@ class CierreDiaRepository
                 CASE WHEN b.FIN IS NULL THEN 1 ELSE 0 END AS EN_PROCESO
             FROM BITACORA_CIERRE_DIARIO b
             WHERE TRUNC(b.FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
-              AND b.ID_IMPORTACION IS NOT NULL
+              AND b.ID_PROCESO IS NOT NULL
             ORDER BY b.INICIO DESC NULLS LAST
             FETCH FIRST 1 ROW ONLY
         SQL;
@@ -465,203 +680,6 @@ SQL;
     }
 
     /**
-     * Obtiene resúmenes de cierre y devengo para un conjunto de fechas en solo 2 consultas.
-     * Mantiene exactamente los mismos criterios de getResumenCierre() y getResumenDevengo().
-     *
-     * @param array $fechasIso Lista de fechas Y-m-d
-     * @return array [
-     *   'cierre' => [ 'YYYY-MM-DD' => int ],
-     *   'devengo' => [ 'YYYY-MM-DD' => ['creditos' => int, 'monto' => float] ]
-     * ]
-     */
-    public function getResumenesPorFechas(array $fechasIso)
-    {
-        $fechas = array_values(array_unique(array_filter(array_map('trim', $fechasIso), function ($f) {
-            return $f !== '';
-        })));
-
-        if (empty($fechas)) {
-            return ['cierre' => [], 'devengo' => []];
-        }
-
-        return $this->sinSalida(function () use ($fechas) {
-            try {
-                $db = new Database();
-                $bindsCierre = [];
-                $holdersCierre = [];
-                $bindsDevengo = [];
-                $holdersDevengo = [];
-                $devengoFechaACierre = [];
-
-                foreach ($fechas as $i => $fechaCierre) {
-                    $fechaDevengo = $this->fechaCalculoDevengoDesdeCierre($fechaCierre);
-                    if ($fechaDevengo === '') {
-                        continue;
-                    }
-                    $kc = 'c' . $i;
-                    $kd = 'd' . $i;
-                    $holdersCierre[] = "TO_DATE(:$kc, 'YYYY-MM-DD')";
-                    $bindsCierre[$kc] = $fechaCierre;
-                    $holdersDevengo[] = "TO_DATE(:$kd, 'YYYY-MM-DD')";
-                    $bindsDevengo[$kd] = $fechaDevengo;
-                    $devengoFechaACierre[$fechaDevengo] = $fechaCierre;
-                }
-
-                if (empty($holdersCierre)) {
-                    return ['cierre' => [], 'devengo' => []];
-                }
-
-                $inListCierre = implode(', ', $holdersCierre);
-                $inListDevengo = implode(', ', $holdersDevengo);
-
-                $qryCierre = <<<SQL
-                    SELECT
-                        TO_CHAR(TCD.FECHA_CALC, 'YYYY-MM-DD') AS FECHA,
-                        COUNT(*) AS TOTAL
-                    FROM TBL_CIERRE_DIA TCD
-                    WHERE TCD.FECHA_CALC IN ($inListCierre)
-                      AND NOT EXISTS (
-                          SELECT 1 FROM PRN_LEGAL PL
-                          WHERE PL.CDGEM = TCD.CDGEM AND PL.CDGCLNS = TCD.CDGCLNS
-                            AND PL.CICLO = TCD.CICLO AND PL.CLNS = TCD.CLNS
-                            AND PL.TIPO IN ('C','Z') AND PL.ALTA < TCD.FECHA_CALC + 1
-                      )
-                    GROUP BY TO_CHAR(TCD.FECHA_CALC, 'YYYY-MM-DD')
-                SQL;
-
-                $qryDevengo = <<<SQL
-                    SELECT
-                        TO_CHAR(TRUNC(FECHA_CALC), 'YYYY-MM-DD') AS FECHA_DEVENGO,
-                        COUNT(*) AS CREDITOS,
-                        NVL(SUM(DEV_DIARIO), 0) AS MONTO
-                    FROM DEVENGO_DIARIO
-                    WHERE TRUNC(FECHA_CALC) IN ($inListDevengo)
-                    GROUP BY TRUNC(FECHA_CALC)
-                SQL;
-
-                $filasCierre = $db->queryAll($qryCierre, $bindsCierre);
-                $filasDevengo = empty($holdersDevengo)
-                    ? []
-                    : $db->queryAll($qryDevengo, $bindsDevengo);
-
-                $mapCierre = [];
-                if (is_array($filasCierre)) {
-                    foreach ($filasCierre as $r) {
-                        $fecha = isset($r['FECHA']) ? (string) $r['FECHA'] : '';
-                        if ($fecha === '') {
-                            continue;
-                        }
-                        $mapCierre[$fecha] = (int) ($r['TOTAL'] ?? 0);
-                    }
-                }
-
-                $mapDevengo = [];
-                if (is_array($filasDevengo)) {
-                    foreach ($filasDevengo as $r) {
-                        $fechaDevengo = isset($r['FECHA_DEVENGO']) ? (string) $r['FECHA_DEVENGO'] : '';
-                        if ($fechaDevengo === '') {
-                            continue;
-                        }
-                        $fechaCierre = $devengoFechaACierre[$fechaDevengo] ?? '';
-                        if ($fechaCierre === '') {
-                            continue;
-                        }
-                        $mapDevengo[$fechaCierre] = [
-                            'creditos' => (int) ($r['CREDITOS'] ?? 0),
-                            'monto' => round((float) ($r['MONTO'] ?? 0), 2),
-                        ];
-                    }
-                }
-
-                return ['cierre' => $mapCierre, 'devengo' => $mapDevengo];
-            } catch (\Exception $e) {
-                return ['cierre' => [], 'devengo' => []];
-            }
-        });
-    }
-
-    /**
-     * Obtiene el correo del oficial de cumplimiento desde PARAMETROS_PLD (como en VB6).
-     * Se usa como destinatario del resumen de cierre cuando no está en modo solo desarrollo.
-     *
-     * @return array Lista de correos (puede ser uno o varios si el campo contiene comas)
-     */
-    public function getDestinatariosResumenCierreParametrosPld()
-    {
-        $qry = <<<SQL
-            SELECT CORREO_OFICIAL
-            FROM PARAMETROS_PLD
-            WHERE CDGEM = 'EMPFIN' AND ESTATUS = 'A'
-        SQL;
-        return $this->sinSalida(function () use ($qry) {
-            try {
-                $db = new Database();
-                $r = $db->queryOne($qry);
-                if (!$r || empty($r['CORREO_OFICIAL'])) {
-                    return [];
-                }
-                $correo = trim((string) $r['CORREO_OFICIAL']);
-                if ($correo === '') {
-                    return [];
-                }
-                $lista = array_unique(array_map('trim', explode(',', $correo)));
-                return array_values(array_filter($lista, function ($e) {
-                    return $e !== '';
-                }));
-            } catch (\Exception $e) {
-                return [];
-            }
-        });
-    }
-
-    /**
-     * Adquiere el candado de concurrencia: inserta bitácora abierta solo si no hay otra con FIN IS NULL.
-     * Usa bloqueo exclusivo breve de la tabla para evitar dos inicios concurrentes (TOCTOU).
-     *
-     * @param string $fecha Y-m-d
-     * @param string $usuario
-     * @return bool true si se adquirió el candado
-     */
-    public function registrarInicio($fecha, $usuario)
-    {
-        try {
-            $db = new Database();
-            if ($db->db_activa === null) {
-                return false;
-            }
-            $pdo = $db->db_activa;
-            $pdo->beginTransaction();
-            try {
-                $pdo->exec('LOCK TABLE BITACORA_CIERRE_DIARIO IN EXCLUSIVE MODE');
-
-                $cntStmt = $pdo->query(
-                    'SELECT COUNT(*) AS TOTAL FROM BITACORA_CIERRE_DIARIO WHERE FIN IS NULL AND INICIO IS NOT NULL'
-                );
-                $cntRow = $cntStmt ? $cntStmt->fetch(\PDO::FETCH_ASSOC) : false;
-                $total = ($cntRow && isset($cntRow['TOTAL'])) ? (int) $cntRow['TOTAL'] : 0;
-                if ($total > 0) {
-                    $pdo->rollBack();
-                    return false;
-                }
-
-                $ins = $pdo->prepare(
-                    "INSERT INTO BITACORA_CIERRE_DIARIO (FECHA_CALCULO, USUARIO) VALUES (TO_DATE(:fecha, 'YYYY-MM-DD'), :usuario)"
-                );
-                $ins->execute(['fecha' => $fecha, 'usuario' => $usuario]);
-                $pdo->commit();
-                return true;
-            } catch (\Exception $e) {
-                if ($pdo->inTransaction()) {
-                    $pdo->rollBack();
-                }
-                throw $e;
-            }
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
-
-    /**
      * Cierra el renglón del SP si terminó (EXITO definido) pero FIN quedó NULL.
      * Respaldo cuando el SP concluye la lógica pero no actualiza FIN en bitácora.
      *
@@ -678,7 +696,7 @@ SQL;
             UPDATE BITACORA_CIERRE_DIARIO b
             SET b.FIN = SYSDATE, b.EXITO = :exito
             WHERE TRUNC(b.FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
-              AND b.ID_IMPORTACION IS NOT NULL
+              AND b.ID_PROCESO IS NOT NULL
               AND b.FIN IS NULL
               AND b.INICIO IS NOT NULL
         SQL;
@@ -698,63 +716,7 @@ SQL;
     }
 
     /**
-     * Marca el cierre como finalizado (FIN = SYSDATE, EXITO = 0|1).
-     *
-     * @param string $fecha Y-m-d
-     * @param int $exito 1 = éxito, 0 = error
-     * @return bool
-     */
-    public function registrarFin($fecha, $exito = 1)
-    {
-        $qry = "UPDATE BITACORA_CIERRE_DIARIO SET FIN = SYSDATE, EXITO = :exito "
-            . "WHERE TRUNC(FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD') AND FIN IS NULL";
-        try {
-            $db = new Database();
-            $db->db_activa->prepare($qry)->execute(['fecha' => $fecha, 'exito' => (int) $exito]);
-            return true;
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
-
-    /**
-     * Cierra el candado PHP (filas abiertas sin ID_IMPORTACION del SP) para la fecha.
-     * Si la columna ID_IMPORTACION no existe, cierra cualquier FIN IS NULL de esa fecha.
-     *
-     * @param string $fecha Y-m-d
-     * @param int $exito 1 = éxito, 0 = error
-     * @return bool
-     */
-    public function cerrarCandadoInicio($fecha, $exito = 1)
-    {
-        $fecha = trim((string) $fecha);
-        if ($fecha === '') {
-            return false;
-        }
-
-        $qryConImportacion = <<<SQL
-            UPDATE BITACORA_CIERRE_DIARIO
-            SET FIN = SYSDATE, EXITO = :exito
-            WHERE TRUNC(FECHA_CALCULO) = TO_DATE(:fecha, 'YYYY-MM-DD')
-              AND FIN IS NULL
-              AND ID_IMPORTACION IS NULL
-        SQL;
-
-        try {
-            $db = new Database();
-            if ($db->db_activa === null) {
-                return false;
-            }
-            $stmt = $db->db_activa->prepare($qryConImportacion);
-            $stmt->execute(['fecha' => $fecha, 'exito' => (int) $exito]);
-            return true;
-        } catch (\Exception $e) {
-            return $this->registrarFin($fecha, $exito);
-        }
-    }
-
-    /**
-     * Cierra solo candados PHP huérfanos (sin ID_IMPORTACION). No toca el renglón del SP.
+     * Cierra solo candados PHP huérfanos (sin ID_PROCESO). No toca el renglón del SP.
      *
      * @param int $minutosAntiguedad Por defecto 15
      * @return int Filas actualizadas (0 si ninguna / error)
@@ -766,7 +728,7 @@ SQL;
             UPDATE BITACORA_CIERRE_DIARIO b
             SET b.FIN = SYSDATE, b.EXITO = 0
             WHERE b.FIN IS NULL
-              AND b.ID_IMPORTACION IS NULL
+              AND b.ID_PROCESO IS NULL
               AND b.INICIO IS NOT NULL
               AND b.INICIO < SYSDATE - (:mins / 1440)
         SQL;
@@ -780,7 +742,7 @@ SQL;
             $stmt->execute(['mins' => $minutos]);
             return (int) $stmt->rowCount();
         } catch (\Exception $e) {
-            // Esquema sin ID_IMPORTACION: cierra cualquier abierto viejo.
+            // Esquema sin ID_PROCESO: cierra cualquier abierto viejo.
             try {
                 $db = new Database();
                 if ($db->db_activa === null) {
@@ -800,203 +762,5 @@ SQL;
                 return 0;
             }
         }
-    }
-
-    /**
-     * Marca como finalizado (con error) el último registro con FIN IS NULL.
-     * Útil cuando el Job falla por fecha inválida y hay que desbloquear la concurrencia.
-     *
-     * @return bool
-     */
-    public function registrarFinUltimoAbierto()
-    {
-        $qry = <<<SQL
-            UPDATE BITACORA_CIERRE_DIARIO SET FIN = SYSDATE, EXITO = 0
-            WHERE ROWID = (SELECT r FROM (SELECT ROWID r FROM BITACORA_CIERRE_DIARIO WHERE FIN IS NULL AND ROWNUM = 1))
-        SQL;
-        try {
-            $db = new Database();
-            $stmt = $db->db_activa->prepare($qry);
-            $stmt->execute();
-            return $stmt->rowCount() > 0;
-        } catch (\Exception $e) {
-            return false;
-        }
-    }
-
-    /**
-     * Invoca SP_PAGOS_CIERRE_DEVENGO (cierre unificado en BD).
-     * Si $regenerar es true, elimina TBL_CIERRE_DIA del día y DEVENGO_DIARIO de (día+1)
-     * para evitar ORA-00001 al volver a ejecutar el SP.
-     *
-     * @param string $fecha Y-m-d (fecha de cálculo / cierre)
-     * @param string $usuario Usuario que ejecuta el proceso
-     * @param bool $regenerar Si true, borra devengo y cierre de cartera del día y luego ejecuta el SP
-     * @throws \Throwable
-     */
-    public function ejecutarSpPagosCierreDevengo($fecha, $usuario, $regenerar = false)
-    {
-        $db = new Database();
-        if ($db->db_activa === null) {
-            throw new \RuntimeException('No hay conexión a la base de datos.');
-        }
-        $pdo = $db->db_activa;
-        $u = trim((string) $usuario);
-        if ($u === '') {
-            throw new \InvalidArgumentException('Se requiere usuario para ejecutar el cierre (SP_PAGOS_CIERRE_DEVENGO).');
-        }
-        $fecha = trim((string) $fecha);
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
-            throw new \InvalidArgumentException('Fecha inválida para cierre (se espera YYYY-MM-DD).');
-        }
-
-        if ($regenerar) {
-            $fechaDevengo = $this->fechaCalculoDevengoDesdeCierre($fecha);
-            $sql = <<<PLSQL
-BEGIN
-  DELETE FROM DEVENGO_DIARIO d
-  WHERE TRUNC(d.FECHA_CALC) = TO_DATE(:f1, 'YYYY-MM-DD');
-  DELETE FROM TBL_CIERRE_DIA t
-  WHERE TRUNC(t.FECHA_CALC) = TO_DATE(:f2, 'YYYY-MM-DD');
-  SP_PAGOS_CIERRE_DEVENGO(TO_DATE(:f3, 'YYYY-MM-DD'), :usuario);
-END;
-PLSQL;
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute(['f1' => $fechaDevengo, 'f2' => $fecha, 'f3' => $fecha, 'usuario' => $u]);
-
-            return;
-        }
-
-        $stmt = $pdo->prepare(
-            'BEGIN SP_PAGOS_CIERRE_DEVENGO(TO_DATE(:fecha, \'YYYY-MM-DD\'), :usuario); END;'
-        );
-        $stmt->execute(['fecha' => $fecha, 'usuario' => $u]);
-    }
-
-    /**
-     * Cuatro resúmenes exclusivos del día indicado (TRUNC(campo_fecha) = fecha).
-     * Las claves y campos del array de respuesta son de negocio (sin nombres de tablas/columnas en JSON).
-     *
-     * @param string $fechaDesde Y-m-d (día único a consultar)
-     * @return array{
-     *   cobranza_del_dia: list<array{fecha: string, registros: int}>,
-     *   cierre_de_cartera: list<array{fecha: string, registros: int}>,
-     *   devengo_registrado: list<array{fecha: string, registros: int}>,
-     *   depositos_cuenta: list<array{fecha: string, registros: int}>
-     * }
-     */
-    public function getInformacionDiaResumenes($fechaDesde)
-    {
-        return $this->sinSalida(function () use ($fechaDesde) {
-            $fechaDesde = trim((string) $fechaDesde);
-            $vacio = [
-                'cobranza_del_dia' => [],
-                'cierre_de_cartera' => [],
-                'devengo_registrado' => [],
-                'depositos_cuenta' => [],
-            ];
-            if ($fechaDesde === '') {
-                return $vacio;
-            }
-            $db = new Database();
-            if ($db->db_activa === null) {
-                return $vacio;
-            }
-            $pdo = $db->db_activa;
-            $param = ['f1' => $fechaDesde];
-            $fechaDevengo = $this->fechaCalculoDevengoDesdeCierre($fechaDesde);
-            $paramDevengo = ['f1' => $fechaDevengo];
-
-            $qPagosdia = <<<'SQL'
-SELECT TO_CHAR(TRUNC(PGD.FECHA), 'DD/MM/YYYY') AS FECHA, COUNT(*) AS CNT
-FROM PAGOSDIA PGD
-WHERE TRUNC(PGD.FECHA) = TO_DATE(:f1, 'YYYY-MM-DD')
-  AND PGD.TIPO IN ('P', 'X', 'G')
-GROUP BY TRUNC(PGD.FECHA)
-ORDER BY TRUNC(PGD.FECHA) DESC
-SQL;
-
-            $qTblCierre = <<<'SQL'
-SELECT TO_CHAR(TRUNC(t.FECHA_CALC), 'DD/MM/YYYY') AS FECHA, COUNT(*) AS CNT
-FROM TBL_CIERRE_DIA t
-WHERE TRUNC(t.FECHA_CALC) = TO_DATE(:f1, 'YYYY-MM-DD')
-GROUP BY TRUNC(t.FECHA_CALC)
-ORDER BY TRUNC(t.FECHA_CALC) DESC
-SQL;
-
-            $qDevengo = <<<'SQL'
-SELECT TO_CHAR(TRUNC(d.FECHA_CALC), 'DD/MM/YYYY') AS FECHA, COUNT(*) AS CNT
-FROM DEVENGO_DIARIO d
-WHERE TRUNC(d.FECHA_CALC) = TO_DATE(:f1, 'YYYY-MM-DD')
-GROUP BY TRUNC(d.FECHA_CALC)
-ORDER BY TRUNC(d.FECHA_CALC) DESC
-SQL;
-
-            $qMpPd = <<<'SQL'
-SELECT TO_CHAR(TRUNC(m.FDEPOSITO), 'DD/MM/YYYY') AS FECHA, COUNT(*) AS CNT
-FROM mp m
-WHERE TRUNC(m.FDEPOSITO) = TO_DATE(:f1, 'YYYY-MM-DD')
-  AND m.TIPO = 'PD'
-GROUP BY TRUNC(m.FDEPOSITO)
-ORDER BY TRUNC(m.FDEPOSITO) DESC
-SQL;
-
-            $normaliza = function (array $filas) {
-                $out = [];
-                foreach ($filas as $row) {
-                    if (!is_array($row)) {
-                        continue;
-                    }
-                    $fecha = isset($row['FECHA']) ? (string) $row['FECHA'] : (isset($row['fecha']) ? (string) $row['fecha'] : '');
-                    $cnt = isset($row['CNT']) ? (int) $row['CNT'] : (isset($row['cnt']) ? (int) $row['cnt'] : 0);
-                    $out[] = ['fecha' => $fecha, 'registros' => $cnt];
-                }
-
-                return $out;
-            };
-
-            try {
-                $st = $pdo->prepare($qPagosdia);
-                $st->execute($param);
-                $cobranza = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC));
-            } catch (\Throwable $e) {
-                $cobranza = [];
-            }
-
-            try {
-                $st = $pdo->prepare($qTblCierre);
-                $st->execute($param);
-                $tblCierre = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC));
-            } catch (\Throwable $e) {
-                $tblCierre = [];
-            }
-
-            try {
-                if ($fechaDevengo === '') {
-                    $devengo = [];
-                } else {
-                    $st = $pdo->prepare($qDevengo);
-                    $st->execute($paramDevengo);
-                    $devengo = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC));
-                }
-            } catch (\Throwable $e) {
-                $devengo = [];
-            }
-
-            try {
-                $st = $pdo->prepare($qMpPd);
-                $st->execute($param);
-                $mpPd = $normaliza($st->fetchAll(\PDO::FETCH_ASSOC));
-            } catch (\Throwable $e) {
-                $mpPd = [];
-            }
-
-            return [
-                'cobranza_del_dia' => $cobranza,
-                'cierre_de_cartera' => $tblCierre,
-                'devengo_registrado' => $devengo,
-                'depositos_cuenta' => $mpPd,
-            ];
-        });
     }
 }
