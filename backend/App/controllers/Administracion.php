@@ -637,7 +637,7 @@ class Administracion extends Controller
                     swal({
                         title: (restablecer ? "¿Restablecer" : "¿Asignar") + " contraseña temporal?",
                         text: u.USUARIO + " - " + u.NOMBRE + "\\n\\n" +
-                            (restablecer ? "La contraseña actual dejará de funcionar. " : "") +
+                            (restablecer ? "La contraseña actual dejará de funcionar y su sesión se cerrará en 5 minutos como máximo; el teléfono sigue ligado. " : "") +
                             "Se generará una contraseña temporal válida por 72 horas." +
                             (restablecer ? "\\n\\nSi la contraseña se filtró, desliga también el teléfono." : ""),
                         icon: "warning",
@@ -809,7 +809,7 @@ class Administracion extends Controller
         try {
             echo json_encode(\Core\Model::Responde(true, 'OK', AccesoWebappService::listarUsuarios()));
         } catch (\Throwable $e) {
-            echo json_encode(\Core\Model::Responde(false, 'No se pudo cargar la lista.', null, $e->getMessage()));
+            echo json_encode(AccesoWebappService::fallo('No se pudo cargar la lista.', $e));
         }
     }
 
@@ -907,6 +907,7 @@ class Administracion extends Controller
     private function accesoWebappUsuarioSolicitado(): string
     {
         $body = json_decode((string) file_get_contents('php://input'), true);
-        return is_array($body) ? (string) ($body['usuario'] ?? '') : '';
+        $usuario = is_array($body) ? ($body['usuario'] ?? '') : '';
+        return is_string($usuario) ? $usuario : '';
     }
 }

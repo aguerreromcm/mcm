@@ -251,7 +251,7 @@ SQL;
         try {
             $filas = self::consultar(self::conectar(), $sql, $prm);
         } catch (\Throwable $e) {
-            return Model::Responde(false, 'No se pudo consultar la bitácora.', null, $e->getMessage());
+            return self::fallo('No se pudo consultar la bitácora.', $e);
         }
         foreach ($filas as &$fila) {
             $fila['FECHA'] = self::aHoraLocal($fila['FECHA_UTC']);
@@ -309,7 +309,7 @@ SQL;
             ]);
         } catch (\Throwable $e) {
             self::cancelar($db);
-            return Model::Responde(false, 'No se pudo generar la contraseña temporal.', null, $e->getMessage());
+            return self::fallo('No se pudo generar la contraseña temporal.', $e);
         }
     }
 
@@ -408,8 +408,20 @@ SQL;
             return Model::Responde(true, $mensajeOk);
         } catch (\Throwable $e) {
             self::cancelar($db);
-            return Model::Responde(false, $mensajeError, null, $e->getMessage());
+            return self::fallo($mensajeError, $e);
         }
+    }
+
+    /**
+     * Logs the technical error server-side and returns only a generic message:
+     * Oracle errors expose schema details and must not reach the browser.
+     *
+     * @return array<string, mixed>
+     */
+    public static function fallo(string $mensaje, \Throwable $e): array
+    {
+        error_log('[AccesoWebapp] ' . $mensaje . ' ' . $e->getMessage());
+        return Model::Responde(false, $mensaje);
     }
 
     private static function auditar(Database $db, string $administrador, string $usuario, string $accion, string $ip): void

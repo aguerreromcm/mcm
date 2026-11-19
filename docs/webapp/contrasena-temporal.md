@@ -65,7 +65,9 @@ Las validaciones de hoy se quedan como están y en el mismo orden: el usuario ex
 
 Si un usuario ya tiene un teléfono ligado y entra desde otro, sigue respondiendo `DISPOSITIVO_NO_AUTORIZADO`, aunque su contraseña sea temporal.
 
-**Después de comprobar que la contraseña es correcta** y antes de crear la sesión o ligar el teléfono, agregue esta revisión:
+**Después de comprobar que la contraseña es correcta** y antes de crear la sesión o ligar el teléfono, agregue esta revisión.
+
+Si la API valida el teléfono consumiendo el reto, la revisión va **después** de rechazar un teléfono distinto al ligado, pero **antes** de consumir el reto. Así, el reto sigue disponible para el inicio de sesión que la webapp hace tras el cambio.
 
 | Estado de la credencial | Qué hace la API |
 |---|---|
@@ -104,7 +106,7 @@ Por ejemplo, `POST /auth/cambiar-contrasena`, con `token_cambio` y `nueva_contra
 4. Valide la nueva contraseña:
    - tiene **al menos 10 caracteres**;
    - **no es igual a la temporal** (verifíquela contra el hash vigente con Argon2id);
-   - **no contiene el usuario**, sin distinguir mayúsculas.
+   - **no es igual al usuario**, sin distinguir mayúsculas.
 5. Genere el hash Argon2id con al menos `m=65536` y `t=3`, y guárdelo con un `UPDATE` **condicionado al hash que leyó**:
 
    ```sql
@@ -142,7 +144,7 @@ Así, cuando el administrador restablece una contraseña, el usuario sale de la 
 
 1. **Pantalla "Cambia tu contraseña".** Aparece cuando el inicio de sesión responde `CAMBIO_CONTRASENA_REQUERIDO`.
    - Campos: nueva contraseña y confirmación, ambos ocultos y con opción de mostrar.
-   - Muestre las reglas antes de enviar: al menos 10 caracteres, distinta de la temporal, sin el usuario. Valídelas también del lado del cliente, sin sustituir las de la API.
+   - Muestre las reglas antes de enviar: al menos 10 caracteres, distinta de la temporal y distinta del usuario. Valídelas también del lado del cliente, sin sustituir las de la API.
    - Si el token vence (10 minutos), regrese al inicio de sesión con el mensaje *"Tu tiempo para cambiar la contraseña terminó. Vuelve a iniciar sesión con tu contraseña temporal."*
 2. **Después del cambio,** inicie sesión automáticamente con la contraseña nueva usando el flujo normal (reto y teléfono), sin pedirla otra vez.
 3. **Temporal vencida.** Muestre *"Tu contraseña temporal venció. Pide a tu administrador que te asigne una nueva."*
@@ -162,7 +164,7 @@ Así, cuando el administrador restablece una contraseña, el usuario sale de la 
 | 1 | Entrar con una temporal vigente | Responde `CAMBIO_CONTRASENA_REQUERIDO` con token; no hay renglón nuevo en `API_EXT_SESION` ni en `API_EXT_DISPOSITIVO`; la bitácora registra `CAMBIO_CONTRASENA_REQUERIDO`. |
 | 2 | Cambiar con una contraseña válida | `CAMBIO_REQUERIDO = 'N'` y `TEMPORAL_VENCE_UTC` nula; el inicio de sesión automático liga el teléfono y crea la sesión. |
 | 3 | Reusar el mismo token de cambio | "Token inválido o vencido". |
-| 4 | Nueva contraseña de 9 caracteres, igual a la temporal o que contiene el usuario | Se rechaza y la credencial no cambia. |
+| 4 | Nueva contraseña de 9 caracteres, igual a la temporal o igual al usuario | Se rechaza y la credencial no cambia. |
 | 5 | El administrador restablece entre la emisión del token y el cambio | El `UPDATE` afecta 0 renglones y se responde "token inválido o vencido". |
 | 6 | Entrar con una temporal vencida | Responde `CONTRASENA_TEMPORAL_VENCIDA`; `INTENTOS_FALLIDOS` no aumenta. |
 | 7 | Contraseña temporal incorrecta 5 veces | Se bloquea 15 minutos, como hoy. |

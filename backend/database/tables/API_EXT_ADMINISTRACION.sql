@@ -31,5 +31,8 @@ COMMENT ON COLUMN ESIACOM.API_EXT_ADMINISTRACION.USUARIO IS 'PE.CODIGO of the af
 COMMENT ON COLUMN ESIACOM.API_EXT_ADMINISTRACION.ACCION IS 'Action performed by the admin';
 COMMENT ON COLUMN ESIACOM.API_EXT_ADMINISTRACION.IP IS 'IP address the admin used';
 
+-- Rollback (drops the audit trail; export it first if it must be kept):
+-- DROP TABLE ESIACOM.API_EXT_ADMINISTRACION PURGE;
+
 -- Production with a dedicated panel user (pending decision):
 -- GRANT SELECT, INSERT ON ESIACOM.API_EXT_ADMINISTRACION TO <USUARIO_PANEL>;

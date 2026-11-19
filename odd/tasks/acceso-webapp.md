@@ -26,11 +26,12 @@ Branch: `feat/acceso-webapp` · Delivery: ask-on-risk · Test runner: none in pr
 
 | ID | Specs | Route | Status | Commit |
 |---|---|---|---|---|
-| T1 | S2, S6, S7 | inline | pending | |
-| T2 | S2 | inline | pending | |
-| T3 | S1, S3, S5 | inline | pending | |
-| T4 | S1, S2, S4, S6 | inline | pending | |
-| T5 | S3–S6 | inline | pending | |
+| T1 | S2, S6, S7 | inline | done (applied to test DB) | d7cb7577 |
+| T2 | S2 | inline | done | efbd3067 |
+| T3 | S1, S3, S5 | inline | done (38/38 functional checks) | 0ae7a8cb |
+| T4 | S1, S2, S4, S6 | inline | done (38/38 functional checks) | 0ae7a8cb |
+| T5 | S3–S6 | inline | done (HTTP + browser checks) | 4ca57f0d |
+| V1 | S1–S7 | verifier | done: 0 blockers, advisories fixed | see L6 |
 
 Route evidence: one coherent feature, units depend on each other (service ← controller ← view), no Writer trigger reason → inline. Risk: items 1 and 3 (existing table/constraint change consumed by the API) and 2 (credentials) → independent verifier at the end.
 
@@ -39,4 +40,7 @@ Route evidence: one coherent feature, units depend on each other (service ← co
 - **L1 (2026-11-19, user, verbatim):** "Se esta trabajando en una webapp para el registro de pago, esto busca cambiar el flujo habitual que es ir cobrar y volver a la sucursal para que una cajera registre el pago. Con la webapp ahora el ejecutivo va cobra y registra, al volver a la sucursal la cajera solo confirma. Lo que necesitamos de momento es un administrador de usuarios para la app, en el sistema que corre sobre flex se hace el registro y control de usuarios, pero este no tiene medidas de seguridad robustas, por lo que se implemento una contraseña independiente para proteger la que se usa en el sistema central. Te dejo los pormenores en el markdown adjunto, la idea es añadir una opción dentro de administración donde se pueda configurar lo necesario para que los usuarios puedan entrar y desligar el dispositivo que esta ligado al usuario."
 - **L2 (2026-11-19, user, verbatim):** "Se que es hacer mas cambios, pero a futuro evitara dolores de cabeza. Hay que implementar la contraseña temporal para que al primer ingreso se modifique. Dado que esto se debe controlar de este lado, tu indica lo necesario para que el equipo que desarrolla la webapp adapte lo necesario"
 - **L3 (2026-11-19):** User approved the panel proposal and the temporary-password design ("Sí, apruebo el diseño, adelante").
+- **L5:** Checks: service functional script (38 PASS) against the test DB using user ABLF (no prior data) with a fake phone/session, cleaned up afterwards; HTTP: non-admin → 403 on every endpoint and redirect on the page, GET/form POST to actions → 405, no hash/key columns in responses; browser: assign flow, row refresh, filtered log, unlink warning text (cancelled). Test DB restored (14 credentials, 0 audit rows).
+- **L6:** Independent verifier: S1–S7 PASS, 0 blockers. Fixed advisories: raw Oracle errors no longer reach the browser (`AccesoWebappService::fallo` logs them), non-string `usuario` rejected, reset dialog warns about session close, contract doc aligned to "≠ usuario" and clarifies the check goes before consuming the challenge, rollback added to the audit table script. Left as is: `Database::Conecta` exits with a 503 page that embeds the DB password when Oracle is down (pre-existing); "cerrar sesiones" also stamps expired sessions (matches the source doc SQL); audit IP is REMOTE_ADDR; default log dates use the browser clock.
+- **Pending (production):** dedicated Oracle user with minimal grants (§4); apply scripts in production only after the API/webapp adopt the contract; panel enabled last.
 - **L4:** Evidence: test DB tables match the source doc; `API_EXT_DISP_VIGENTE_UX` enforces one active phone per user; PHP 8.2 `PASSWORD_ARGON2ID` yields `$argon2id$v=19$m=65536,t=3,p=4$...`. `.gitignore` ignores `*.sql`; existing scripts are force-added, so new scripts use `git add -f`.
