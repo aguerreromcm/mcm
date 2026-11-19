@@ -53,6 +53,11 @@ WHEN MATCHED THEN UPDATE SET
     C.TEMPORAL_VENCE_UTC = SYS_EXTRACT_UTC(SYSTIMESTAMP) + INTERVAL '72' HOUR,
     C.ACTUALIZADO_UTC = SYS_EXTRACT_UTC(SYSTIMESTAMP)
 WHEN NOT MATCHED THEN INSERT (...) VALUES (..., 'S', SYS_EXTRACT_UTC(SYSTIMESTAMP) + INTERVAL '72' HOUR, ...);
+
+-- In the same transaction, the panel revokes the user's open sessions:
+UPDATE ESIACOM.API_EXT_SESION
+SET REVOCADA_UTC = SYS_EXTRACT_UTC(SYSTIMESTAMP)
+WHERE USUARIO = :usuario AND REVOCADA_UTC IS NULL;
 ```
 
 El hash es Argon2id en formato PHC (`$argon2id$v=19$m=65536,t=3,p=4$...`), igual que el que ya genera la API.
@@ -134,7 +139,9 @@ En la misma consulta en la que hoy se revisa SICAFIN, lea también `CAMBIO_REQUE
 - rechace la renovación;
 - revoque la sesión (`REVOCADA_UTC = SYS_EXTRACT_UTC(SYSTIMESTAMP)`).
 
-Así, cuando el administrador restablece una contraseña, el usuario sale de la webapp en **5 minutos como máximo**. El teléfono **no** se desliga: el usuario vuelve a entrar desde el mismo equipo con la temporal, la cambia, y sus pagos pendientes siguen pudiendo sincronizarse.
+El panel ya revoca las sesiones al restablecer (punto 2), así que con la renovación de hoy, que rechaza sesiones con `REVOCADA_UTC`, el usuario sale en **5 minutos como máximo**. Esta revisión es una segunda barrera: cubre cualquier otro camino que deje `CAMBIO_REQUERIDO = 'S'` con una sesión abierta.
+
+El teléfono **no** se desliga: el usuario vuelve a entrar desde el mismo equipo con la temporal, la cambia, y sus pagos pendientes siguen pudiendo sincronizarse.
 
 ### 3.5 Comando de consola
 
@@ -168,6 +175,6 @@ Así, cuando el administrador restablece una contraseña, el usuario sale de la 
 | 5 | El administrador restablece entre la emisión del token y el cambio | El `UPDATE` afecta 0 renglones y se responde "token inválido o vencido". |
 | 6 | Entrar con una temporal vencida | Responde `CONTRASENA_TEMPORAL_VENCIDA`; `INTENTOS_FALLIDOS` no aumenta. |
 | 7 | Contraseña temporal incorrecta 5 veces | Se bloquea 15 minutos, como hoy. |
-| 8 | Restablecer con una sesión abierta | Antes de 5 minutos la renovación falla y la sesión queda con `REVOCADA_UTC`; el teléfono sigue ligado. |
+| 8 | Restablecer con una sesión abierta | El panel deja la sesión con `REVOCADA_UTC` al instante; antes de 5 minutos la renovación falla. El teléfono sigue ligado. |
 | 9 | Usuario con teléfono ligado entra con la temporal desde otro teléfono | `DISPOSITIVO_NO_AUTORIZADO`. |
 | 10 | Usuario dado de baja en SICAFIN con una temporal vigente | `CREDENCIALES_INVALIDAS`, como hoy. |

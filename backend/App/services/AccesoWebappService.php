@@ -265,8 +265,9 @@ SQL;
     }
 
     /**
-     * Generates a temporary password, stores its Argon2id hash with a forced change and
-     * returns it once so the admin can hand it over in person.
+     * Generates a temporary password, stores its Argon2id hash with a forced change,
+     * revokes the user's open sessions and returns it once so the admin can hand it over
+     * in person.
      *
      * @return array<string, mixed> Model::Responde shape; datos.contrasena holds the plain temporary password
      */
@@ -297,6 +298,9 @@ SQL;
                 'hash' => $hash,
                 'horas' => self::VIGENCIA_TEMPORAL_HORAS,
             ]);
+            // A reset must not leave sessions opened with the old password alive:
+            // revoking them here keeps the cutoff independent of the API version.
+            $sesionesCerradas = self::ejecutar($db, self::$sqlRevocarSesiones, ['usuario' => $usuario]);
             $accion = $existia ? 'RESTABLECER_CONTRASENA' : 'ASIGNAR_CONTRASENA';
             self::auditar($db, $administrador, $usuario, $accion, $ip);
             $vence = self::consultar($db, self::$sqlVenceTemporal, ['usuario' => $usuario]);
@@ -306,6 +310,7 @@ SQL;
                 'usuario' => $usuario,
                 'contrasena' => $temporal,
                 'vence' => self::aHoraLocal($vence[0]['VENCE_UTC'] ?? null),
+                'sesiones_cerradas' => $sesionesCerradas,
             ]);
         } catch (\Throwable $e) {
             self::cancelar($db);

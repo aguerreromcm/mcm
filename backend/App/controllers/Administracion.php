@@ -621,7 +621,10 @@ class Administracion extends Controller
                         '<div style="font-family: monospace; font-size: 26px; letter-spacing: 3px; padding: 10px; border: 1px dashed #999; user-select: all;">' +
                         escaparHtml(datos.contrasena) + '</div>' +
                         '<p style="margin-top: 10px;">Vence: <b>' + escaparHtml(datos.vence || "") + '</b>. ' +
-                        'El usuario deberá cambiarla en su primer inicio de sesión.</p>';
+                        'El usuario deberá cambiarla en su primer inicio de sesión.</p>' +
+                        (datos.sesiones_cerradas > 0
+                            ? '<p>Se cerraron ' + escaparHtml(String(datos.sesiones_cerradas)) + ' sesión(es) abierta(s).</p>'
+                            : '');
                     swal({
                         title: "Contraseña temporal de " + datos.usuario,
                         content: contenido,
@@ -637,7 +640,7 @@ class Administracion extends Controller
                     swal({
                         title: (restablecer ? "¿Restablecer" : "¿Asignar") + " contraseña temporal?",
                         text: u.USUARIO + " - " + u.NOMBRE + "\\n\\n" +
-                            (restablecer ? "La contraseña actual dejará de funcionar y su sesión se cerrará en 5 minutos como máximo; el teléfono sigue ligado. " : "") +
+                            (restablecer ? "La contraseña actual dejará de funcionar y sus sesiones se cerrarán de inmediato (sale de la webapp en 5 minutos como máximo); el teléfono sigue ligado. " : "") +
                             "Se generará una contraseña temporal válida por 72 horas." +
                             (restablecer ? "\\n\\nSi la contraseña se filtró, desliga también el teléfono." : ""),
                         icon: "warning",
