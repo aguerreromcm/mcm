@@ -7,6 +7,7 @@ defined("APPPATH") or die("Access denied");
 use Core\View;
 use Core\Controller;
 use App\services\ListaNegraEmpleadosService;
+use App\services\AccesoWebappService;
 
 /**
  * Pantallas de administración del sistema (menú Administración).
@@ -457,5 +458,455 @@ class Administracion extends Controller
         echo "\xEF\xBB\xBF";
         echo "CURP\n";
         exit;
+    }
+
+    /**
+     * Acceso Webapp: credentials, phone and sessions of the payments webapp users.
+     */
+    public function AccesoWebapp()
+    {
+        if (!AccesoWebappService::esAdministrador($this->__perfil)) {
+            header('Location: /Principal/');
+            exit;
+        }
+
+        $extraFooter = <<<HTML
+            <script>
+                {$this->mensajes}
+
+                const idTablaUsuarios = "tabla-acceso-webapp-usuarios";
+                const idTablaBitacora = "tabla-acceso-webapp-bitacora";
+                const avisoPagosPendientes = "Pide al ejecutivo que sincronice sus pagos pendientes antes de desligar el teléfono";
+
+                const estadosContrasena = {
+                    SIN_CONTRASENA: { texto: "Sin contraseña", clase: "default" },
+                    ACTIVA: { texto: "Activa", clase: "success" },
+                    TEMPORAL: { texto: "Temporal", clase: "info" },
+                    TEMPORAL_VENCIDA: { texto: "Temporal vencida", clase: "warning" },
+                    BLOQUEADA: { texto: "Bloqueada", clase: "danger" }
+                };
+
+                const resultadosAcceso = {
+                    CORRECTO: { texto: "Correcto", clase: "success" },
+                    CREDENCIALES_INVALIDAS: { texto: "Credenciales inválidas", clase: "danger" },
+                    CUENTA_BLOQUEADA: { texto: "Cuenta bloqueada", clase: "danger" },
+                    DISPOSITIVO_NO_AUTORIZADO: { texto: "Teléfono no autorizado", clase: "warning" },
+                    RETO_INVALIDO: { texto: "Firma inválida", clase: "warning" },
+                    CAMBIO_CONTRASENA_REQUERIDO: { texto: "Cambio de contraseña requerido", clase: "info" },
+                    CONTRASENA_TEMPORAL_VENCIDA: { texto: "Temporal vencida", clase: "warning" },
+                    NO_DISPONIBLE: { texto: "No disponible", clase: "default" },
+                    ERROR_INTERNO: { texto: "Error interno", clase: "default" }
+                };
+
+                const idiomaTabla = {
+                    emptyTable: "Sin registros",
+                    paginate: { previous: "Anterior", next: "Siguiente" },
+                    info: "Mostrando de _START_ a _END_ de _TOTAL_ registros",
+                    infoEmpty: "Sin registros",
+                    infoFiltered: "(de _MAX_ en total)",
+                    zeroRecords: "No se encontraron registros",
+                    lengthMenu: "Mostrar _MENU_ registros",
+                    search: "Buscar:"
+                };
+
+                let usuariosPorCodigo = {};
+
+                function escaparHtml(valor) {
+                    return String(valor === null || valor === undefined ? "" : valor)
+                        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                        .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+                }
+
+                function etiqueta(texto, clase) {
+                    return '<span class="label label-' + clase + '">' + escaparHtml(texto) + '</span>';
+                }
+
+                function interpretar(res) {
+                    if (typeof res === "string") {
+                        try { return JSON.parse(res); } catch (e) { return null; }
+                    }
+                    return res;
+                }
+
+                function pedirJson(metodo, url, datos, alTerminar, mensajeEspera) {
+                    if (mensajeEspera) showWait(mensajeEspera);
+                    $.ajax({
+                        type: metodo,
+                        url: url,
+                        data: metodo === "POST" ? JSON.stringify(datos || {}) : datos,
+                        contentType: metodo === "POST" ? "application/json; charset=UTF-8" : undefined,
+                        dataType: "json",
+                        cache: false,
+                        success: function(res) {
+                            if (mensajeEspera) swal.close();
+                            res = interpretar(res);
+                            if (!res) {
+                                showError("Respuesta inválida del servidor.");
+                                return;
+                            }
+                            alTerminar(res);
+                        },
+                        error: function(xhr) {
+                            if (mensajeEspera) swal.close();
+                            const res = interpretar(xhr.responseText);
+                            showError((res && res.mensaje) || "No se pudo comunicar con el servidor.");
+                        }
+                    });
+                }
+
+                function celdaContrasena(u) {
+                    const estado = estadosContrasena[u.ESTADO_CONTRASENA] || { texto: u.ESTADO_CONTRASENA, clase: "default" };
+                    let html = etiqueta(estado.texto, estado.clase);
+                    if (u.ESTADO_CONTRASENA === "TEMPORAL" && u.TEMPORAL_VENCE) html += '<br><small>Vence ' + escaparHtml(u.TEMPORAL_VENCE) + '</small>';
+                    if (u.ESTADO_CONTRASENA === "TEMPORAL_VENCIDA" && u.TEMPORAL_VENCE) html += '<br><small>Venció ' + escaparHtml(u.TEMPORAL_VENCE) + '</small>';
+                    if (u.ESTADO_CONTRASENA === "BLOQUEADA" && u.BLOQUEADO_HASTA) html += '<br><small>Hasta ' + escaparHtml(u.BLOQUEADO_HASTA) + '</small>';
+                    if (u.BLOQUEO_SICAFIN === "S") html += '<br>' + etiqueta("Bloqueado en SICAFIN", "danger");
+                    return html;
+                }
+
+                function celdaUltimoAcceso(u) {
+                    if (!u.ULTIMO_ACCESO) return '<span class="text-muted">Nunca</span>';
+                    const r = resultadosAcceso[u.ULTIMO_RESULTADO] || { texto: u.ULTIMO_RESULTADO, clase: "default" };
+                    return escaparHtml(u.ULTIMO_ACCESO) + '<br>' + etiqueta(r.texto, r.clase) +
+                        (u.ULTIMA_VERSION_APP ? ' <small>v' + escaparHtml(u.ULTIMA_VERSION_APP) + '</small>' : '');
+                }
+
+                function boton(accion, usuario, clase, icono, titulo) {
+                    return '<button type="button" class="btn btn-' + clase + ' btn-xs btn-acceso" data-accion="' + accion +
+                        '" data-usuario="' + escaparHtml(usuario) + '" title="' + escaparHtml(titulo) + '">' +
+                        '<i class="fa fa-' + icono + '"></i></button>';
+                }
+
+                function celdaAcciones(u) {
+                    let html = u.ESTADO_CONTRASENA === "SIN_CONTRASENA"
+                        ? boton("asignar", u.USUARIO, "primary", "key", "Asignar contraseña temporal")
+                        : boton("asignar", u.USUARIO, "warning", "refresh", "Restablecer contraseña temporal");
+                    if (u.ESTADO_CONTRASENA === "BLOQUEADA") html += boton("desbloquear", u.USUARIO, "success", "unlock", "Desbloquear");
+                    if (u.TELEFONO_DESDE) html += boton("desligar", u.USUARIO, "danger", "mobile", "Desligar teléfono");
+                    if (u.SESIONES_ACTIVAS > 0) html += boton("cerrar", u.USUARIO, "default", "sign-out", "Cerrar sesiones");
+                    html += boton("bitacora", u.USUARIO, "info", "history", "Ver bitácora de accesos");
+                    return html;
+                }
+
+                function cargarUsuarios() {
+                    pedirJson("GET", "/Administracion/AccesoWebappUsuarios/", null, function(res) {
+                        if (!res.success) {
+                            showError(res.mensaje || "No se pudo cargar la lista.");
+                            return;
+                        }
+                        usuariosPorCodigo = {};
+                        const filas = (res.datos || []).map(function(u) {
+                            usuariosPorCodigo[u.USUARIO] = u;
+                            return [
+                                escaparHtml(u.USUARIO),
+                                escaparHtml(u.NOMBRE),
+                                escaparHtml(u.PERFILES),
+                                escaparHtml(u.SUCURSAL || ""),
+                                celdaContrasena(u),
+                                u.TELEFONO_DESDE ? 'Desde ' + escaparHtml(u.TELEFONO_DESDE) : '<span class="text-muted">Sin teléfono</span>',
+                                u.SESIONES_ACTIVAS,
+                                celdaUltimoAcceso(u),
+                                celdaAcciones(u)
+                            ];
+                        });
+                        const tabla = $("#" + idTablaUsuarios).DataTable();
+                        tabla.clear().rows.add(filas).draw(false);
+                    }, "Cargando usuarios...");
+                }
+
+                function mostrarTemporal(datos) {
+                    const contenido = document.createElement("div");
+                    contenido.innerHTML =
+                        '<p>Entrégala en persona. No se volverá a mostrar.</p>' +
+                        '<div style="font-family: monospace; font-size: 26px; letter-spacing: 3px; padding: 10px; border: 1px dashed #999; user-select: all;">' +
+                        escaparHtml(datos.contrasena) + '</div>' +
+                        '<p style="margin-top: 10px;">Vence: <b>' + escaparHtml(datos.vence || "") + '</b>. ' +
+                        'El usuario deberá cambiarla en su primer inicio de sesión.</p>';
+                    swal({
+                        title: "Contraseña temporal de " + datos.usuario,
+                        content: contenido,
+                        icon: "success",
+                        button: "Ya la anoté",
+                        closeOnClickOutside: false,
+                        closeOnEsc: false
+                    }).then(cargarUsuarios);
+                }
+
+                function asignar(u) {
+                    const restablecer = u.ESTADO_CONTRASENA !== "SIN_CONTRASENA";
+                    swal({
+                        title: (restablecer ? "¿Restablecer" : "¿Asignar") + " contraseña temporal?",
+                        text: u.USUARIO + " - " + u.NOMBRE + "\\n\\n" +
+                            (restablecer ? "La contraseña actual dejará de funcionar. " : "") +
+                            "Se generará una contraseña temporal válida por 72 horas." +
+                            (restablecer ? "\\n\\nSi la contraseña se filtró, desliga también el teléfono." : ""),
+                        icon: "warning",
+                        buttons: ["Cancelar", restablecer ? "Restablecer" : "Asignar"],
+                        dangerMode: restablecer
+                    }).then(function(ok) {
+                        if (!ok) return;
+                        pedirJson("POST", "/Administracion/AccesoWebappAsignarTemporal/", { usuario: u.USUARIO }, function(res) {
+                            if (!res.success) {
+                                showError(res.mensaje || "No se pudo generar la contraseña.");
+                                return;
+                            }
+                            mostrarTemporal(res.datos);
+                        }, "Generando contraseña...");
+                    });
+                }
+
+                function ejecutarAccion(url, usuario, mensajeEspera) {
+                    pedirJson("POST", url, { usuario: usuario }, function(res) {
+                        if (!res.success) {
+                            showError(res.mensaje || "No se pudo completar la acción.");
+                            return;
+                        }
+                        showSuccess(res.mensaje).then(cargarUsuarios);
+                    }, mensajeEspera);
+                }
+
+                function desbloquear(u) {
+                    swal({
+                        title: "¿Desbloquear?",
+                        text: u.USUARIO + " - " + u.NOMBRE + "\\n\\nSe quitará el bloqueo por intentos sin cambiar la contraseña.",
+                        icon: "warning",
+                        buttons: ["Cancelar", "Desbloquear"]
+                    }).then(function(ok) {
+                        if (ok) ejecutarAccion("/Administracion/AccesoWebappDesbloquear/", u.USUARIO, "Desbloqueando...");
+                    });
+                }
+
+                function desligar(u) {
+                    swal({
+                        title: "¿Desligar el teléfono?",
+                        text: u.USUARIO + " - " + u.NOMBRE + "\\n\\n" + avisoPagosPendientes + ".\\n\\n" +
+                            "Los pagos que sigan en el teléfono ya no se podrán enviar. " +
+                            "Para confirmar, escribe el usuario " + u.USUARIO + ":",
+                        icon: "warning",
+                        content: { element: "input", attributes: { placeholder: u.USUARIO } },
+                        buttons: ["Cancelar", "Desligar"],
+                        dangerMode: true
+                    }).then(function(valor) {
+                        if (valor === null || valor === undefined || valor === false) return;
+                        if (String(valor).trim().toUpperCase() !== u.USUARIO) {
+                            showWarning("El usuario escrito no coincide. No se desligó el teléfono.");
+                            return;
+                        }
+                        ejecutarAccion("/Administracion/AccesoWebappDesligar/", u.USUARIO, "Desligando teléfono...");
+                    });
+                }
+
+                function cerrarSesiones(u) {
+                    swal({
+                        title: "¿Cerrar sesiones?",
+                        text: u.USUARIO + " - " + u.NOMBRE + "\\n\\nEl teléfono sigue ligado; el usuario vuelve a entrar con su contraseña.",
+                        icon: "warning",
+                        buttons: ["Cancelar", "Cerrar sesiones"]
+                    }).then(function(ok) {
+                        if (ok) ejecutarAccion("/Administracion/AccesoWebappCerrarSesiones/", u.USUARIO, "Cerrando sesiones...");
+                    });
+                }
+
+                function fechaLocal(desplazamientoDias) {
+                    const d = new Date();
+                    d.setDate(d.getDate() + desplazamientoDias);
+                    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+                }
+
+                function cargarBitacora() {
+                    const datos = {
+                        usuario: $("#bitacora_usuario").val().trim(),
+                        desde: $("#bitacora_desde").val(),
+                        hasta: $("#bitacora_hasta").val()
+                    };
+                    pedirJson("GET", "/Administracion/AccesoWebappBitacora/", datos, function(res) {
+                        const tabla = $("#" + idTablaBitacora).DataTable();
+                        if (!res.success) {
+                            tabla.clear().draw();
+                            showError(res.mensaje || "No se pudo consultar la bitácora.");
+                            return;
+                        }
+                        const filas = (res.datos || []).map(function(a) {
+                            const r = resultadosAcceso[a.RESULTADO] || { texto: a.RESULTADO, clase: "default" };
+                            return [
+                                escaparHtml(a.FECHA_UTC),
+                                escaparHtml(a.FECHA),
+                                escaparHtml(a.USUARIO || "(desconocido)"),
+                                escaparHtml(a.NOMBRE || ""),
+                                etiqueta(r.texto, r.clase),
+                                escaparHtml(a.IP || ""),
+                                a.DISPOSITIVO_NUEVO === "S" ? "Sí" : (a.DISPOSITIVO_NUEVO === "N" ? "No" : ""),
+                                escaparHtml(a.VERSION_APP || ""),
+                                escaparHtml(a.NAVEGADOR || ""),
+                                escaparHtml(a.SISTEMA || ""),
+                                escaparHtml(a.TIPO_DISPOSITIVO || ""),
+                                escaparHtml([a.MARCA, a.MODELO].filter(Boolean).join(" "))
+                            ];
+                        });
+                        tabla.clear().rows.add(filas).draw();
+                        if (res.mensaje && res.mensaje !== "OK") showInfo(res.mensaje);
+                    }, "Consultando bitácora...");
+                }
+
+                $(document).ready(function() {
+                    $("#" + idTablaUsuarios).DataTable({
+                        order: [[1, "asc"]],
+                        pageLength: 25,
+                        columnDefs: [
+                            { orderable: false, targets: [8] },
+                            { className: "text-center", targets: [6] },
+                            { createdCell: function(td) { $(td).css("white-space", "nowrap"); }, targets: [8] }
+                        ],
+                        language: idiomaTabla
+                    });
+                    $("#" + idTablaBitacora).DataTable({
+                        order: [[0, "desc"]],
+                        pageLength: 25,
+                        columnDefs: [{ visible: false, searchable: false, targets: [0] }],
+                        language: idiomaTabla
+                    });
+
+                    $("#bitacora_desde").val(fechaLocal(-7));
+                    $("#bitacora_hasta").val(fechaLocal(0));
+
+                    cargarUsuarios();
+                    $("#btn_recargar_usuarios").click(cargarUsuarios);
+                    $("#btn_buscar_bitacora").click(cargarBitacora);
+                    $('a[href="#tab_bitacora"]').on("shown.bs.tab", function() {
+                        $("#" + idTablaBitacora).DataTable().columns.adjust();
+                    });
+
+                    $(document).on("click", ".btn-acceso", function() {
+                        const u = usuariosPorCodigo[$(this).data("usuario")];
+                        if (!u) return;
+                        switch ($(this).data("accion")) {
+                            case "asignar": asignar(u); break;
+                            case "desbloquear": desbloquear(u); break;
+                            case "desligar": desligar(u); break;
+                            case "cerrar": cerrarSesiones(u); break;
+                            case "bitacora":
+                                $("#bitacora_usuario").val(u.USUARIO);
+                                $('a[href="#tab_bitacora"]').tab("show");
+                                cargarBitacora();
+                                break;
+                        }
+                    });
+                });
+            </script>
+        HTML;
+
+        View::set('header', $this->_contenedor->header($this->getExtraHeader("Acceso Webapp")));
+        View::set('footer', $this->_contenedor->footer($extraFooter));
+        View::render('administracion_acceso_webapp');
+    }
+
+    /**
+     * JSON: webapp users with their password, phone, sessions and last access.
+     */
+    public function AccesoWebappUsuarios()
+    {
+        if (!$this->accesoWebappAutorizado(false)) return;
+        try {
+            echo json_encode(\Core\Model::Responde(true, 'OK', AccesoWebappService::listarUsuarios()));
+        } catch (\Throwable $e) {
+            echo json_encode(\Core\Model::Responde(false, 'No se pudo cargar la lista.', null, $e->getMessage()));
+        }
+    }
+
+    /**
+     * JSON: access log by user and local date range.
+     */
+    public function AccesoWebappBitacora()
+    {
+        if (!$this->accesoWebappAutorizado(false)) return;
+        echo json_encode(AccesoWebappService::consultarBitacora(
+            (string) ($_GET['usuario'] ?? ''),
+            (string) ($_GET['desde'] ?? ''),
+            (string) ($_GET['hasta'] ?? '')
+        ));
+    }
+
+    /**
+     * JSON: generates a temporary password; the plain value is returned only in this response.
+     */
+    public function AccesoWebappAsignarTemporal()
+    {
+        if (!$this->accesoWebappAutorizado(true)) return;
+        echo json_encode(AccesoWebappService::asignarTemporal(
+            $this->accesoWebappUsuarioSolicitado(),
+            (string) $this->__usuario,
+            (string) ($_SERVER['REMOTE_ADDR'] ?? '')
+        ));
+    }
+
+    /**
+     * JSON: clears the failed-attempts lock.
+     */
+    public function AccesoWebappDesbloquear()
+    {
+        if (!$this->accesoWebappAutorizado(true)) return;
+        echo json_encode(AccesoWebappService::desbloquear(
+            $this->accesoWebappUsuarioSolicitado(),
+            (string) $this->__usuario,
+            (string) ($_SERVER['REMOTE_ADDR'] ?? '')
+        ));
+    }
+
+    /**
+     * JSON: unlinks the phone and revokes sessions.
+     */
+    public function AccesoWebappDesligar()
+    {
+        if (!$this->accesoWebappAutorizado(true)) return;
+        echo json_encode(AccesoWebappService::desligarDispositivo(
+            $this->accesoWebappUsuarioSolicitado(),
+            (string) $this->__usuario,
+            (string) ($_SERVER['REMOTE_ADDR'] ?? '')
+        ));
+    }
+
+    /**
+     * JSON: revokes sessions keeping the phone.
+     */
+    public function AccesoWebappCerrarSesiones()
+    {
+        if (!$this->accesoWebappAutorizado(true)) return;
+        echo json_encode(AccesoWebappService::cerrarSesiones(
+            $this->accesoWebappUsuarioSolicitado(),
+            (string) $this->__usuario,
+            (string) ($_SERVER['REMOTE_ADDR'] ?? '')
+        ));
+    }
+
+    /**
+     * Sets JSON/no-cache headers and rejects non-admin users; actions also require a JSON POST
+     * (cross-site forms cannot send it without a CORS preflight).
+     */
+    private function accesoWebappAutorizado(bool $esAccion): bool
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('Pragma: no-cache');
+
+        if (!AccesoWebappService::esAdministrador($this->__perfil)) {
+            http_response_code(403);
+            echo json_encode(\Core\Model::Responde(false, 'No tienes permiso para esta opción.'));
+            return false;
+        }
+        if ($esAccion) {
+            $tipo = strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? ''));
+            if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || strpos($tipo, 'application/json') !== 0) {
+                http_response_code(405);
+                echo json_encode(\Core\Model::Responde(false, 'Solicitud no válida.'));
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private function accesoWebappUsuarioSolicitado(): string
+    {
+        $body = json_decode((string) file_get_contents('php://input'), true);
+        return is_array($body) ? (string) ($body['usuario'] ?? '') : '';
     }
 }

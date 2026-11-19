@@ -209,6 +209,7 @@ class Menu
     private function opcionesAdministracion()
     {
         return [
+            $this->enlace('Acceso Webapp', '/Administracion/AccesoWebapp/', ['ADMIN']),
             $this->enlace('Ajustar Hora de Cierre', '/Pagos/AjusteHoraCierre/', ['ADMIN', 'LGFR']),
             $this->enlace('Asignación Días Festivos', '/Pagos/DiasFestivos/', ['ADMIN', 'LGFR']),
             $this->enlace('Lista Negra (empleados)', '/Administracion/ListaNegraEmpleados/', ['ADMIN', 'LGFR', 'MAPH', 'MCDP', 'GOBA', 'FECR']),
