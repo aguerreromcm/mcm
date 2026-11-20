@@ -133,6 +133,10 @@
                                 </div>
                                 <div class="cd-barra-acciones-der">
                                     <span class="cd-seleccion" id="lblSeleccionPrecierre"></span>
+                                    <button type="button" class="btn btn-default cd-btn-excel" id="btnExcelPrecierre" disabled title="Descarga pendientes y procesados del día seleccionado">
+                                        <i class="fa fa-file-excel-o"></i>
+                                        <span>Descargar reporte</span>
+                                    </button>
                                     <button type="button" class="btn btn-success pgl-btn-aplicar" id="btnProcesarPrecierre" disabled>
                                         <i class="fa fa-check"></i>
                                         <span>Procesar ajustes</span>
@@ -738,6 +742,7 @@
             const hayConsulta = !!estado.fecha
             $(".cd-sin-consulta").toggle(!hayConsulta)
             $(".cd-contenido").toggle(hayConsulta)
+            if (!hayConsulta) $("#btnExcelPrecierre").prop("disabled", true)
         }
 
         const consultar = () => {
@@ -857,6 +862,13 @@
             ])
             llenaTabla(ID_TABLA_PRECIERRE, filas)
             actualizaSeleccionPrecierre()
+            $("#btnExcelPrecierre").prop("disabled", !(datos.fecha || estado.fecha))
+        }
+
+        const descargarExcelPrecierre = () => {
+            const fecha = (estado.precierre && estado.precierre.fecha) || estado.fecha
+            if (!fecha) return showWarning("Consulte primero una fecha.")
+            descargaExcel("/Operaciones/ExcelPrecierre/?" + $.param({ fecha }))
         }
 
         const actualizaSeleccionPrecierre = () => {
@@ -1396,6 +1408,7 @@
         $('.cd-tabs a[data-toggle="tab"]').on("shown.bs.tab", ajustaTablas)
 
         $("#btnProcesarPrecierre").on("click", procesarPrecierre)
+        $("#btnExcelPrecierre").on("click", descargarExcelPrecierre)
         $("#" + ID_TABLA_PRECIERRE).on("change", "input.cd-sel-pre", actualizaSeleccionPrecierre)
         $("#chkTodosPrecierre").on("click", (e) => e.stopPropagation()).on("change", function () {
             filasTabla(ID_TABLA_PRECIERRE).find("input.cd-sel-pre").prop("checked", this.checked)

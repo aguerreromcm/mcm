@@ -50,6 +50,7 @@ class Operaciones extends Controller
                 {$this->consultaServidor}
                 {$this->confirmarMovimiento}
                 {$this->formatoMoneda}
+                {$this->descargaExcel}
                 const estimado = $estimado
                 let ejecutando = $ejecutando
                 let inicioEjecucion = "$inicioEjecucion"
@@ -466,6 +467,63 @@ class Operaciones extends Controller
             $claves = isset($_POST['claves']) && is_array($_POST['claves']) ? $_POST['claves'] : [];
             return AjustesPrecierreService::procesar($_POST['fecha'] ?? '', (string) $this->__usuario, $claves);
         }, 'Error al procesar los ajustes.');
+    }
+
+    /**
+     * GET: fecha (Y-m-d). Excel de descuentos y refinanciamientos del día (pendientes y procesados).
+     */
+    function ExcelPrecierre()
+    {
+        if (ob_get_level()) {
+            ob_end_clean();
+        }
+
+        $estilos = \PHPSpreadsheet::GetEstilosExcel();
+        $texto = ['estilo' => $estilos['texto_centrado']];
+        $centrado = ['estilo' => $estilos['centrado']];
+        $moneda = ['estilo' => $estilos['moneda']];
+
+        $columnas = [
+            \PHPSpreadsheet::ColumnaExcel('ESTADO', 'Estado', $centrado),
+            \PHPSpreadsheet::ColumnaExcel('NOMBRE', 'Nombre'),
+            \PHPSpreadsheet::ColumnaExcel('CDGNS', 'Crédito', $texto),
+            \PHPSpreadsheet::ColumnaExcel('CICLO', 'Ciclo', $centrado),
+            \PHPSpreadsheet::ColumnaExcel('FECHA_FMT', 'Fecha', $centrado),
+            \PHPSpreadsheet::ColumnaExcel('TIPO_DESC', 'Tipo', $centrado),
+            \PHPSpreadsheet::ColumnaExcel('MONTO', 'Monto', $moneda),
+            \PHPSpreadsheet::ColumnaExcel('SALDO_CAPITAL', 'Saldo capital', $moneda),
+            \PHPSpreadsheet::ColumnaExcel('SALDO_INTERES', 'Saldo interés', $moneda),
+            \PHPSpreadsheet::ColumnaExcel('SALDO_TOTAL', 'Saldo total', $moneda),
+            \PHPSpreadsheet::ColumnaExcel('SALDO_DESPUES', 'Saldo después del ajuste', $moneda),
+        ];
+
+        $resultado = AjustesPrecierreService::reporte($_GET['fecha'] ?? '');
+        $datos = ($resultado['success'] ?? false) ? ($resultado['datos'] ?? []) : [];
+        $filas = $datos['movimientos'] ?? [];
+        $resumen = $datos['resumen'] ?? [];
+        $fechaNorm = $datos['fecha'] ?? date('Y-m-d');
+        $pendientes = (int) ($resumen['pendientes'] ?? 0);
+        $procesados = (int) ($resumen['procesados'] ?? 0);
+        $titulo = 'Pre cierre del ' . date('d/m/Y', strtotime($fechaNorm))
+            . " — {$pendientes} pendiente(s), {$procesados} procesado(s)";
+
+        // Valores seguros para PHP 8.5 / PhpSpreadsheet (evita null en html_entity_decode).
+        $filas = array_map(static function (array $f) {
+            foreach ($f as $k => $v) {
+                if ($v === null) {
+                    $f[$k] = '';
+                }
+            }
+            return $f;
+        }, $filas);
+
+        \PHPSpreadsheet::DescargaExcel(
+            'Precierre_DR_' . str_replace('-', '', $fechaNorm),
+            'Pre cierre',
+            $titulo,
+            $columnas,
+            $filas
+        );
     }
 
     /**

@@ -248,8 +248,9 @@
 
 .cierre-dia-page .cd-barra-acciones-der {
     display: flex;
+    flex-wrap: nowrap;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     margin-left: auto;
 }
 
@@ -259,8 +260,75 @@
     font-variant-numeric: tabular-nums;
 }
 
-.cierre-dia-page .cd-barra-acciones .pgl-btn-aplicar {
-    min-height: 36px;
+/* Misma caja para Descargar y Procesar (anula el min-height 44px de pgl-btn-aplicar). */
+.cierre-dia-page .cd-barra-acciones-der > .btn {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    height: 40px;
+    min-height: 40px;
+    max-height: 40px;
+    padding: 0 16px;
+    margin: 0;
+    border-width: 1px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.cierre-dia-page .cd-barra-acciones-der > .btn > i {
+    margin: 0;
+    line-height: 1;
+}
+
+.cierre-dia-page .cd-barra-acciones-der .cd-btn-excel {
+    background: linear-gradient(180deg, #2ea44f 0%, #238636 100%);
+    border-color: #238636;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(35, 134, 54, 0.24);
+}
+
+.cierre-dia-page .cd-barra-acciones-der .cd-btn-excel:hover,
+.cierre-dia-page .cd-barra-acciones-der .cd-btn-excel:focus {
+    background: linear-gradient(180deg, #3fb950 0%, #2ea44f 100%);
+    border-color: #2ea44f;
+    color: #fff;
+}
+
+.cierre-dia-page .cd-barra-acciones-der .cd-btn-excel:disabled {
+    opacity: 0.55;
+    color: #fff;
+    box-shadow: none;
+}
+
+.cierre-dia-page .cd-barra-acciones-der .pgl-btn-aplicar,
+.cierre-dia-page .cd-barra-acciones-der .pgl-btn-aplicar.btn-success {
+    background: linear-gradient(180deg, #2480cc 0%, #1a6fb5 100%);
+    border-color: #1a6fb5;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(26, 111, 181, 0.25);
+}
+
+.cierre-dia-page .cd-barra-acciones-der .pgl-btn-aplicar:hover,
+.cierre-dia-page .cd-barra-acciones-der .pgl-btn-aplicar:focus,
+.cierre-dia-page .cd-barra-acciones-der .pgl-btn-aplicar.btn-success:hover,
+.cierre-dia-page .cd-barra-acciones-der .pgl-btn-aplicar.btn-success:focus {
+    background: linear-gradient(180deg, #2f8fd9 0%, #1f7ac4 100%);
+    border-color: #1f7ac4;
+    color: #fff;
+}
+
+.cierre-dia-page .cd-barra-acciones-der .pgl-btn-aplicar:disabled,
+.cierre-dia-page .cd-barra-acciones-der .pgl-btn-aplicar[disabled] {
+    opacity: 0.55;
+    color: #fff;
+    box-shadow: none;
 }
 
 .cierre-dia-page .cd-tabla-scroll,

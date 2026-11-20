@@ -23,6 +23,33 @@ class AjustesPrecierreRepository
      */
     public function getMovimientosPendientes($fecha)
     {
+        return $this->consultarMovimientosDia($fecha, true);
+    }
+
+    /**
+     * Movimientos D y R de la fecha para el reporte: pendientes (ID_IMPORTACION null) y
+     * procesados (ID_IMPORTACION informado por SP_AJUSTES_PRECIERRE). Orden por SECUENCIA.
+     *
+     * @param string $fecha Y-m-d
+     * @return array
+     */
+    public function getMovimientosDia($fecha)
+    {
+        return $this->consultarMovimientosDia($fecha, false);
+    }
+
+    /**
+     * @param string $fecha Y-m-d
+     * @param bool $soloPendientes true = solo pantalla de pre cierre; false = reporte completo
+     * @return array
+     */
+    private function consultarMovimientosDia($fecha, $soloPendientes)
+    {
+        // Condición explícita: el reporte NUNCA filtra por ID_IMPORTACION.
+        $filtroPendientes = $soloPendientes
+            ? "AND PGD.ID_IMPORTACION IS NULL"
+            : "";
+
         $qry = <<<SQL
             SELECT
                 TO_CHAR(PGD.FECHA, 'YYYY-MM-DD HH24:MI:SS') AS FECHA_HORA,
@@ -33,6 +60,8 @@ class AjustesPrecierreRepository
                 PGD.TIPO,
                 PGD.MONTO,
                 NVL(TRIM(PGD.NOMBRE), '') AS NOMBRE,
+                PGD.ID_IMPORTACION,
+                CASE WHEN PGD.ID_IMPORTACION IS NULL THEN 'Pendiente' ELSE 'Procesado' END AS ESTADO,
                 SALDOTOTALPRN(
                     PGD.CDGEM, PGD.CDGNS, PGD.CICLO,
                     NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
@@ -52,7 +81,7 @@ class AjustesPrecierreRepository
                 AND PGD.MONTO != 0
                 AND PGD.FECHA >= TO_DATE(:f1, 'YYYY-MM-DD')
                 AND PGD.FECHA < TO_DATE(:f2, 'YYYY-MM-DD') + 1
-                AND PGD.ID_IMPORTACION IS NULL
+                {$filtroPendientes}
             ORDER BY
                 PGD.SECUENCIA
         SQL;

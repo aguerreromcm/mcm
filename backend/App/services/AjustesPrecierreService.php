@@ -73,6 +73,62 @@ class AjustesPrecierreService
     }
 
     /**
+     * Datos del reporte de pre cierre: movimientos D/R del día (pendientes y procesados) con saldos.
+     *
+     * @param string $fecha Y-m-d
+     * @return array { success, mensaje, datos: { fecha, movimientos, resumen } }
+     */
+    public static function reporte($fecha)
+    {
+        $fechaNorm = PagosAplicacionRepository::coerceFechaYmD($fecha);
+        if ($fechaNorm === null) {
+            return Model::Responde(false, 'Seleccione una fecha válida.', null, 'Fecha inválida');
+        }
+
+        $repo = new AjustesPrecierreRepository();
+        try {
+            $filas = $repo->getMovimientosDia($fechaNorm);
+        } catch (\Throwable $e) {
+            return Model::Responde(false, 'Error al consultar el reporte de pre cierre.', null, $e->getMessage());
+        }
+
+        $movimientos = array_map([self::class, 'calcularSaldosReporte'], $filas);
+        $resumen = [
+            'total' => count($movimientos),
+            'pendientes' => 0,
+            'procesados' => 0,
+            'descuentos' => 0,
+            'refinanciamientos' => 0,
+            'monto' => 0.0,
+        ];
+        foreach ($movimientos as $m) {
+            $resumen['monto'] += $m['MONTO'];
+            if (($m['ESTADO'] ?? '') === 'Procesado') {
+                $resumen['procesados']++;
+            } else {
+                $resumen['pendientes']++;
+            }
+            if ($m['TIPO'] === 'D') {
+                $resumen['descuentos']++;
+            } else {
+                $resumen['refinanciamientos']++;
+            }
+        }
+        $resumen['monto'] = round($resumen['monto'], 2);
+
+        $mensaje = $resumen['total'] === 0
+            ? 'No hay movimientos de descuento o refinanciamiento para la fecha seleccionada.'
+            : 'Se encontraron ' . $resumen['total'] . ' movimientos ('
+                . $resumen['pendientes'] . ' pendientes, ' . $resumen['procesados'] . ' procesados).';
+
+        return Model::Responde(true, $mensaje, [
+            'fecha' => $fechaNorm,
+            'movimientos' => $movimientos,
+            'resumen' => $resumen,
+        ]);
+    }
+
+    /**
      * Aplica los movimientos seleccionados. Cada ajuste se confirma por separado, así que un error
      * no revierte los ya aplicados.
      *
@@ -216,6 +272,69 @@ class AjustesPrecierreService
             'SALDO_TOTAL' => $total,
             'SALDO_DESPUES' => round($despues, 2),
             'EXCEDE' => $excede,
+        ];
+    }
+
+    /**
+     * Fila del reporte: pendientes usan el mismo cálculo de pantalla; en procesados PRN ya refleja el ajuste,
+     * así que se reconstruye el saldo previo sumando el monto aplicado.
+     *
+     * @param array $f Fila de AjustesPrecierreRepository::getMovimientosDia()
+     * @return array
+     */
+    private static function calcularSaldosReporte(array $f)
+    {
+        $tipo = strtoupper(trim((string) ($f['TIPO'] ?? '')));
+        $tipoDesc = $tipo === 'R' ? 'Refinanciamiento' : 'Descuento';
+        $estado = trim((string) ($f['ESTADO'] ?? ''));
+        if ($estado === '') {
+            $estado = ($f['ID_IMPORTACION'] ?? null) === null || $f['ID_IMPORTACION'] === ''
+                ? 'Pendiente'
+                : 'Procesado';
+        }
+
+        if ($estado !== 'Procesado') {
+            $row = self::calcularSaldos($f);
+            $row['ESTADO'] = 'Pendiente';
+            $row['TIPO_DESC'] = $tipoDesc;
+            return $row;
+        }
+
+        $monto = round((float) ($f['MONTO'] ?? 0), 2);
+        $despues = round((float) ($f['SALDO_TOTAL'] ?? 0), 2);
+        $capitalDespues = round((float) ($f['SALDO_CAPITAL'] ?? 0), 2);
+        $interesDespues = round($despues - $capitalDespues, 2);
+
+        if ($tipo === 'R') {
+            $total = round($despues + $monto, 2);
+            $capital = $capitalDespues;
+            $interes = round($total - $capital, 2);
+            if ($interes < 0) {
+                $interes = 0.0;
+                $capital = $total;
+            }
+        } else {
+            $capital = $capitalDespues;
+            $interes = round($interesDespues + $monto, 2);
+            $total = round($capital + $interes, 2);
+        }
+
+        return [
+            'FECHA' => substr((string) ($f['FECHA_HORA'] ?? ''), 0, 10),
+            'FECHA_FMT' => (string) ($f['FECHA_FMT'] ?? ''),
+            'CDGNS' => trim((string) ($f['CDGNS'] ?? '')),
+            'CICLO' => trim((string) ($f['CICLO'] ?? '')),
+            'SECUENCIA' => (string) ($f['SECUENCIA'] ?? ''),
+            'TIPO' => $tipo,
+            'TIPO_DESC' => $tipoDesc,
+            'NOMBRE' => trim((string) ($f['NOMBRE'] ?? '')),
+            'MONTO' => $monto,
+            'SALDO_CAPITAL' => $capital,
+            'SALDO_INTERES' => $interes,
+            'SALDO_TOTAL' => $total,
+            'SALDO_DESPUES' => $despues,
+            'ESTADO' => 'Procesado',
+            'EXCEDE' => false,
         ];
     }
 
