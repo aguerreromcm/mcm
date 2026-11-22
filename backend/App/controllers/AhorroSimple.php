@@ -64,9 +64,7 @@ class AhorroSimple extends Controller
                 sucursal = getParameterByName("id_sucursal")
 
                 $("#export_excel_consulta").click(function () {
-                    $("#all").attr(
-                        "action",
-                        "/Pagos/generarExcelConsulta/?Inicial=" +
+                    $("#all").attr("action", "/Pagos/generarExcelConsulta/?Inicial=" +
                             fecha1 +
                             "&Final=" +
                             fecha2 +
@@ -386,9 +384,7 @@ class AhorroSimple extends Controller
                 sucursal = getParameterByName("id_sucursal")
 
                 $("#export_excel_consulta").click(function () {
-                    $("#all").attr(
-                        "action",
-                        "/Pagos/generarExcelConsulta/?Inicial=" +
+                    $("#all").attr("action", "/Pagos/generarExcelConsulta/?Inicial=" +
                             fecha1 +
                             "&Final=" +
                             fecha2 +

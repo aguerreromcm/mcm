@@ -3208,9 +3208,7 @@ html;
                 usuario = "{$this->__usuario}"
 
                 $("#export_excel_consulta").click(function () {
-                    $("#all").attr(
-                        "action",
-                        "/CallCenter/HistorialGeneraExcel/?Inicial=" +
+                    $("#all").attr("action", "/CallCenter/HistorialGeneraExcel/?Inicial=" +
                             fecha1 +
                             "&Final=" +
                             fecha2 +
@@ -3950,9 +3948,12 @@ HTML;
                 cdgco = getParameterByName("Suc")
 
                 $("#export_excel_consulta_analistas").click(function () {
-                    $("#all").attr(
-                        "action",
-                        "/CallCenter/HistorialGeneraExcel/?Inicial=" + fecha1 + "&Final=" + fecha2 + "&Suc=" + cdgco
+                    $("#all").attr("action", "/CallCenter/HistorialGeneraExcel/?Inicial=" + 
+                        fecha1 + 
+                        "&Final=" + 
+                        fecha2 + 
+                        "&Suc=" + 
+                        cdgco
                     )
                     $("#all").attr("target", "_blank")
                     $("#all").submit()
