@@ -31,6 +31,8 @@ class CatalogoTiposOperacionService
     const ETIQUETA_DESCUENTO_LEALTAD = 'DESCUENTO DE CAMPAÑA POR LEALTAD';
     const CODIGO_DESCUENTO = 'D';
 
+    const AVISO_NO_DISPONIBLE = 'Catálogo de tipos de operación no disponible';
+
     private static $catalogo = null;
 
     /**
@@ -48,9 +50,26 @@ class CatalogoTiposOperacionService
             ORDER BY ORDEN NULLS LAST, CODIGO
         SQL;
 
-        $filas = (new Database())->queryAll($qry);
-        self::$catalogo = is_array($filas) ? $filas : [];
+        self::cargar((new Database())->queryAll($qry));
         return self::$catalogo;
+    }
+
+    /**
+     * False when the catalog query failed or returned no rows. Callers that guard
+     * data (the savings lock) must fail closed in that case.
+     */
+    public static function disponible()
+    {
+        return self::listar() !== [];
+    }
+
+    /** @param array|false $filas query result; a failure is cached for the request to avoid repeating it */
+    private static function cargar($filas)
+    {
+        self::$catalogo = is_array($filas) ? $filas : [];
+        if (self::$catalogo === []) {
+            error_log('CatalogoTiposOperacionService: CAT_TIPO_OPERACION returned no rows or could not be read');
+        }
     }
 
     /** @return array<string, string> code => label */
@@ -70,8 +89,10 @@ class CatalogoTiposOperacionService
         return array_merge(self::codigosFamilia([self::FAMILIA_AHORRO]), self::AJUSTES_AHORRO);
     }
 
+    /** Without a catalog every payment is treated as savings, so edit/delete stays locked (fail closed). */
     public static function esAhorro($codigo)
     {
+        if (!self::disponible()) return true;
         return in_array($codigo, self::codigosFamilia([self::FAMILIA_AHORRO]), true);
     }
 
@@ -129,6 +150,8 @@ class CatalogoTiposOperacionService
      */
     public static function opcionesSelect(array $excluir = [], $atributoAhorro = '', $descuentoLealtad = false)
     {
+        if (!self::disponible()) return self::opcion('', self::AVISO_NO_DISPONIBLE, ' disabled selected');
+
         $ahorro = self::codigosAhorro();
         $html = '';
         foreach (self::listar() as $fila) {
@@ -145,10 +168,18 @@ class CatalogoTiposOperacionService
         return $html;
     }
 
-    /** JSON safe to embed inside an inline <script>. */
+    /**
+     * JSON safe to embed inside an inline <script>. Invalid UTF-8 is substituted
+     * instead of failing, and any other failure yields an empty list, so the
+     * template never emits an empty assignment that would break the whole script.
+     */
     public static function json($valor)
     {
-        return json_encode($valor, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE);
+        $json = json_encode($valor, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($json !== false) return $json;
+
+        error_log('CatalogoTiposOperacionService: json_encode failed: ' . json_last_error_msg());
+        return '[]';
     }
 
     private static function opcion($codigo, $etiqueta, $atributo = '')
