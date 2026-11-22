@@ -1577,9 +1577,9 @@ sql;
               ,FECHA
               ,CDGOCPE
               ,SUM(TOTAL_PAGO) AS TOTAL_PAGOS
-              ,SUM(MULTA + MULTA_ELECTRONICA + MULTA_GESTORES) AS TOTAL_MULTA
+              ,SUM(MULTA) AS TOTAL_MULTA
               ,SUM(SEGURO) AS TOTAL_SEGURO
-              ,SUM(AHORRO + AHORRO_ELECTRONICO) AS TOTAL_AHORRO
+              ,SUM(AHORRO) AS TOTAL_AHORRO
               ,SUM(MONTO) AS MONTO_TOTAL
             FROM (
                 SELECT CO.CODIGO AS COD_SUC
@@ -1588,27 +1588,17 @@ sql;
                     ,TO_CHAR(PA.FECHA, 'DAY', 'NLS_DATE_LANGUAGE=SPANISH') 
                         || ' | ' || TO_CHAR(PA.FECHA, 'DD-MON-YYYY') AS FECHA_D
                     ,TO_CHAR(PA.FECHA, 'DD-MM-YYYY') AS FECHA
-                    ,DECODE(PA.TIPO, 'P', MONTO, 0) AS PAGOS
-                    ,DECODE(PA.TIPO, 'X', MONTO, 0) AS PAGOS_ELECTRONICOS
-                    ,DECODE(PA.TIPO, 'Y', MONTO, 0) AS PAGOS_EXCEDENTE
-                    ,DECODE(PA.TIPO, 'O', MONTO, 0) AS PAGOS_EXCEDENTE_ELECTRONICO
-                    ,DECODE(PA.TIPO,
-                            'P', MONTO,
-                            'X', MONTO,
-                            'Y', MONTO,
-                            'O', MONTO,
-                            0) AS TOTAL_PAGO
-                    ,DECODE(PA.TIPO, 'M', MONTO, 0) AS MULTA
-                    ,DECODE(PA.TIPO, 'Z', MONTO, 0) AS MULTA_GESTORES
-                    ,DECODE(PA.TIPO, 'L', MONTO, 0) AS MULTA_ELECTRONICA
-                    ,DECODE(PA.TIPO, 'S', MONTO, 0) AS SEGURO
-                    ,DECODE(PA.TIPO, 'B', MONTO, 0) AS AHORRO
-                    ,DECODE(PA.TIPO, 'F', MONTO, 0) AS AHORRO_ELECTRONICO
+                    -- Totals by catalog family (NOMBRE_APP), so new types such as PSC are included
+                    ,CASE WHEN CT.NOMBRE_APP IN ('Pago', 'Pago excedente') THEN PA.MONTO ELSE 0 END AS TOTAL_PAGO
+                    ,CASE WHEN CT.NOMBRE_APP IN ('Multa', 'Multa gestores') THEN PA.MONTO ELSE 0 END AS MULTA
+                    ,DECODE(PA.TIPO, 'S', PA.MONTO, 0) AS SEGURO
+                    ,CASE WHEN CT.NOMBRE_APP = 'Ahorro' THEN PA.MONTO ELSE 0 END AS AHORRO
                     ,PA.MONTO
                     ,PA.CDGOCPE
                 FROM PAGOSDIA PA
                     INNER JOIN PRN ON PRN.CDGNS = PA.CDGNS
                     INNER JOIN CO  ON CO.CODIGO = PRN.CDGCO
+                    LEFT JOIN CAT_TIPO_OPERACION CT ON CT.CODIGO = PA.TIPO
                 WHERE NVL(PA.ESTATUS_CAJA, 0) != 2
                     AND PRN.CICLO = PA.CICLO
                     AND PRN.CDGCO = CO.CODIGO
@@ -1651,7 +1641,7 @@ sql;
                 SUM(
                     CASE 
                         WHEN PA.ESTATUS <> 'E'
-                            AND NVL(PA.TIPO_ORIGINAL, PA.TIPO) IN ('P','X','Y','O','M','Z','L','S','B','F')
+                            AND NVL(PA.TIPO_ORIGINAL, PA.TIPO) IN (SELECT CODIGO FROM CAT_TIPO_OPERACION WHERE EN_APP = 'S')
                             AND NVL(PA.ESTATUS_CAJA,0) <> 0 
                         THEN 1
                         ELSE 0
@@ -1666,7 +1656,7 @@ sql;
                 SUM(
                     CASE 
                         WHEN PA.ESTATUS <> 'E'
-                            AND PA.TIPO IN ('P','X','Y','O','M','Z','L','S','B','F')
+                            AND NVL(PA.TIPO_ORIGINAL, PA.TIPO) IN (SELECT CODIGO FROM CAT_TIPO_OPERACION WHERE EN_APP = 'S')
                         THEN 1
                         ELSE 0
                     END
@@ -1674,7 +1664,7 @@ sql;
                 SUM(
                     CASE
                         WHEN PA.ESTATUS <> 'E'
-                            AND PA.TIPO IN ('P','X','Y','O','M','Z','L','S','B','F')
+                            AND NVL(PA.TIPO_ORIGINAL, PA.TIPO) IN (SELECT CODIGO FROM CAT_TIPO_OPERACION WHERE EN_APP = 'S')
                             AND NVL(PA.ESTATUS_CAJA,0) <> 0
                         THEN
                             PA.MONTO
@@ -1756,7 +1746,7 @@ sql;
                 AND NOT PA.FREGISTRO_APP IS NULL
                 IMPRIMIR
             ORDER BY
-                DECODE(PA.TIPO, 'P', 1, 'M', 2, 'G', 3, 'D', 4, 'R', 5) ASC, PA.FREGISTRO
+                (SELECT CT.ORDEN FROM CAT_TIPO_OPERACION CT WHERE CT.CODIGO = PA.TIPO) ASC NULLS LAST, PA.FREGISTRO
         SQL;
 
         $params = [
@@ -1868,7 +1858,7 @@ sql;
             WHERE
                 PA.CDGOCPE = :ejecutivo
                 AND TRUNC(PA.FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY')
-                AND PA.TIPO IN ('P','X','Y','O','M','Z','L','S','B','F')
+                AND NVL(PA.TIPO_ORIGINAL, PA.TIPO) IN (SELECT CODIGO FROM CAT_TIPO_OPERACION WHERE EN_APP = 'S')
                 AND PRN.CICLO = PA.CICLO
                 AND PRN.CDGCO = :sucursal
                 AND PA.ESTATUS = 'P'
@@ -1902,7 +1892,7 @@ sql;
             WHERE
                 PA.CDGOCPE = :ejecutivo
                 AND TRUNC(PA.FECHA) = TO_DATE(:fecha, 'DD-MM-YYYY')
-                AND PA.TIPO IN ('P','X','Y','O','M','Z','L','S','B','F')
+                AND NVL(PA.TIPO_ORIGINAL, PA.TIPO) IN (SELECT CODIGO FROM CAT_TIPO_OPERACION WHERE EN_APP = 'S')
                 AND PRN.CICLO = PA.CICLO
                 AND PRN.CDGCO = :sucursal
                 AND PA.ESTATUS = 'P'

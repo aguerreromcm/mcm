@@ -93,32 +93,7 @@
                                 <label for="tipo_pago_detalle">Tipo de Pago *</label>
                                 <select class="form-control" autofocus type="select" id="tipo_pago_detalle" name="tipo_pago_detalle">
                                     <option value="0" disabled>Seleccione una opción</option>
-                                    <option value="P">PAGO</option>
-                                    <option value="X">PAGO ELECTRÓNICO</option>
-                                    <option value="Y">PAGO EXCEDENTE</option>
-                                    <option value="O">PAGO EXCEDENTE ELECTRÓNICO</option>
-                                    <option value="M">MULTA</option>
-                                    <option value="Z">MULTA GESTORES</option>
-                                    <option value="L">MULTA ELECTRÓNICA</option>
-                                    <option value="D">DESCUENTO</option>
-
-                                    <?php
-                                    if (
-                                        $cdgco == '007' ||
-                                        $cdgco == '014' ||
-                                        $cdgco == '020' ||
-                                        $cdgco == '025' ||
-                                        $cdgco == '026' ||
-                                        $cdgco == '027' ||
-                                        $usuario == 'AMGM' ||
-                                        $usuario == 'GASC'
-                                    ) echo '<option value="D">DESCUENTO DE CAMPAÑA POR LEALTAD</option>';
-                                    ?>
-
-                                    <option value="R">REFINANCIAMIENTO</option>
-                                    <option value="S">SEGURO</option>
-                                    <option value="B">AHORRO</option>
-                                    <option value="F">AHORRO ELECTRÓNICO</option>
+                                    <?= \App\services\CatalogoTiposOperacionService::opcionesSelect(['A', 'C', 'E', 'G', 'H'], '', in_array($cdgco, ['007', '014', '020', '025', '026', '027']) || in_array($usuario, ['AMGM', 'GASC'])) ?>
                                 </select>
                             </div>
                         </div>

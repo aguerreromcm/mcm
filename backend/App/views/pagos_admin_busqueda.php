@@ -2,6 +2,7 @@
 
 <?php
 $oculto = $Administracion[0]['TIPO_C'] === 'MAS POR TI' || $Administracion[0]['SITUACION'] !== 'E' ? 'style="display:none;"' : '';
+$descuentoLealtad = in_array($cdgco, ['007', '014', '020', '025', '026', '027']) || in_array($usuario, ['AMGM', 'GASC']);
 ?>
 
 <div class="right_col">
@@ -164,39 +165,7 @@ $oculto = $Administracion[0]['TIPO_C'] === 'MAS POR TI' || $Administracion[0]['S
                                 <div class="form-group">
                                     <label for="tipo">Tipo de Operación</label>
                                     <select class="form-control mr-sm-3" autofocus type="select" id="tipo" name="tipo">
-                                        <option value="P">PAGO</option>
-                                        <option value="X">PAGO ELECTRÓNICO</option>
-                                        <option value="Y">PAGO EXCEDENTE</option>
-                                        <option value="O">PAGO EXCEDENTE ELECTRÓNICO</option>
-                                        <option value="M">MULTA</option>
-                                        <option value="Z">MULTA GESTORES</option>
-                                        <option value="L">MULTA ELECTRÓNICA</option>
-                                        <option value="G">GARANTÍA</option>
-                                        <option value="D">DESCUENTO</option>
-                                        <?php
-                                        if (
-                                            $cdgco == '007' ||
-                                            $cdgco == '014' ||
-                                            $cdgco == '020' ||
-                                            $cdgco == '025' ||
-                                            $cdgco == '026' ||
-                                            $cdgco == '027'
-
-
-                                            || $usuario == 'AMGM' || $usuario == 'GASC'
-                                        ) {
-                                            $imp = '<option value="D">DESCUENTO DE CAMPAÑA POR LEALTAD</option>';
-
-                                            echo $imp;
-                                        }
-                                        ?>
-                                        <option value="R">REFINANCIAMIENTO</option>
-                                        <option value="H">RECOMIENDA</option>
-                                        <option value="S">SEGURO</option>
-                                        <option <?= $oculto ?> value="B">AHORRO</option>
-                                        <option <?= $oculto ?> value="F">AHORRO ELECTRÓNICO</option>
-                                        <option <?= $oculto ?> value="E">ABONO AHORRO (AJUSTE)</option>
-                                        <option <?= $oculto ?> value="A">RETIRO AHORRO (AJUSTE)</option>
+                                        <?= \App\services\CatalogoTiposOperacionService::opcionesSelect(['C'], $oculto, $descuentoLealtad) ?>
                                     </select>
                                 </div>
                             </div>
@@ -298,22 +267,7 @@ $oculto = $Administracion[0]['TIPO_C'] === 'MAS POR TI' || $Administracion[0]['S
                                 <div class="form-group">
                                     <label for="tipo_e">Tipo de Operación</label>
                                     <select class="form-control mr-sm-3" autofocus type="select" id="tipo_e" name="tipo_e">
-                                        <option value="P">PAGO</option>
-                                        <option value="X">PAGO ELECTRÓNICO</option>
-                                        <option value="Y">PAGO EXCEDENTE</option>
-                                        <option value="O">PAGO EXCEDENTE ELECTRÓNICO</option>
-                                        <option value="M">MULTA</option>
-                                        <option value="Z">MULTA GESTORES</option>
-                                        <option value="L">MULTA ELECTRÓNICA</option>
-                                        <option value="G">GARANTÍA</option>
-                                        <option value="D">DESCUENTO</option>
-                                        <option value="R">REFINANCIAMIENTO</option>
-                                        <option value="H">RECOMIENDA</option>
-                                        <option value="S">SEGURO</option>
-                                        <option <?= $oculto ?> value="B">AHORRO</option>
-                                        <option <?= $oculto ?> value="F">AHORRO ELECTRÓNICO</option>
-                                        <option <?= $oculto ?> value="E">ABONO AHORRO (AJUSTE)</option>
-                                        <option <?= $oculto ?> value="A">RETIRO AHORRO (AJUSTE)</option>
+                                        <?= \App\services\CatalogoTiposOperacionService::opcionesSelect(['C'], $oculto) ?>
                                     </select>
                                 </div>
                             </div>
@@ -415,22 +369,7 @@ $oculto = $Administracion[0]['TIPO_C'] === 'MAS POR TI' || $Administracion[0]['S
                                 <div class="form-group">
                                     <label for="tipo_admin">Tipo de Operación</label>
                                     <select class="form-control mr-sm-3" autofocus type="select" id="tipo_admin" name="tipo_admin">
-                                        <option value="P">PAGO</option>
-                                        <option value="X">PAGO ELECTRÓNICO</option>
-                                        <option value="Y">PAGO EXCEDENTE</option>
-                                        <option value="O">PAGO EXCEDENTE ELECTRÓNICO</option>
-                                        <option value="M">MULTA</option>
-                                        <option value="Z">MULTA GESTORES</option>
-                                        <option value="L">MULTA ELECTRÓNICA</option>
-                                        <option value="G">GARANTÍA</option>
-                                        <option value="D">DESCUENTO</option>
-                                        <option value="R">REFINANCIAMIENTO</option>
-                                        <option value="H">RECOMIENDA</option>
-                                        <option value="S">SEGURO</option>
-                                        <option <?= $oculto ?> value="B">AHORRO</option>
-                                        <option <?= $oculto ?> value="F">AHORRO ELECTRÓNICO</option>
-                                        <option <?= $oculto ?> value="E">ABONO AHORRO (AJUSTE)</option>
-                                        <option <?= $oculto ?> value="A">RETIRO AHORRO (AJUSTE)</option>
+                                        <?= \App\services\CatalogoTiposOperacionService::opcionesSelect(['C'], $oculto) ?>
                                     </select>
                                 </div>
                             </div>

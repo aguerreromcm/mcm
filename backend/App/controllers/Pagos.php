@@ -9,6 +9,7 @@ use Core\MasterDom;
 use Core\Controller;
 use App\models\Pagos as PagosDao;
 use App\models\CallCenter as CallCenterDao;
+use App\services\CatalogoTiposOperacionService;
 
 class Pagos extends Controller
 {
@@ -24,10 +25,14 @@ class Pagos extends Controller
 
     public function index()
     {
+        $tiposLiquidado = CatalogoTiposOperacionService::json(CatalogoTiposOperacionService::opcionesLiquidado(CatalogoTiposOperacionService::AJUSTES_AHORRO));
+        $mapTipos = CatalogoTiposOperacionService::json((object) array_flip(CatalogoTiposOperacionService::etiquetas()));
+
         $extraFooter = <<<HTML
             <script>
                 {$this->mensajes}
                 {$this->configuraTabla}
+                const tiposLiquidado = {$tiposLiquidado}
                 {$this->confirmarMovimiento}
                 {$this->parseaNumero}
                 {$this->consultaServidor}
@@ -121,36 +126,7 @@ class Pagos extends Controller
                     if (estatus === "LIQUIDADO") {
                         select = $("#tipo")
                         select.empty()
-                        select.append(
-                            $("<option>", {
-                                value: "M",
-                                text: "MULTA"
-                            }),
-                            $("<option>", {
-                                value: "Z",
-                                text: "MULTA GESTORES"
-                            }),
-                            $("<option>", {
-                                value: "L",
-                                text: "MULTA ELECTRÓNICA"
-                            }),
-                            $("<option>", {
-                                value: "Y",
-                                text: "PAGO EXCEDENTE"
-                            }),
-                            $("<option>", {
-                                value: "O",
-                                text: "PAGO EXCEDENTE ELECTRÓNICO"
-                            }),
-                            $("<option>", {
-                                value: "E",
-                                text: "ABONO AHORRO (AJUSTE)"
-                            }),
-                            $("<option>", {
-                                value: "A",
-                                text: "RETIRO AHORRO (AJUSTE)"
-                            })
-                        )
+                        select.append(tiposLiquidado.map((tipo) => $("<option>", tipo)))
                     }
                 }
 
@@ -166,36 +142,7 @@ class Pagos extends Controller
                     if (estatus == "LIQUIDADO") {
                         select = $("#tipo_e")
                         select.empty()
-                        select.append(
-                            $("<option>", {
-                                value: "Z",
-                                text: "MULTA GESTORES"
-                            }),
-                            $("<option>", {
-                                value: "Z",
-                                text: "MULTA GESTORES"
-                            }),
-                            $("<option>", {
-                                value: "L",
-                                text: "MULTA ELECTRÓNICA"
-                            }),
-                            $("<option>", {
-                                value: "Y",
-                                text: "PAGO EXCEDENTE"
-                            }),
-                            $("<option>", {
-                                value: "O",
-                                text: "PAGO EXCEDENTE ELECTRÓNICO"
-                            }),
-                            $("<option>", {
-                                value: "E",
-                                text: "ABONO AHORRO (AJUSTE)"
-                            }),
-                            $("<option>", {
-                                value: "A",
-                                text: "RETIRO AHORRO (AJUSTE)"
-                            })
-                        )
+                        select.append(tiposLiquidado.map((tipo) => $("<option>", tipo)))
                     }
 
                     $("#tipo_e").val(tipo_pago)
@@ -203,24 +150,7 @@ class Pagos extends Controller
                     $("#modal_editar_pago").modal("show")
                 }
                 
-                const mapTipos = {
-                    "PAGO": "P",
-                    "PAGO ELECTRÓNICO": "X",
-                    "PAGO EXCEDENTE": "Y",
-                    "MULTA": "M",
-                    "MULTA GESTORES": "Z",
-                    "MULTA ELECTRÓNICA": "L",
-                    "GARANTÍA": "G",
-                    "DESCUENTO": "D",
-                    "REFINANCIAMIENTO": "R",
-                    "RECOMIENDA": "H",
-                    "SEGURO": "S",
-                    "AHORRO": "B",
-                    "AHORRO ELECTRÓNICO": "F",
-                    "PAGO EXCEDENTE ELECTRÓNICO": "O",
-                    "ABONO AHORRO (AJUSTE)": "E",
-                    "RETIRO AHORRO (AJUSTE)": "A"
-                };
+                const mapTipos = {$mapTipos};
 
                 const muestraAdmin = (e) => {
                     const tr = e.target.tagName === "I" ? e.target.parentElement.parentElement.parentElement : e.target.parentElement.parentElement
@@ -350,7 +280,7 @@ class Pagos extends Controller
             $icono = $value['MEDIO'] == 'APP' ? 'mobile' : 'female';
 
             if ($value['DESIGNATION_ADMIN'] == 'SI') {
-                if ($value['TIP'] == 'B' || $value['TIP'] == 'F') {
+                if (CatalogoTiposOperacionService::esAhorro($value['TIP'])) {
                     $editar = <<<HTML
                         <button type="button" class="btn btn-success btn-circle" onclick="Desactivado()" style="background: #E5E5E5"><i class="fa fa-edit"></i></button>
                         <button type="button" class="btn btn-danger btn-circle"  onclick="Desactivado()" style="background: #E5E5E5"><i class="fa fa-trash"></i></button>
@@ -383,7 +313,7 @@ class Pagos extends Controller
 
             $lista_SU = ['MCDP', 'AMGM', 'LVGA'];
 
-            if (in_array($this->__usuario, $lista_SU) && ($inicio_f != $fecha_base && $value['DESIGNATION_ADMIN'] != 'SI') || ($value['TIP'] == 'B' || $value['TIP'] == 'F')) $editar .= <<<HTML
+            if (in_array($this->__usuario, $lista_SU) && ($inicio_f != $fecha_base && $value['DESIGNATION_ADMIN'] != 'SI') || CatalogoTiposOperacionService::esAhorro($value['TIP'])) $editar .= <<<HTML
                 <button type="button" class="btn btn-warning btn-circle $this->__usuario"><i class="fa fa-key"></i></button>
             HTML;
 
@@ -910,22 +840,7 @@ html;
             $f_actual = date("Y-m-d");
             $f_anterior = date("H:i:s") <= $horaCierre ? self::DiaHabilAnterior($f_actual, $festivos) : $f_actual;
 
-            $etiquetas_pago = [
-                'P' => 'PAGO',
-                'X' => 'PAGO ELECTRÓNICO',
-                'Y' => 'PAGO EXCEDENTE',
-                'O' => 'PAGO EXCEDENTE ELECTRÓNICO',
-                'M' => 'MULTA',
-                'Z' => 'MULTA GESTORES',
-                'L' => 'MULTA ELECTRÓNICA',
-                'G' => 'GARANTÍA',
-                'D' => 'DESCUENTO',
-                'R' => 'REFINANCIAMIENTO',
-                'H' => 'RECOMIENDA',
-                'S' => 'SEGURO',
-                'B' => 'AHORRO',
-                'F' => 'AHORRO ELECTRÓNICO'
-            ];
+            $etiquetas_pago = CatalogoTiposOperacionService::etiquetas();
 
             $etiquetas_situacion = [
                 'E' => 'ENTREGADO',
@@ -959,13 +874,13 @@ html;
                     $color_celda = "background-color: #FFC733 !important;";
                     $check_visible = 'display:none;';
 
-                    if (in_array($value['TIPO'], ['P', 'X', 'Y', 'O', 'M', 'Z', 'L', 'G', 'D', 'R', 'H', 'S', 'B', 'F'])) {
+                    if (CatalogoTiposOperacionService::existe($value['TIPO'])) {
                         $color_celda = '';
                         $check_visible = '';
                     }
 
                     $tipo = $value['TIPO'];
-                    if (in_array($tipo, ['X', 'O', 'L', 'F'])) $pagos_electronico++;
+                    if (CatalogoTiposOperacionService::esElectronico($tipo)) $pagos_electronico++;
                     else $pagos_efectivo++;
 
                     $json = json_encode($value);
@@ -1678,10 +1593,17 @@ html;
 
     public function PagosRegistro()
     {
+        $tiposLiquidado = CatalogoTiposOperacionService::json(CatalogoTiposOperacionService::opcionesLiquidado());
+        $tiposAhorro = CatalogoTiposOperacionService::json(CatalogoTiposOperacionService::codigosFamilia([CatalogoTiposOperacionService::FAMILIA_AHORRO]));
+        $tiposNoRepetibles = CatalogoTiposOperacionService::json((object) CatalogoTiposOperacionService::noRepetibles());
+
         $extraFooter = <<<HTML
             <script>
                 {$this->mensajes}
                 {$this->configuraTabla}
+                const tiposLiquidado = {$tiposLiquidado}
+                const tiposAhorro = {$tiposAhorro}
+                const tiposNoRepetibles = {$tiposNoRepetibles}
                 {$this->confirmarMovimiento}
                 {$this->parseaNumero}
 
@@ -1748,8 +1670,8 @@ html;
                     let texto = $("#ejecutivo :selected").text()
                     let tipo = $("#tipo").val()
 
-                    // Validar si es Ahorro (B o F)
-                    if (tipo === "B" || tipo === "F") {
+                    // Savings payments cannot be modified once registered
+                    if (tiposAhorro.includes(tipo)) {
                         const subTititulo = "Una vez registrado, no podrá ser modificado.\\n\\n¿Desea continuar?"
 
                         confirmarMovimiento("Registro de Ahorro", subTititulo)
@@ -1812,28 +1734,7 @@ html;
 
                         select = $("#tipo")
                         select.empty()
-                        select.append(
-                            $("<option>", {
-                                value: "M",
-                                text: "MULTA"
-                            }),
-                            $("<option>", {
-                                value: "Z",
-                                text: "MULTA GESTORES"
-                            }),
-                            $("<option>", {
-                                value: "L",
-                                text: "MULTA ELECTRÓNICA"
-                            }),
-                            $("<option>", {
-                                value: "Y",
-                                text: "PAGO EXCEDENTE"
-                            }),
-                            $("<option>", {
-                                value: "O",
-                                text: "PAGO EXCEDENTE ELECTRÓNICO"
-                            })
-                        )
+                        select.append(tiposLiquidado.map((tipo) => $("<option>", tipo)))
 
                         if (ciclo != "01") {
                             $("#ciclo").empty()
@@ -1855,28 +1756,7 @@ html;
                     if (estatus == "LIQUIDADO") {
                         select = $("#tipo_e")
                         select.empty()
-                        select.append(
-                            $("<option>", {
-                                value: "Z",
-                                text: "MULTA GESTORES"
-                            }),
-                            $("<option>", {
-                                value: "Z",
-                                text: "MULTA GESTORES"
-                            }),
-                            $("<option>", {
-                                value: "L",
-                                text: "MULTA ELECTRÓNICA"
-                            }),
-                            $("<option>", {
-                                value: "Y",
-                                text: "PAGO EXCEDENTE"
-                            }),
-                            $("<option>", {
-                                value: "O",
-                                text: "PAGO EXCEDENTE ELECTRÓNICO"
-                            })
-                        )
+                        select.append(tiposLiquidado.map((tipo) => $("<option>", tipo)))
                     }
 
                     $("#tipo_e").val(tipo_pago)
@@ -1961,12 +1841,15 @@ html;
 
                 const validaSeguro = () =>{
                     const cicloActual = $("#cicloActual").text().trim()
-                    const filas = $("#pagosRegistrados").DataTable().data()
-                    const seguro = filas.filter(fila => fila[4] === cicloActual && fila[6] === "SEGURO").length === 0
+                    const filas = $("#pagosRegistrados").DataTable().data().toArray()
 
-                    const muestraS = seguro ? "block" : "none"
-                    $("#tipo option[value='S']").css("display", muestraS)
-                    $("#tipo_e option[value='S']").css("display", muestraS)
+                    // Types that cannot repeat in a cycle are hidden once registered in the current one
+                    Object.entries(tiposNoRepetibles).forEach(([codigo, etiqueta]) => {
+                        const disponible = !filas.some((fila) => fila[4] === cicloActual && fila[6] === etiqueta)
+                        const muestra = disponible ? "block" : "none"
+                        $("#tipo option[value='" + codigo + "']").css("display", muestra)
+                        $("#tipo_e option[value='" + codigo + "']").css("display", muestra)
+                    })
                 }
 
                 $(document).ready(() => {
@@ -2054,7 +1937,7 @@ html;
             }
 
             if ($value['DESIGNATION'] == 'SI') {
-                if ($value['TIP'] == 'B' || $value['TIP'] == 'F') {
+                if (CatalogoTiposOperacionService::esAhorro($value['TIP'])) {
                     $editar = <<<HTML
                             <button type="button" class="btn btn-success btn-circle" onclick="Desactivado()" style="background: #E5E5E5"><i class="fa fa-edit"></i></button>
                             <button type="button" class="btn btn-danger btn-circle"  onclick="Desactivado()" style="background: #E5E5E5"><i class="fa fa-trash"></i></button>
@@ -2090,7 +1973,7 @@ html;
                 if (($inicio_b == $fecha_base) ||  $fecha_base >= $date_past_b && $AdministracionOne[2]['FECHA_CAPTURA'] <= $AdministracionOne[2]['FECHA_CAPTURA']) // aqui poner el dia en que se estaran capturando
                 {
                     if ($horaActual <= $hora_cierre && $value['DESIGNATION'] == 'SI') { // AQUI SE HIZO EL AJUSTE 25/06/2025
-                        if ($value['TIP'] == 'B' || $value['TIP'] == 'F') {
+                        if (CatalogoTiposOperacionService::esAhorro($value['TIP'])) {
                             $editar = <<<HTML
 									<button type="button" class="btn btn-success btn-circle" onclick="Desactivado()" style="background: #E5E5E5"><i class="fa fa-edit"></i></button>
 									<button type="button" class="btn btn-danger btn-circle"  onclick="Desactivado()" style="background: #E5E5E5"><i class="fa fa-trash"></i></button>
